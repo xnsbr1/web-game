@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.13.0">
+<meta name="game-build" content="1.13.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -935,6 +935,10 @@ function drawTreeLine(ctx,from,to,color){
  ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);
  ctx.strokeStyle=color;ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
 }
+function treeTier(entry){
+ if(entry.rank)return '작은';
+ return entry.perk===2||entry.perk===5?'큰':'중간';
+}
 function renderGrowth(previousScroll){
  const growth=panel('플레이어 스킬 트리');
  growth.classList.add('tree-panel');
@@ -982,6 +986,7 @@ function renderGrowth(previousScroll){
     $('tree-'+branch+'-'+index)?.focus?.({preventScroll:true});
    },false,'tree-node');
    node.id='tree-'+branch+'-'+index;
+   node.dataset.tier=treeTier(entry);
    placeTreeNode(node,point);
    node.style.setProperty('--tree-color',config.color);
    if(learned)node.classList.add('learned');
@@ -989,7 +994,7 @@ function renderGrowth(previousScroll){
    if(!entry.rank&&entry.perk!==3)node.classList.add('has-perk');
    if(entry.perk>=4)node.classList.add('side-perk');
    const name=entry.rank?training[branch].name+' '+entry.rank+'단계':status.perk.name;
-   node.setAttribute('aria-label',name+(learned?', 습득 완료':ready?'':', 잠김'));
+   node.setAttribute('aria-label',treeTier(entry)+' 노드 · '+name+(learned?', 습득 완료':ready?'':', 잠김'));
    node.setAttribute('aria-pressed',String(treeSelection.branch===branch&&treeSelection.index===index));
    map.append(node);
   }
@@ -1005,7 +1010,7 @@ function placeTreeNode(node,point){
 function renderTrainingDetail(parent){
  const {branch,index}=treeSelection,entry=trainingNodes[index],current=trainingLevel(branch);
  const stat=training[branch];
- const card=document.createElement('article');card.className='item tree-detail';parent.append(card);
+ const card=document.createElement('article');card.className='item tree-detail';parent.append(card);paragraph(card,treeTier(entry)+' 노드');
  if(entry.rank){
   const rank=entry.rank,lv=trainingUnlockLevels[rank-1];
   paragraph(card,stat.name+' '+rank+'단계 · +'+stat.percent+'%','section-label');
@@ -3056,6 +3061,9 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 #menu .tree-detail{margin-top:10px}
 .daily-stock{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#menu .daily-stock button{font-size:13px;padding:8px 3px;min-height:56px}
 #reserveSkill{position:absolute;z-index:2;right:calc(92px + env(safe-area-inset-right));bottom:calc(22px + env(safe-area-inset-bottom));width:62px;height:62px;border-radius:50%;color:#102535;font-weight:800;padding:2px}
+#menu .tree-node[data-tier="작은"]{width:44px;font-size:14px}
+#menu .tree-node[data-tier="중간"]{width:54px;font-size:20px;border-radius:15px}
+#menu .tree-node[data-tier="큰"]{width:66px;font-size:26px;border-radius:21px;border-style:double;border-width:5px}
 </style>
 </body></html>
 
