@@ -58,12 +58,12 @@ aside h2{font-size:15px;margin:0 0 8px}
 #best{color:var(--muted);font-size:11px}
 @media(max-width:760px){main{grid-template-columns:minmax(0,1fr)}.cards{grid-template-columns:repeat(3,minmax(0,1fr))}.detail{min-height:36px}aside{padding:10px}header{margin-bottom:12px}.shell{padding-top:14px}}
 @media(max-width:475px){.crest{width:29px;height:34px;font-size:17px}.brand{gap:6px}.subtitle{display:none}header{gap:5px}.stat{min-width:44px;padding:3px 4px}.stat span{font-size:9px}.stat strong{font-size:14px}.stats{gap:3px}.card{grid-template-columns:21px 1fr;gap:3px;padding:5px;min-height:48px}.icon{width:19px;height:22px;font-size:14px}.card small{display:none}.price{grid-column:2;font-size:10px;line-height:1}.board-footer{padding:6px}.quiet{padding:4px 6px}#status{font-size:11px}.shell{padding-inline:8px}}
-.workshop{border-bottom:1px solid var(--outline);padding-bottom:12px;margin-bottom:12px}.workshop p{font-size:12px;color:var(--gold);margin:8px 0}.workshop button{min-height:34px}#rail[hidden]{display:none}</style>
+.workshop{border-bottom:1px solid var(--outline);padding-bottom:12px;margin-bottom:12px}.workshop p{font-size:12px;color:var(--gold);margin:8px 0}.workshop button{min-height:34px}#rail[hidden]{display:none}summary{cursor:pointer;font-weight:750;padding:10px 0}.workshop label{display:block;margin:6px 0}.workshop select{padding:7px;border-radius:6px;background:#263731;color:var(--ink);border:1px solid var(--outline)}#spell{margin:2px 0 8px}#nextStage{margin-bottom:6px}.entrance,.base{bottom:auto;right:auto}.workshop{margin:8px 0 0;border-top:1px solid var(--outline)}@media(max-width:760px){.board-footer{min-height:40px}.card{min-height:45px}.cards{grid-template-columns:repeat(3,1fr)}.pad{min-height:30px;min-width:30px}} </style>
 </head>
 <body>
 <div class="shell">
 <header>
-  <div class="brand"><div class="crest" aria-hidden="true">◆</div><div><h1 id="region">녹안 협곡</h1><p class="subtitle">협곡을 지나오는 적으로부터 요새를 지켜라</p></div></div>
+  <div class="brand"><div class="crest" aria-hidden="true">◆</div><div><h1 id="region">녹안 협곡</h1><p class="subtitle">6개 지역 · 24개 스테이지</p></div></div>
   <div class="stats">
     <div class="stat"><span>웨이브</span><strong id="wave">0 / 10</strong></div>
     <div class="stat"><span>골드</span><strong id="gold">160</strong></div>
@@ -76,7 +76,7 @@ aside h2{font-size:15px;margin:0 0 8px}
       <canvas id="map" width="720" height="520" aria-hidden="true"></canvas>
       <div class="pads" id="pads"></div>
       <span class="field-label entrance">적 진입</span><span class="field-label base">요새</span>
-      <div class="overlay" id="overlay" hidden><div class="result"><h2 id="resultTitle"></h2><p id="resultText"></p><button type="button" class="primary" id="restart">다시 시작</button></div></div>
+      <div class="overlay" id="overlay" hidden><div class="result"><h2 id="resultTitle"></h2><p id="resultText"></p><button class="primary" id="nextStage" hidden>다음 스테이지</button><button type="button" class="primary" id="restart">다시 시작</button></div></div>
     </div>
     <div class="board-footer">
       <p id="status" role="status">타워를 고르고 지도에 있는 +를 눌러 설치해.</p>
@@ -84,12 +84,13 @@ aside h2{font-size:15px;margin:0 0 8px}
     </div>
   </section>
   <aside aria-label="타워와 웨이브 조작">
-    <section class="workshop"><h2>원정 · 대장간</h2><button class="quiet" id="travel"></button> <button class="quiet" id="rail" hidden></button><p id="oreCount"></p><button class="quiet" id="forge"></button></section><h2>타워 건설</h2>
+    <h2>타워 건설</h2>
     <div class="cards" id="cards"></div>
     <div class="detail" id="detail"></div>
     <button type="button" class="primary" id="launch">웨이브 1 시작</button>
     <div class="progress" aria-hidden="true"><span id="progress"></span></div>
-    <p id="best"></p>
+    <div id="perks" hidden><h2>전술 보급 · 하나 선택</h2><button class="quiet" id="power">화력 +15%</button> <button class="quiet" id="range">사거리 +12</button> <button class="quiet" id="income">즉시 80 G</button></div><button class="quiet" id="spell">전술 EMP</button><p id="best"></p>
+    <details class="workshop"><summary>작전 지도 · 대장간</summary><label>지역 <select id="realm"></select></label><label>스테이지 <select id="mission"></select></label><p id="brief"></p><button class="quiet" id="travel">선택한 전장으로 출정</button> <button class="quiet" id="rail" hidden></button><p id="oreCount"></p><button class="quiet" id="forge"></button><p id="stars"></p></details>
   </aside>
 </main>
 </div>
@@ -104,6 +105,11 @@ const types = {
   cannon: { name:'포탑', icon:'✹', description:'범위 피해', color:'#ffbd75', cost:95, range:119, damage:29, interval:1.5 },
   frost: { name:'서리탑', icon:'❄', description:'적 이동속도 감소', color:'#91def1', cost:75, range:110, damage:8, interval:.95 }
 };
+Object.assign(types,{
+  arc:{name:'전격탑',icon:'ϟ',description:'근처 적 2마리로 연쇄',color:'#d2b4ff',cost:105,range:116,damage:18,interval:1.05},
+  venom:{name:'독침탑',icon:'✣',description:'4초간 지속 피해',color:'#91d779',cost:70,range:111,damage:6,interval:.85},
+  sniper:{name:'망루',icon:'⌖',description:'먼 거리에서 강한 적 저격',color:'#ffb9bc',cost:115,range:195,damage:58,interval:2.15}
+});
 const enemies = {
   scout: { hp:33, speed:68, reward:9, radius:9, color:'#f2a769', damage:1 },
   runner: { hp:23, speed:104, reward:10, radius:7, color:'#e9d476', damage:1 },
@@ -126,12 +132,54 @@ try {
 function saveForge() {
   try { localStorage.setItem('greenwatch-forge',JSON.stringify(forgeSave)); } catch {}
 }
+const realms = [
+  ['녹안 협곡','숲길','#345443','#1c372d','시작 골드 +30'],
+  ['폐철광산','분기선','#554d43','#282728','선로 전환 · 철광석 추가'],
+  ['서리 항구','빙로','#487b89','#233746','빠른 적 증원'],
+  ['잿불 공장','용광로','#855846','#372d30','중장갑 적 증원'],
+  ['별무덤 사막','별길','#867745','#353548','적 처치 골드 +3'],
+  ['달빛 성채','성벽','#64547e','#28283d','5웨이브마다 보스 두 마리']
+];
+const routes = [valleyRoute,mineRoutes[0],
+ [[-20,97],[220,97],[220,350],[380,350],[380,170],[610,170],[610,421],[746,421]],
+ [[-20,97],[110,97],[110,390],[290,390],[290,150],[510,150],[510,421],[746,421]],
+ [[-20,97],[320,97],[320,320],[170,320],[170,420],[530,420],[530,260],[655,260],[655,421],[746,421]],
+ [[-20,97],[170,97],[170,250],[365,250],[365,85],[610,85],[610,340],[305,340],[305,421],[746,421]]];
+const missions=['전초전','역류','포위전','최후 방어'];
+let stage=0, medals={};
+try {medals=JSON.parse(localStorage.getItem('greenwatch-campaign')||'{}')||{};} catch {}
+const basePads=pads.map(p=>p.slice());
+const realm=()=>Math.floor(stage/4);
+const chapter=()=>stage%4;
 const segments = [];
 let routeLength = 0;
 function buildRoute() {
 segments.length = 0;
 routeLength = 0;
-route.splice(0,route.length,...(mine ? mineRoutes[track] : valleyRoute));
+const path=mine ? mineRoutes[track] : routes[realm()];
+const flipY=chapter()%2===1, flipX=chapter()>=2;
+const transform=([x,y])=>[flipX ? 720-x : x,flipY ? 520-y : y];
+route.splice(0,route.length,...path.map(transform));
+const anchors=basePads.map(transform);
+function clearRoad(x,y) {
+  const paths=mine?mineRoutes.map(path=>path.map(transform)):[route];
+  return paths.every(path=>path.slice(1).every(([bx,by],i)=>{
+    const [ax,ay]=path[i], dx=bx-ax, dy=by-ay;
+    const t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy)));
+    return Math.hypot(x-ax-t*dx,y-ay-t*dy)>39;
+  }));
+}
+const chosen=[];
+for(const [ax,ay] of anchors){
+  let bestPoint, distance=Infinity;
+  for(let y=35;y<=485;y+=16) for(let x=35;x<=685;x+=16){
+    const d=Math.hypot(x-ax,y-ay);
+    if(d>=distance || !clearRoad(x,y) || chosen.some(([px,py])=>Math.hypot(px-x,py-y)<52))continue;
+    bestPoint=[x,y]; distance=d;
+  }
+  chosen.push(bestPoint||[ax,ay]);
+}
+pads.splice(0,pads.length,...chosen);
 route.slice(1).forEach(([x,y], index) => {
   const [fromX,fromY] = route[index];
   const length = Math.hypot(x-fromX,y-fromY);
@@ -158,7 +206,7 @@ let lastFrame = 0;
 
 function reset() {
   game = {
-    wave:0, cleared:0, gold:160, hp:15, towers:Array(pads.length).fill(null), enemies:[],
+    perks:{power:0,range:0,income:0}, choice:false, wave:0, cleared:0, gold:realm()===0?190:160, hp:15, towers:Array(pads.length).fill(null), enemies:[],
     queue:[], effects:[], spawnTimer:0, spawned:0, total:0, phase:'ready', speed:1, paused:false,
     type:'arrow', selected:-1, status:'타워를 고르고 지도에 있는 +를 눌러 설치해.'
   };
@@ -167,9 +215,10 @@ function reset() {
 }
 
 function sync() {
-  byId('region').textContent = mine ? '폐철광산' : '녹안 협곡';
-  byId('travel').textContent = mine ? '협곡으로 이동' : '폐철광산으로 이동';
-  byId('travel').disabled = game.wave > 0 || game.towers.some(Boolean);
+  byId('region').textContent=realms[realm()][0]+' · '+(chapter()+1);
+  byId('spell').disabled=game.phase!=='running'||game.paused||!game.spellReady||!game.enemies.length;
+  byId('spell').textContent=game.spellReady===false?'EMP 사용 완료':'전술 EMP · 전체 감속';
+  updateBrief();
   byId('rail').hidden = !mine;
   byId('rail').disabled = game.phase !== 'ready';
   byId('rail').textContent = '선로 ' + (track+1) + ' · 전환';
@@ -186,8 +235,9 @@ function sync() {
   byId('pause').textContent = game.paused ? '계속하기' : '일시정지';
   byId('pause').disabled = game.phase !== 'running';
   byId('speed').disabled = game.phase === 'ended';
-  byId('launch').disabled = game.phase !== 'ready';
-  byId('launch').textContent = game.phase === 'ready' ? '웨이브 ' + (game.wave+1) + ' 시작'
+  byId('perks').hidden=!game.choice;
+  byId('launch').disabled = game.phase !== 'ready'||game.choice;
+  byId('launch').textContent = game.choice ? '전술 보급을 선택해' : game.phase === 'ready' ? '웨이브 ' + (game.wave+1) + ' 시작'
     : game.phase === 'running' ? '웨이브 ' + game.wave + ' 진행 중' : '전투 종료';
   const progress = game.total ? (game.spawned-game.enemies.length)/game.total : 0;
   byId('progress').style.width = Math.max(0,progress*100) + '%';
@@ -266,15 +316,19 @@ function usePad(index) {
 }
 
 function startWave() {
-  if (game.phase !== 'ready') return;
+  if (game.phase !== 'ready'||game.choice) return;
   game.wave++;
-  const count = 6+game.wave;
+  game.spellReady=true;
+  const count = 6+game.wave+chapter()*2;
   game.queue = Array.from({length:count},(_,index) => {
     if (index === count-1 && (game.wave === 5 || game.wave === 10)) return 'boss';
     if (game.wave >= 3 && (index+1)%4 === 0) return 'guard';
     if (game.wave >= 2 && (index+1)%3 === 0) return 'runner';
     return 'scout';
   });
+  if(realm()===2) game.queue.unshift('runner','runner');
+  if(realm()===3) game.queue.push('guard');
+  if(realm()===5 && game.wave%5===0)game.queue.push('boss');
   game.total = game.queue.length;
   game.spawned = 0;
   game.spawnTimer = 0;
@@ -290,10 +344,16 @@ function position(distance) {
 }
 
 function finish(won) {
+  if(won){
+    const stars=game.hp===15?3:game.hp>=8?2:1;
+    medals[stage]=Math.max(stars,medals[stage]||0);
+    try{localStorage.setItem('greenwatch-campaign',JSON.stringify(medals));}catch{}
+  }
+  byId('nextStage').hidden=!won || stage===23;
   game.phase = 'ended';
   game.paused = false;
   game.status = won ? '모든 웨이브를 방어했어.' : '요새가 함락됐어.';
-  byId('resultTitle').textContent = won ? '요새 방어 성공!' : '요새 함락';
+  byId('resultTitle').textContent = won ? '방어 성공 '+ '★'.repeat(game.hp===15?3:game.hp>=8?2:1) : '요새 함락';
   byId('resultText').textContent = game.cleared + ' / ' + MAX_WAVE + ' 웨이브 방어';
   byId('overlay').hidden = false;
   sync();
@@ -307,14 +367,17 @@ function tick(dt) {
   if (game.queue.length && game.spawnTimer <= 0) {
     const key = game.queue.shift();
     const info = enemies[key];
-    const hp = Math.round(info.hp*(1+(game.wave-1)*.21));
+    const hp = Math.round(info.hp*(1+chapter()*.12)*(1+(game.wave-1)*.21));
     game.enemies.push({key, hp, max:hp, progress:0, x:route[0][0], y:route[0][1], slow:0});
     game.spawned++;
+    if(game.spawned===1)sync();
     game.spawnTimer = Math.max(.43,.93-game.wave*.048);
   }
   let changed = false;
   for (const enemy of game.enemies) {
     const info = enemies[enemy.key];
+    if(enemy.poison>0){enemy.hp-=enemy.venom*Math.min(dt,enemy.poison);enemy.poison-=dt;}
+    if(enemy.hp<=0)continue;
     enemy.slow = Math.max(0,enemy.slow-dt);
     enemy.progress += info.speed*(enemy.slow ? .57 : 1)*dt;
     [enemy.x,enemy.y] = position(enemy.progress);
@@ -333,14 +396,14 @@ function tick(dt) {
     if (tower.cooldown > 0) return;
     const type = types[tower.type];
     const [x,y] = pads[index];
-    const range = type.range+8*(tower.level-1);
+    const range = type.range+game.perks.range*12+8*(tower.level-1);
     let target;
     for (const enemy of game.enemies) {
       if (enemy.hp <= 0 || Math.hypot(enemy.x-x,enemy.y-y) > range) continue;
-      if (!target || enemy.progress > target.progress) target = enemy;
+      if (!target || (tower.type==='sniper' ? enemy.hp>target.hp : enemy.progress>target.progress)) target = enemy;
     }
     if (!target) return;
-    const damage = type.damage*(1+.65*(tower.level-1))*(tower.type === 'arrow' ? 1+.15*forgeSave.level : 1);
+    const damage = type.damage*(1+.15*game.perks.power)*(1+.65*(tower.level-1))*(tower.type === 'arrow' ? 1+.15*forgeSave.level : 1);
     if (tower.type === 'arrow' && tower.level === 3) {
       const dx=target.x-x, dy=target.y-y, distance=Math.hypot(dx,dy)||1;
       for (const other of game.enemies) {
@@ -353,6 +416,12 @@ function tick(dt) {
     tower.cooldown = type.interval*(1-.09*(tower.level-1));
     tower.angle = Math.atan2(target.y-y,target.x-x);
     target.hp -= damage;
+    if(tower.type==='venom'){target.poison=4;target.venom=Math.max(target.venom||0,damage*1.6);}
+    if(tower.type==='arc'){
+      const nearby=game.enemies.filter(e=>e!==target && e.hp>0 && Math.hypot(e.x-target.x,e.y-target.y)<76)
+        .sort((a,b)=>b.progress-a.progress).slice(0,2);
+      for(const other of nearby){other.hp-=damage*.7;game.effects.push({x:target.x,y:target.y,tx:other.x,ty:other.y,color:type.color,time:.19});}
+    }
     if (tower.type === 'cannon') {
       for (const enemy of game.enemies) {
         if (enemy !== target && enemy.hp > 0 && Math.hypot(enemy.x-target.x,enemy.y-target.y) < 39) enemy.hp -= damage*.67;
@@ -364,12 +433,13 @@ function tick(dt) {
 
   game.enemies = game.enemies.filter(enemy => {
     if (enemy.hp > 0) return true;
-    game.gold += enemies[enemy.key].reward;
+    game.gold += enemies[enemy.key].reward+(realm()===4?3:0);
     changed = true;
     return false;
   });
   if (!game.queue.length && !game.enemies.length) {
     game.cleared = game.wave;
+    game.choice=[3,6,9].includes(game.wave);
     const oreReward = mine ? (game.wave%5===0 ? 8 : 3) : 1;
     forgeSave.ore += oreReward;
     saveForge();
@@ -398,9 +468,9 @@ function circle(context,x,y,r) {
 function paintTerrain() {
   const ground = terrain.getContext('2d');
   const shade = ground.createLinearGradient(0,0,720,520);
-  shade.addColorStop(0,'#345443');
-  shade.addColorStop(.58,'#294838');
-  shade.addColorStop(1,'#1c372d');
+  shade.addColorStop(0,realms[realm()][2]);
+  
+  shade.addColorStop(1,realms[realm()][3]);
   ground.fillStyle = shade;
   ground.fillRect(0,0,720,520);
 
@@ -417,6 +487,22 @@ function paintTerrain() {
   }
   const groves = [[32,37],[240,41],[297,34],[646,58],[684,124],[50,304],[123,332],[232,399],[285,357],[678,341],[646,247],[88,459],[167,492],[272,489],[492,487],[697,492]];
   for (const [cx,cy] of groves) {
+    if(realm()>0){
+      const palettes=[[],['#71645b','#978775'],['#82b5bf','#c1e4e3'],['#945a43','#f5aa69'],['#af9960','#e2c888'],['#66617f','#a69dbb']];
+      const [shadow,light]=palettes[realm()];
+      ground.save();ground.translate(cx,cy);
+      for(let i=0;i<4;i++){
+        const x=(random()-.5)*55,y=(random()-.5)*30,h=9+random()*18;
+        ground.fillStyle=shadow;
+        if(realm()===3 || realm()===5){
+          ground.fillRect(x-7,y-h,14,h);ground.fillStyle=light;ground.fillRect(x-8,y-h,16,4);
+        }else{
+          ground.beginPath();ground.moveTo(x-11,y);ground.lineTo(x+2,y-h);ground.lineTo(x+12,y);ground.fill();
+          ground.fillStyle=light;ground.beginPath();ground.moveTo(x+2,y-h);ground.lineTo(x+12,y);ground.lineTo(x+5,y-3);ground.fill();
+        }
+      }
+      ground.restore();continue;
+    }
     for (let i=0;i<7;i++) {
       const x = cx+(random()-.5)*64;
       const y = cy+(random()-.5)*36;
@@ -465,8 +551,9 @@ function paintTerrain() {
     ground.stroke();
     ground.restore();
   }
-  for (const x of [-3,684]) {
-    const y = x < 0 ? 97 : 421;
+  for(const endpoint of [route[0],route[route.length-1]]) {
+    const x=endpoint[0]<0?-3:684;
+    const y=endpoint[1];
     ground.fillStyle = '#20332b';
     ground.fillRect(x,y-27,35,54);
     ground.strokeStyle = '#7e9181';
@@ -537,6 +624,7 @@ function drawPad(index) {
     ctx.fill();
   }
   ctx.restore();
+  if(['arc','venom','sniper'].includes(tower.type)){circle(ctx,x,y,13);ctx.fillStyle='#1a2823';ctx.fill();ctx.fillStyle=type.color;ctx.font='bold 20px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(type.icon,x,y);}
   for (let i=0;i<tower.level;i++) {
     circle(ctx,x+6*(i-(tower.level-1)/2),y+17,2);
     ctx.fillStyle = type.color;
@@ -549,7 +637,7 @@ function draw() {
   const selected = game.towers[game.selected];
   if (selected) {
     const [x,y] = pads[game.selected];
-    circle(ctx,x,y,types[selected.type].range+8*(selected.level-1));
+    circle(ctx,x,y,types[selected.type].range+game.perks.range*12+8*(selected.level-1));
     ctx.fillStyle = '#cded8b17';
     ctx.fill();
     ctx.strokeStyle = '#cde99a80';
@@ -633,13 +721,45 @@ pads.forEach(([x,y],index) => {
   padButtons.push(button);
 });
 function changeMap() {
-  buildRoute(); paintTerrain(); sync(); draw();
+  buildRoute();
+  padButtons.forEach((b,i)=>{b.style.left=pads[i][0]/7.2+'%';b.style.top=pads[i][1]/5.2+'%';});
+  for(const [label,p] of [['entrance',route[0]],['base',route.at(-1)]]){
+    const el=document.querySelector('.'+label);el.style.left=p[0]<0?'2%':'90%';el.style.top=(p[1]/5.2-8)+'%';
+  }
+  paintTerrain(); sync(); draw();
 }
-byId('travel').onclick = () => {
-  if (game.wave || game.towers.some(Boolean)) return;
-  mine=!mine; track=0;
-  game.status=mine ? '폐철광산 · 웨이브마다 철광석을 캐. 전투 전에 선로를 바꿀 수 있어.' : '녹안 협곡에 도착했어.';
-  changeMap();
+function updateBrief(){
+  const id=Number(byId('realm').value)*4+Number(byId('mission').value);
+  byId('brief').textContent=realms[Math.floor(id/4)][4]+' · '+missions[id%4]+' · '+(medals[id]||0)+'/3★';
+  byId('stars').textContent='원정 기록 '+Object.values(medals).reduce((a,b)=>a+b,0)+'/72★ · 체력 15로 승리하면 별 3개';
+  byId('travel').disabled=id===stage && game.phase!=='ended';
+}
+function enterStage(id){
+  stage=id;mine=realm()===1;track=0;
+  byId('realm').value=realm();byId('mission').value=chapter();
+  reset();changeMap();
+}
+byId('realm').innerHTML=realms.map((r,i)=>'<option value="'+i+'">'+r[0]+'</option>').join('');
+byId('mission').innerHTML=missions.map((m,i)=>'<option value="'+i+'">'+(i+1)+'. '+m+'</option>').join('');
+byId('realm').onchange=byId('mission').onchange=updateBrief;
+byId('travel').onclick=()=>{
+  if(game.phase!=='ended' && (game.wave || game.towers.some(Boolean)) && !confirm('진행 중인 전투를 끝내고 새 전장으로 이동할까?'))return;
+  enterStage(Number(byId('realm').value)*4+Number(byId('mission').value));
+};
+for(const key of ['power','range','income']){
+  byId(key).onclick=()=>{
+    if(!game.choice)return;
+    game.choice=false;
+    if(key==='income')game.gold+=80;else game.perks[key]++;
+    game.status='전술 보급 적용 완료';sync();
+  };
+}
+byId('nextStage').onclick=()=>enterStage(Math.min(stage+1,23));
+byId('spell').onclick=()=>{
+  if(game.phase!=='running'||game.paused||!game.spellReady||!game.enemies.length)return;
+  game.spellReady=false;
+  for(const enemy of game.enemies){enemy.slow=4;enemy.hp-=15+game.wave*2;}
+  game.status='EMP 발동 · 전장 전체에 피해와 4초 감속';sync();
 };
 byId('rail').onclick = () => {
   if (!mine || game.phase !== 'ready') return;
@@ -660,9 +780,7 @@ byId('pause').onclick = () => {
   game.status = game.paused ? '전투를 일시정지했어.' : '전투를 다시 시작했어.';
   sync();
 };
-paintTerrain();
-reset();
-draw();
+enterStage(0);
 requestAnimationFrame(frame);
 </script>
 </body>
