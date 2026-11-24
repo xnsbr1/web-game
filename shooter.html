@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.4">
+<meta name="game-build" content="1.4.5">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -160,9 +160,9 @@ function tone(output,frequency,end,duration,amplitude,type='sine',delay=0){
  oscillator.start(at);oscillator.stop(at+duration+.02);
 }
 const soundProfiles={
- pistol:[230,72,.085,.15,'triangle'],revolver:[177,47,.13,.16,'triangle'],
- rifle:[315,106,.065,.11,'square'],smg:[390,145,.05,.085,'triangle'],
- shotgun:[128,35,.16,.2,'sawtooth'],sniper:[210,38,.17,.19,'triangle'],rail:[710,86,.22,.13,'triangle'],
+ pistol:[260,110,.06,.045,'triangle'],revolver:[190,76,.075,.052,'triangle'],
+ rifle:[305,125,.045,.033,'triangle'],smg:[350,156,.036,.026,'sine'],
+ shotgun:[135,57,.08,.058,'triangle'],sniper:[225,68,.09,.054,'triangle'],rail:[500,138,.09,.045,'sine'],
  dash:[120,470,.15,.13,'triangle'],hurt:[105,48,.2,.18,'sawtooth'],
  boss:[63,47,.65,.23,'triangle'],win:[330,440,.31,.16,'triangle'],
  lose:[210,58,.43,.16,'triangle'],
@@ -314,6 +314,7 @@ const contracts=[
 const contractBands=Array.from({length:10},(_,i)=>({min:1+i*10,max:10+i*10}));
 const maxCharacterLevel=100;
 const characterLevel=()=>Math.min(maxCharacterLevel,1+Math.floor(save.xp/100));
+const characterMaxHp=()=>100+Math.floor(characterLevel()/2);
 const selectedBands=contracts.map(()=>0);
 function contractLevel(band){
  const range=contractBands[band];
@@ -447,7 +448,7 @@ const transcendPower=(id,stage=transcendLevel(id))=>stage*grade(id);
 const transcendAbilities={
  gun:power=>['강화 포격','다섯 번째 사격 피해 +'+power*1.5+'%'],
  head:power=>['충격 흡수','12초마다 첫 피격 피해 '+power+'% 감소'],
- armor:power=>['최후 방벽','체력 35 이하에서 받는 피해 '+power*.5+'% 감소'],
+ armor:power=>['최후 방벽','체력 35% 이하에서 받는 피해 '+power*.5+'% 감소'],
  gloves:power=>['비상 장전','탄창을 비웠을 때 재장전 속도 +'+power+'%'],
  boots:power=>['기동 추진','스킬 사용 후 2초간 이동 속도 +'+Number((power*.6).toFixed(1))+'%'],
  charm:power=>['전술 회수','처치 시 스킬 재사용 시간 '+Number((power*.04).toFixed(2))+'초 감소 · 1초에 한 번']
@@ -686,7 +687,8 @@ function renderMenu(next=page){
    },lv>=maxSkillLevel||!available(price)));
   }
   const progress=panel('작전 기록');
-  paragraph(progress,'캐릭터 Lv. '+characterLevel()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
+  paragraph(progress,'캐릭터 Lv. '+characterLevel()+' · 최대 체력 '+characterMaxHp()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
+  paragraph(progress,'짝수 레벨에 도달할 때마다 최대 체력 +1');
   paragraph(progress,save.cleared+' / '+stages.length+' 스테이지 클리어');
   paragraph(progress,Object.values(save.stars).reduce((sum,count)=>sum+count,0)+' / 60 ★ · 보스 추적 '+save.cleared+'종 해금');
   return;
@@ -723,7 +725,7 @@ function renderMenu(next=page){
  }
  if(page==='contracts'){
   const p=panel('던전');
-  paragraph(p,'캐릭터 Lv. '+characterLevel()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
+  paragraph(p,'캐릭터 Lv. '+characterLevel()+' · 최대 체력 '+characterMaxHp()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
   const list=grid(p);
   for(const [i,c] of contracts.entries()){
    const band=selectedBands[i],range=contractBands[band],difficulty=contractLevel(band);
@@ -1123,10 +1125,11 @@ function start(index,contract,bossHunt=false,band=0){
  if(mode==='defend')objects.push({x:450,y:295,r:26,hp:145,max:145,done:false});
  const charm=save.equipped.charm;
  const terrain=campaign?stageDevices(index,walls):[];
+ const maxHp=characterMaxHp();
 
  const transcendStats=Object.fromEntries(Object.keys(slots).map(slot=>[slot,transcendPower(save.equipped[slot])]));
  game={transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,damageScale:c?contractScale(dungeonLevel).damage:1,skill:equippedSkill(),moveFactor:trainingFactor('move')*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.002),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
-  p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
+  p:{x:96,y:292,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
  $('combatHint').textContent=campaign?'» 가속 · + 응급 회복 · ! 폭발통':'화면을 끌어 이동 · 가까운 적 자동 사격';
@@ -1266,22 +1269,23 @@ function hurt(damage,origin,electric=false){
   damage*=1-transcendStats.head*.01;
   game.nextHeadGuard=game.t+12;
  }
- if(p.hp<=35)damage*=1-transcendStats.armor*.005;
+ const healthRatio=p.hp/p.max;
+ if(healthRatio<=.35)damage*=1-transcendStats.armor*.005;
  const head=save.equipped.head,headType=gearFamily(head);
  if(headType==='scoutHelmet'||(headType==='sealedHelmet'&&electric))damage*=1-(headType==='scoutHelmet'?.11:.24)-effectLevel(head)*.022;
  if(head&&level(head)>=5){
   if(modOf(head)===0)damage*=.9;
-  else if(p.hp<35)damage*=.69;
+  else if(healthRatio<.35)damage*=.69;
  }
  const armor=save.equipped.armor,armorType=gearFamily(armor);
  if(electric&&armorType==='insulated')damage*=.56-effectLevel(armor)*.05;
  if(armorType==='plate'&&origin&&Math.cos(p.dir-angle(p,origin))>.25)damage*=.72-effectLevel(armor)*.047;
  if(armor&&level(armor)>=5&&modOf(armor)===0)damage*=.85;
- if(armor&&level(armor)>=5&&modOf(armor)===1&&p.hp<35)damage*=.72;
+ if(armor&&level(armor)>=5&&modOf(armor)===1&&healthRatio<.35)damage*=.72;
  damage*=(1-.015*(gradeBonus(head)+gradeBonus(armor)))*(1-.002*(advancedLevel(head)+advancedLevel(armor)));
  p.hp-=Math.round(damage*(1-game.bonuses.defense)*game.damageScale);game.hits++;playEffect('hurt');p.inv=.52;
  const charm=save.equipped.charm;
- if(p.hp>0&&p.hp<=32&&gearFamily(charm)==='battery'&&!game.usedBattery){
+ if(p.hp>0&&p.hp/p.max<=.32&&gearFamily(charm)==='battery'&&!game.usedBattery){
   p.inv=2+effectLevel(charm)*.43+gradeBonus(charm)*.14+(level(charm)>=5&&modOf(charm)===0?.8:0);game.usedBattery=true;
  }
 }
@@ -1593,7 +1597,10 @@ function updateHud(){
  else progress=g.kills+'/'+g.n;
  $('objective').textContent=(g.index<0?g.name:stageId(g.index)+' '+g.name)+' · '+(g.campaign||g.dungeon?'':objectiveNames[g.mode])+' '+progress;
  const meter=$('lifeTrack'),hp=Math.max(0,Math.ceil(p.hp));
- meter.firstElementChild.style.width=hp+'%';meter.firstElementChild.style.background=hp<=30?'#ee606f':'#29bf94';
+ const healthRatio=clamp(p.hp/p.max,0,1);
+ meter.firstElementChild.style.width=healthRatio*100+'%';
+ meter.firstElementChild.style.background=healthRatio<=.3?'#ee606f':'#29bf94';
+ meter.setAttribute('aria-valuemax',p.max);
  meter.lastElementChild.textContent='HP '+hp+' / '+p.max;meter.setAttribute('aria-valuenow',hp);
  $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초';
  const skillButton=$('dash'),skillName=skills[g.skill].name;
@@ -1985,6 +1992,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
