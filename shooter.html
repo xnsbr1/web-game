@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.1">
+<meta name="game-build" content="2.0.2">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -693,6 +693,7 @@ function coreCost(id,next){
 function costs(id){const next=level(id)+1;return {credits:18+next*8,alloy:1+Math.floor(next/5),parts:next>=10?1+Math.floor((next-10)/6):0,...coreCost(id,next)};}
 let page='campaign';
 let notice='';
+const stageChapterNames=['폐광','침수 연구소','폐광 알파','침수 연구소 알파'];
 let chapterView=0, stageView=null, itemView=null;
 const bossHuntReward=index=>({credits:40+index*4,alloy:1});
 function clearReward(index,first,stars=0){
@@ -1159,28 +1160,42 @@ function renderMenu(next=page){
   return;
  }
  if(page==='stages'){
+  const alpha=chapterView>=2;
   if(stageView===null){
    const p=panel('스테이지 선택');
    p.prepend(button('‹ 전투 홈',()=>openPage('campaign')));
-   const chapters=document.createElement('div');chapters.className='big-actions';
-   ['폐광','침수 연구소'].forEach((name,i)=>chapters.append(button(name,()=>{chapterView=i;renderMenu();},i===chapterView,i===chapterView?'primary':'')));
+   const chapters=document.createElement('div');chapters.className='stage-chapters';
+   stageChapterNames.forEach((name,i)=>chapters.append(button(name,()=>{chapterView=i;renderMenu();},i===chapterView,i===chapterView?'primary':'')));
    p.append(chapters);
-   stages.slice(chapterView*10,chapterView*10+10).forEach(([name,mode],i)=>{
-    const index=chapterView*10+i;
+   const offset=(chapterView%2)*10;
+   stages.slice(offset,offset+10).forEach(([name],i)=>{
+    const index=offset+i;
+    if(alpha){
+     const stars=save.challengeStars?.['alpha'+index]||0;
+     const status=stars?'★'.repeat(stars):testMode||index<save.cleared?'출격 가능':'일반 '+stageId(index)+' 클리어 후 해금';
+     p.append(largeEntry(stageId(index)+' '+name+' · 알파',status,()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
+     return;
+    }
     const status=index<save.cleared?'클리어 · 보스 파밍 가능':testMode?'테스트 출격 가능':index===save.cleared?'출격 가능':'잠김';
     p.append(largeEntry(stageId(index)+' '+name,'구역 돌파 · 보스 격파'+' · '+status,()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
    });
    return;
   }
   const index=stageView;
-  const p=panel(stageId(index)+' '+stages[index][0]);
+  const p=panel(stageId(index)+' '+stages[index][0]+(alpha?' · 알파':''));
   paragraph(p,'잡몹 '+(sectorQuota(index)*2+sectorQuota(index,2))+'마리 처치 후 '+stageBosses[index][0]+' 출현. 청록 발판은 가속, 초록 십자는 회복, 주황 통은 사격하면 잠시 후 폭발해.');
   bossBrief(p,index);
   squadBrief(p,index);
   p.prepend(button('‹ 스테이지 목록',()=>{stageView=null;renderMenu();}));
+  if(alpha){
+   const stars=save.challengeStars?.['alpha'+index]||0;
+   paragraph(p,(stars?'최고 기록 '+'★'.repeat(stars)+' · ':'')+'클리어 보상 · '+rewardText({credits:165,parts:2,['core'+coreRank(index)]:1}));
+   const locked=!testMode&&index>=save.cleared;
+   p.append(button(locked?'일반 '+stageId(index)+' 클리어 후 해금':'알파 출격',()=>start(index,undefined,false,0,'alpha'),locked,'primary'));
+   return;
+  }
   paragraph(p,index<save.cleared?'첫 클리어 보상 · 수령 완료':'첫 클리어 보상','section-label');
   paragraph(p,rewardPreview(index)+' · '+materialNames['core'+coreRank(index)]+' · 적 공격 속성 '+elementNames[index%5]);
-  p.append(button('알파 · 어려움',()=>start(index,undefined,false,0,'alpha'),!testMode&&index>=save.cleared));
   if(index%10===9)p.append(button('챕터 보스 연전 · 10연속',()=>start(index-9,undefined,true,0,'rush'),!testMode&&save.cleared<=index));
   if(index%10===5||index%10===9)paragraph(p,index%10===5?'챕터 중간 보스':'챕터 최종 보스','section-label');
   p.append(button(!testMode&&index>save.cleared?'이전 스테이지 클리어 필요':'스테이지 출격',()=>start(index),!testMode&&index>save.cleared,'primary'));
@@ -1471,54 +1486,99 @@ function openEquipmentSlot(slot){
 function salvageReward(rank){
  return {credits:rank*8,alloy:Math.ceil(rank/2)};
 }
-function dismantle(id,rank,copy){
+function dismantle(id,rank,copy,count=1){
  if(!own(id)||!Number.isInteger(rank)||rank<1||rank>6)return false;
  if(copy){
-  if(!(save.copies[id]?.[rank]>0))return false;
-  save.copies[id][rank]--;
+  if(!Number.isInteger(count)||count<1||!(save.copies[id]?.[rank]>=count))return false;
+  save.copies[id][rank]-=count;
  }else{
   if(grade(id)!==rank||id==='pistol'||save.equipped[gear[id].slot]===id||Object.values(save.copies[id]||{}).some(n=>n>0))return false;
   for(const field of ['levels','ascension','ranks','mods','copies'])delete save[field][id];
   save.salvaged[id]=true;
  }
- addFunds(salvageReward(rank));persist();return true;
+ const reward=salvageReward(rank);
+ addFunds({credits:reward.credits*count,alloy:reward.alloy*count});
+ return true;
+}
+function confirmSalvage(panel,message,action){
+ panel.replaceChildren();
+ paragraph(panel,message);
+ panel.append(button('분해 확정',action,false,'primary'),button('취소',()=>panel.replaceChildren()));
 }
 function batchSalvage(){
  const p=panel('무기 분해');p.prepend(button('‹ 장비',()=>openPage('gear')));
- const entries=Object.keys(save.levels).filter(id=>gear[id]?.slot==='gun'&&id!=='pistol'&&id!==save.equipped.gun&&!Object.values(save.copies[id]||{}).some(Boolean));
- const selected=[];
- for(const limit of [3,4])p.append(button(limit+'성 이하 모두 선택',()=>selected.forEach(([id,input])=>input.checked=grade(id)<=limit)));
- for(const id of entries){
-  const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';selected.push([id,input]);
-  label.style.display='block';label.append(input,grade(id)+'성 '+gear[id].name+' +'+level(id));p.append(label);
+ const entries=[];
+ for(const id of Object.keys(save.levels)){
+  if(gear[id]?.slot!=='gun')continue;
+  for(const [rank,count] of Object.entries(save.copies[id]||{})){
+   if(count>0)entries.push({id,rank:Number(rank),count,copy:true});
+  }
+  if(id!=='pistol'&&id!==save.equipped.gun)entries.push({id,rank:grade(id),count:1,copy:false});
  }
- paragraph(p,'장착 중이거나 복제본이 남은 무기는 보호돼.');
- p.append(button('선택 무기 분해',()=>{
-  const ids=selected.filter(([,input])=>input.checked).map(([id])=>id);
-  if(!ids.length)return;
-  const warning=ids.some(id=>grade(id)>=5||level(id)>0||transcendLevel(id)>0)?'강화·초월 또는 5성 이상 장비 포함! ':'';
-  if(!window.confirm(warning+ids.length+'개 무기를 분해할까?'))return;
-  for(const id of ids)dismantle(id,grade(id),false);renderMenu();
+ if(!entries.length){paragraph(p,'분해할 무기가 없어. 기본 권총과 장착 무기의 본체는 보호돼.');return;}
+ const confirmation=document.createElement('div');
+ confirmation.setAttribute('aria-live','polite');
+ for(const limit of [3,4])p.append(button(limit+'성 이하 모두 선택',()=>{
+  confirmation.replaceChildren();
+  for(const entry of entries)entry.input.checked=entry.rank<=limit;
  }));
+ for(const entry of entries){
+  const {id,rank,count,copy}=entry;
+  const label=document.createElement('label'),input=document.createElement('input');
+  input.type='checkbox';
+  input.onchange=()=>confirmation.replaceChildren();
+  entry.input=input;
+  label.className='salvage-row';
+  label.append(input,rank+'성 '+gear[id].name+(copy?' · 복제본 '+count+'개':' +'+level(id)+' · 본체'));
+  p.append(label);
+ }
+ p.append(button('선택 무기 분해',()=>{
+  const selected=entries.filter(entry=>entry.input.checked);
+  confirmation.replaceChildren();
+  if(!selected.length){paragraph(confirmation,'분해할 무기를 선택해.');return;}
+  const blocked=selected.find(entry=>!entry.copy&&entries.some(copy=>copy.id===entry.id&&copy.copy&&!copy.input.checked));
+  if(blocked){paragraph(confirmation,gear[blocked.id].name+' 본체를 분해하려면 남은 복제본도 선택해.');return;}
+  const warning=selected.some(({id,rank,copy})=>rank>=5||!copy&&(level(id)>0||transcendLevel(id)>0));
+  const total={credits:0,alloy:0};
+  let count=0;
+  for(const entry of selected){
+   const reward=salvageReward(entry.rank);
+   count+=entry.count;
+   total.credits+=reward.credits*entry.count;
+   total.alloy+=reward.alloy*entry.count;
+  }
+  confirmSalvage(confirmation,(warning?'강화·초월 또는 5성 이상 무기가 포함돼. ':'')+count+'개 분해 · '+rewardText(total),()=>{
+   for(const entry of selected)dismantle(entry.id,entry.rank,entry.copy,entry.count);
+   persist();
+   notice=count+'개 분해 완료 · '+rewardText(total);renderMenu();
+  });
+ }));
+ p.append(confirmation);
 }
 function renderSalvage(parent,id){
  const section=disclosure(parent,'장비 분해');
  const ranks=Object.keys(save.copies[id]||{}).map(Number).filter(rank=>save.copies[id][rank]>0);
  const protectedItem=id==='pistol'||save.equipped[gear[id].slot]===id;
+ const confirmation=document.createElement('div');
+ confirmation.setAttribute('aria-live','polite');
  function action(rank,copy){
   const label=rank+'성 '+(copy?'복제본 1개':'본체');
   const reward=rewardText(salvageReward(rank));
   section.append(button(label+' 분해 · '+reward,()=>{
-   if(!window.confirm((rank>=5?'5성 이상 장비! ':'')+(!copy&&level(id)>0?'강화 장비! ':'')+gear[id].name+' '+label+'를 분해할까? '+(copy?'':'강화와 초월 기록도 사라져. ')+reward))return;
-   if(!dismantle(id,rank,copy))return;
-   if(!copy)itemView=null;
-   notice=gear[id].name+' 분해 · '+reward;renderMenu();
+   const warning=(rank>=5?'5성 이상 장비. ':'')+(!copy&&(level(id)>0||transcendLevel(id)>0)?'강화·초월 기록이 사라져. ':'');
+   confirmSalvage(confirmation,warning+gear[id].name+' '+label+' · '+reward,()=>{
+    if(!dismantle(id,rank,copy))return;
+    persist();
+    if(!copy)itemView=null;
+    notice=gear[id].name+' 분해 완료 · '+reward;renderMenu();
+   });
   }));
  }
  for(const rank of ranks)action(rank,true);
  if(protectedItem)paragraph(section,'기본 권총과 장착 중인 장비의 본체는 보호돼.');
- else if(ranks.length)paragraph(section,'보관한 복제본을 모두 사용하거나 분해하면 본체도 분해할 수 있어.');
+ else if(ranks.length)paragraph(section,'복제본을 모두 사용하거나 분해하면 본체도 분해할 수 있어.');
  else action(grade(id),false);
+ section.append(confirmation);
 }
 function renderTranscendence(parent,id){
  const rank=grade(id),stage=transcendLevel(id),needed=stage+1;
@@ -1660,6 +1720,7 @@ function start(index,contract,bossHunt=false,band=0,special=''){
  if(index<0&&dungeonLevel===null)return;
  enableAudio();beat=0;
  let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,'raid',20,c.hazard]:stages[index];
+ if(special==='alpha')name+=' · 알파';
  const campaign=index>=0&&!bossHunt;
  const gunId=save.equipped.gun||'pistol';
  if(campaign){mode='assault';n=3;}
@@ -2487,6 +2548,7 @@ function finish(won,reason){
   row.append(button('장비 강화',()=>openPage('gear')));
  }else row.append(button('다시 도전',()=>start(g.special==='rush'?g.rushStart:g.index,g.contract,g.bossHunt,g.band,g.special),false,'primary'));
  if(won&&g.index<0)row.append(button('다시 출격',()=>start(g.index,g.contract,false,g.band)));
+ if(g.special==='alpha')row.append(button('알파 목록',()=>{stageView=null;renderMenu('stages');}));
  row.append(button(g.bossHunt?'보스 상세':g.index<0?'던전 목록':'전투 홈',()=>renderMenu(g.bossHunt?'stages':g.index<0?'contracts':'campaign')));
  $('resultText').textContent=result;$('result').hidden=false;
 }
@@ -3089,6 +3151,8 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 #menu .tree-node[data-tier="작은"]{width:44px;font-size:14px}
 #menu .tree-node[data-tier="중간"]{width:54px;font-size:20px;border-radius:15px}
 #menu .tree-node[data-tier="큰"]{width:66px;font-size:26px;border-radius:21px;border-style:double;border-width:5px}
+.stage-chapters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.salvage-row{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}.salvage-row input{width:20px;height:20px;flex:none}
 </style>
 </body></html>
 
