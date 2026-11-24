@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.2">
+<meta name="game-build" content="1.4.3">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -69,6 +69,8 @@ details .item{margin-bottom:8px}
  @keyframes crate-unlock{0%{transform:rotate(0)}25%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}75%{transform:rotate(-5deg)}100%{transform:scale(1.12);filter:brightness(1.55)}}
  @keyframes crate-reveal{0%{opacity:.65;transform:scale(.95)}100%{opacity:1;transform:scale(1)}}
  @media(prefers-reduced-motion:reduce){.crate-opening .supply-crate,.crate-revealed{animation:none}}
+.transcend-panel{border:1px solid #9f80ad;border-radius:10px;background:#27243a;padding:12px;margin-top:12px}
+.transcend-panel .section-label{margin-top:0;color:#e2bbff}
 </style>
 </head>
 <body><main>
@@ -392,7 +394,7 @@ function upgradeSkill(id){
  return true;
 }
 let lastSupply=null,supplyOpening=false,supplyOddsOpen=false;
-const save={skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
+const save={copies:{},ascension:{},skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 Object.assign(save,testSnapshot||readSave(key));
 if(testMode){
  Object.defineProperty(save,'credits',{enumerable:true,get:()=>Number.MAX_SAFE_INTEGER,set:()=>{}});
@@ -435,6 +437,26 @@ installTestControls();
 const own=id=>Object.hasOwn(save.levels,id);
 const level=id=>save.levels[id]||0;
 const maxGearLevel=id=>grade(id)*5;
+const transcendCap=5;
+const transcendLevel=id=>save.ascension[id]||0;
+const spareCopies=(id,rank)=>save.copies[id]?.[rank]||0;
+const transcendPower=(id,stage=transcendLevel(id))=>stage*grade(id);
+const transcendAbilities={
+ gun:power=>['강화 포격','다섯 번째 사격 피해 +'+power*1.5+'%'],
+ head:power=>['충격 흡수','12초마다 첫 피격 피해 '+power+'% 감소'],
+ armor:power=>['최후 방벽','체력 35 이하에서 받는 피해 '+power*.5+'% 감소'],
+ gloves:power=>['비상 장전','탄창을 비웠을 때 재장전 속도 +'+power+'%'],
+ boots:power=>['기동 추진','스킬 사용 후 2초간 이동 속도 +'+Number((power*.6).toFixed(1))+'%'],
+ charm:power=>['전술 회수','처치 시 스킬 재사용 시간 '+Number((power*.04).toFixed(2))+'초 감소 · 1초에 한 번']
+};
+function transcend(id){
+ if(!own(id))return false;
+ const stage=transcendLevel(id),rank=grade(id),required=stage+1;
+ if(stage>=transcendCap||spareCopies(id,rank)<required)return false;
+ save.copies[id][rank]-=required;
+ save.ascension[id]=required;persist();
+ return true;
+}
 const gearPower=id=>1+Math.min(level(id),5)*.043+Math.max(0,level(id)-5)*.018;
 const effectLevel=id=>Math.min(5,level(id));
 const advancedLevel=id=>Math.max(0,level(id)-5);
@@ -511,7 +533,11 @@ function drawSupply(random=Math.random){
  const previousRank=own(id)?grade(id):0;
  const outcome=previousRank===0?'new':tier.rank>previousRank?'promoted':'duplicate';
  save.credits-=price;
- if(outcome==='duplicate')save.parts+=1;
+ if(outcome==='duplicate'){
+  save.parts+=1;
+  save.copies[id]??={};
+  save.copies[id][tier.rank]=spareCopies(id,tier.rank)+1;
+ }
  else{
   unlock(id);
   save.ranks[id]=tier.rank;
@@ -563,7 +589,7 @@ function renderSupply(){
   reveal.append(equipmentPortrait(gear[id].slot,id,'supply-portrait',rank));
   paragraph(reveal,'★'.repeat(rank)+' · '+rank+'성','crate-rank');
   paragraph(reveal,gear[id].name,'crate-name');
-  paragraph(reveal,outcome==='new'?'새 장비 획득':outcome==='promoted'?previousRank+'성 → '+rank+'성으로 상승 · 강화 유지':'중복 · 정밀 부품 +1');
+  paragraph(reveal,outcome==='new'?'새 장비 획득':outcome==='promoted'?previousRank+'성 → '+rank+'성으로 상승 · 강화 유지':'중복 · '+rank+'성 복제본 +1 · 정밀 부품 +1');
  }
  supply.append(button(supplyOpening?'여는 중…':'보급 상자 열기',openSupply,supplyOpening||save.credits<price,'primary'));
  const odds=disclosure(supply,'등급별 확률과 등장 테마');
@@ -585,7 +611,7 @@ function renderSupply(){
  }
  odds.append(table);
  paragraph(odds,'같은 등급 안에서 등장 테마와 장비 부위는 각각 같은 확률이야.');
- paragraph(odds,'보유 장비보다 높은 등급을 뽑으면 등급이 올라가고 강화는 유지돼. 같은 등급이나 낮은 등급은 정밀 부품 1개로 바뀌어.');
+ paragraph(odds,'보유 장비보다 높은 등급을 뽑으면 등급이 올라가고 강화는 유지돼. 같은 등급이나 낮은 등급을 뽑으면 해당 등급 복제본과 정밀 부품 1개를 얻어.');
 }
 function renderGrowth(){
  const growth=panel('플레이어 강화');
@@ -787,6 +813,7 @@ function renderMenu(next=page){
     mods.forEach((mod,i)=>row.append(button(mod,()=>{save.mods[id]=i;persist();renderMenu();},(save.mods[id]||0)===i)));
    }
    if(slot==='gun'&&level(id)>=10)paragraph(card,'특수 효과 · 대시 후 첫 사격 피해 증가');
+   renderTranscendence(card,id);
 }
 const mountPoints=[
  ['head',19,22],['gun',81,22],
@@ -903,12 +930,30 @@ function equipmentTile(slot,id,action){
   stars.setAttribute('aria-label',grade(id)+'성');
   b.append(name,stars);
  }else b.append(name);
- const badge=document.createElement('span');badge.textContent=item?'+'+level(id)+(current?' · 장착':''):'';
+ const badge=document.createElement('span');badge.textContent=item?'+'+level(id)+(transcendLevel(id)?' · 초월 '+transcendLevel(id):'')+(current?' · 장착':''):'';
  b.append(badge);
  return b;
 }
 function showEquipment(slot,id=null){
  slotView=slot;itemView=id;window.scrollTo(0,0);renderMenu();
+}
+function renderTranscendence(parent,id){
+ const rank=grade(id),stage=transcendLevel(id),needed=stage+1;
+ const current=spareCopies(id,rank);
+ const section=document.createElement('section');section.className='transcend-panel';
+ parent.append(section);
+ const ability=transcendAbilities[gear[id].slot];
+ const [name,effect]=ability(transcendPower(id));
+ paragraph(section,'장비 초월 · '+stage+'/'+transcendCap,'section-label');
+ paragraph(section,name+(stage?' · '+effect:' · 초월 1단계에서 해금'),'');
+ if(stage<transcendCap){
+  paragraph(section,'다음 초월 · '+ability(transcendPower(id,needed))[1]);
+  paragraph(section,'같은 '+rank+'성 '+gear[id].name+' 복제본 '+current+' / '+needed);
+  section.append(button('초월 '+needed+'단계',()=>{if(transcend(id))renderMenu();},current<needed,'primary'));
+ }
+ const stored=Object.entries(save.copies[id]||{}).filter(([stars,count])=>Number(stars)!==rank&&count>0);
+ if(stored.length)paragraph(section,'다른 등급 복제본 · '+stored.map(([stars,count])=>stars+'성 '+count+'개').join(' · '));
+ paragraph(section,'초월 단계는 장비 등급을 올려도 유지돼. 장비 등급이 높을수록 초월 효과가 커져.');
 }
 function renderSets(){
  const shell=panel('장비 세트');
@@ -1031,8 +1076,9 @@ function start(index,contract,bossHunt=false,band=0){
  const charm=save.equipped.charm;
  const terrain=campaign?stageDevices(index,walls):[];
 
- game={bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,damageScale:c?contractScale(dungeonLevel).damage:1,skill:equippedSkill(),moveFactor:trainingFactor('move')*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.002),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
-  p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,gunId,stat}};
+ const transcendStats=Object.fromEntries(Object.keys(slots).map(slot=>[slot,transcendPower(save.equipped[slot])]));
+ game={transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,damageScale:c?contractScale(dungeonLevel).damage:1,skill:equippedSkill(),moveFactor:trainingFactor('move')*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.002),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+  p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
  $('combatHint').textContent=campaign?'» 가속 · + 응급 회복 · ! 폭발통':'화면을 끌어 이동 · 가까운 적 자동 사격';
@@ -1071,6 +1117,7 @@ function move(body,dx,dy){
 function activateSkill(){
  if(!skillReady())return;
  const g=game,p=g.p;
+ if(g.transcendStats.boots)p.skillStride=2;
  const extra=g.skillExtra,recovery=(1-extra*.01)*(1-g.bonuses.cooldown)*(1-advancedLevel(save.equipped.charm)*.0025);
  if(g.skill!=='dash'){
   const skill=skills[g.skill];
@@ -1110,6 +1157,7 @@ function reload(){
  p.reload=p.stat.reload*(gearFamily(gloves)==='quick'&&p.afterDash>0?.63-effectLevel(gloves)*.045:1);
  if(gloves&&level(gloves)>=5&&modOf(gloves)===0)p.reload*=.8;
  p.reload*=(1-.028*gradeBonus(gloves))/(1+advancedLevel(gloves)*.0035);
+ if(p.ammo===0)p.reload/=1+game.transcendStats.gloves*.01;
 }
 function shotLifetime(id,mod){
  if(id==='shotgun')return .48;
@@ -1146,7 +1194,7 @@ function shoot(){
  const p=game.p,g=p.stat,equipped=p.gunId,id=gearFamily(equipped),l=level(equipped),mod=l>=5?modOf(equipped):-1;
  if(p.cool>0||p.reload>0)return;
  if(!p.ammo){reload();return;}
- p.ammo--;playEffect(id);
+ p.ammo--;game.shotsFired++;playEffect(id);
  p.cool=g.interval*(id==='pistol'&&mod===1?.65:1);
  const gloves=save.equipped.gloves,charm=save.equipped.charm;
  const stable=gearFamily(gloves)==='stable'&&Math.hypot(movement().x,movement().y)<.1;
@@ -1154,7 +1202,8 @@ function shoot(){
  const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.23):0)*(stable?.65-effectLevel(gloves)*.04:1)*(precise?.84:1);
  const boost=p.afterDash>0?(gearFamily(charm)==='rift'?.19+effectLevel(charm)*.06+gradeBonus(charm)*.025+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l>=10?.3:0):0;
  if(boost)p.afterDash=0;
- const damage=g.damage*(gearPower(equipped)+boost)*(1+.026*gradeBonus(equipped))*(1+game.bonuses.damage)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
+ const volleyBonus=game.shotsFired%5===0?1+game.transcendStats.gun*.015:1;
+ const damage=g.damage*volleyBonus*(gearPower(equipped)+boost)*(1+.026*gradeBonus(equipped))*(1+game.bonuses.damage)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
   game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod)*g.travelTimeScale,damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0)});
@@ -1164,6 +1213,12 @@ function shoot(){
 }
 function hurt(damage,origin,electric=false){
  const p=game.p;if(p.inv>0||p.shield>0)return;
+ const {transcendStats}=game;
+ if(transcendStats.head&&game.t>=game.nextHeadGuard){
+  damage*=1-transcendStats.head*.01;
+  game.nextHeadGuard=game.t+12;
+ }
+ if(p.hp<=35)damage*=1-transcendStats.armor*.005;
  const head=save.equipped.head,headType=gearFamily(head);
  if(headType==='scoutHelmet'||(headType==='sealedHelmet'&&electric))damage*=1-(headType==='scoutHelmet'?.11:.24)-effectLevel(head)*.022;
  if(head&&level(head)>=5){
@@ -1384,7 +1439,7 @@ function updateDevices(g,dt){
 function step(dt){
  const g=game,p=g.p;
  g.t+=dt;
- for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent'])p[key]=Math.max(0,p[key]-dt);
+ for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent','skillStride'])p[key]=Math.max(0,p[key]-dt);
  if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;}}
  hazards();
  const input=movement();
@@ -1393,7 +1448,7 @@ function step(dt){
  const previousX=p.x,previousY=p.y;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*720*dt,Math.sin(p.dashDir)*720*dt);
  else {
-  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1);
+  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1)*(p.skillStride>0?1+g.transcendStats.boots*.006:1);
   move(p,input.x*movementSpeed*dt,input.y*movementSpeed*dt);
  }
  trackMovement(g,p.x-previousX,p.y-previousY,dt);
@@ -1449,6 +1504,10 @@ function step(dt){
  for(const e of g.enemies){
   if(e.hp>0)continue;
   g.kills++;if(g.campaign&&!g.bossEntered)g.sectorKills++;
+  if(g.transcendStats.charm&&p.cd>0&&g.t>=g.nextKillRefund){
+   p.cd=Math.max(0,p.cd-g.transcendStats.charm*.04);
+   g.nextKillRefund=g.t+1;
+  }
   g.effects.push({x:e.x,y:e.y,r:e.type==='blast'?90:22,color:e.color,life:.24});
   if(e.type==='blast'){
    if(dist(e,p)<90)hurt(16,e);
