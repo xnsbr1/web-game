@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.0">
+<meta name="game-build" content="1.4.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -39,8 +39,12 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 #settings h2,#settings h3{margin:0 0 10px}
 #settings label{display:block;font-weight:700;margin:14px 0}
 #settings output{float:right;color:#a0f1d7}
-#settings input{display:block;width:100%;height:34px;accent-color:#70dfc5}
+#settings input[type=range]{display:block;width:100%;height:34px;accent-color:#70dfc5}
 #settings button{min-height:44px}
+#testModeForm{display:grid;gap:8px}
+#testModeForm label{margin:0}
+#testCode{min-width:0;min-height:44px;border:1px solid #779ca8;border-radius:6px;background:#101b23;color:inherit;font:inherit;padding:8px}
+#testModeStatus{margin-top:8px}
 .version-panel{border-top:1px solid #53636d;margin:18px 0 14px;padding-top:14px}
 .selected-skill{border-color:var(--teal)}
 details{margin:12px 0}
@@ -79,6 +83,16 @@ details .item{margin-bottom:8px}
   <p id="updateStatus" role="status"></p>
   <div class="row"><button type="button" id="checkUpdate">최신 버전 확인</button><button type="button" id="applyUpdate">새로고침</button></div>
  </section>
+ <details id="privateTest">
+  <summary>테스트 모드</summary>
+  <form id="testModeForm">
+   <label for="testCode">비공개 코드</label>
+   <input id="testCode" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" size="24" maxlength="40" required>
+   <button type="submit" id="testModeStart">테스트 시작</button>
+  </form>
+  <button type="button" id="testModeExit" hidden>테스트 종료 · 원래 세이브로 복귀</button>
+  <p id="testModeStatus" role="status"></p>
+ </details>
  <form method="dialog"><button type="submit">닫기</button></form>
 </dialog>
 </main>
@@ -310,6 +324,17 @@ function priceText(price){
  return Object.entries(price).filter(([,n])=>n>0).map(([id,n])=>(currencies[id]||materialNames[id])+' '+n).join(' · ');
 }
 const key='deep-rounds-save-v1';
+const testKey=key+'-private-test';
+const testCodeHash='481c17ed79bb425d717f4cf663e6d04459bcacbcc0199b71fd0fa3b08f640c39';
+function readSave(name){
+ try{
+  const value=JSON.parse(localStorage.getItem(name));
+  return value&&typeof value==='object'&&!Array.isArray(value)?value:null;
+ }catch{return null;}
+}
+const testSnapshot=readSave(testKey);
+const testMode=testSnapshot!==null;
+
 const skills={
  dash:{name:'대시',description:'짧게 돌진하며 피해를 피함. 신발에 따라 재사용 시간 감소.'},
  shield:{name:'보호막',description:'1.4초간 피해 무효 · 재사용 12초',cooldown:12,color:'#62e0ff'},
@@ -347,10 +372,45 @@ function upgradeSkill(id){
 }
 let lastSupply=null;
 const save={skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
-try{const stored=JSON.parse(localStorage.getItem(key));if(stored&&typeof stored==='object')Object.assign(save,stored);}catch{}
+Object.assign(save,testSnapshot||readSave(key));
+if(testMode){
+ Object.defineProperty(save,'credits',{enumerable:true,get:()=>Number.MAX_SAFE_INTEGER,set:()=>{}});
+}
+
 if(!Number.isFinite(save.xp))save.xp=save.cleared*100;
 save.xp=Math.max(0,Math.min((maxCharacterLevel-1)*100,save.xp));
-function persist(){try{localStorage.setItem(key,JSON.stringify(save));}catch{}}
+function persist(){
+ try{localStorage.setItem(testMode?testKey:key,JSON.stringify(save));}catch{}
+}
+function installTestControls(){
+ const form=$('testModeForm'),exit=$('testModeExit'),status=$('testModeStatus');
+ form.hidden=testMode;exit.hidden=!testMode;
+ $('privateTest').open=testMode;
+ if(testMode)status.textContent='테스트 중 · 크레딧 무제한. 종료하면 테스트 기록을 지우고 원래 세이브로 돌아가.';
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  if(testMode)return;
+  const input=$('testCode'),start=$('testModeStart');
+  start.disabled=true;
+  try{
+   const code=input.value.trim().toLowerCase();
+   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(code));
+   const hash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+   if(hash!==testCodeHash){status.textContent='코드가 맞지 않아.';return;}
+   localStorage.setItem(testKey,JSON.stringify(save));
+   input.value='';
+   location.reload();
+  }catch{
+   status.textContent='이 기기에서 테스트 세이브를 열 수 없어.';
+  }finally{start.disabled=false;}
+ };
+ exit.onclick=()=>{
+  if(!testMode||!window.confirm('테스트 장비와 강화 기록을 지우고 원래 세이브로 돌아갈까?'))return;
+  try{localStorage.removeItem(testKey);location.reload();}
+  catch{status.textContent='테스트 세이브를 닫을 수 없어. 다시 시도해 줘.';}
+ };
+}
+installTestControls();
 const own=id=>Object.hasOwn(save.levels,id);
 const level=id=>save.levels[id]||0;
 const maxGearLevel=id=>grade(id)*5;
@@ -489,7 +549,7 @@ function renderMenu(next=page){
  const resetScroll=next!==page||!$('combat').hidden;
  page=next;$('combat').hidden=true;$('menu').hidden=false;document.body.classList.remove('fighting');
  if(resetScroll)window.scrollTo(0,0);
- $('money').textContent=Object.keys(currencies).map(k=>currencies[k]+' '+save[k]).join(' · ');
+ $('money').textContent=(testMode?'테스트 모드 · ':'')+Object.keys(currencies).map(k=>currencies[k]+' '+(testMode&&k==='credits'?'∞':save[k])).join(' · ');
  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.page===page)));
  $('menu').replaceChildren();
  if(notice){const note=panel('보상');paragraph(note,notice);notice='';}
@@ -1756,6 +1816,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
