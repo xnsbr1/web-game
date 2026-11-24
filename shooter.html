@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.0">
+<meta name="game-build" content="2.0.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -474,7 +474,7 @@ const training={
  reload:{name:'치명타 확률',percent:1},
  projectile:{name:'치명타 피해',percent:4}
 };
-const trainingUnlockLevels=[1,10,25,45,65];
+const trainingUnlockLevels=[1,10,25,45,65,75,85,95,100];
 const trainingBranches={
  fire:{symbol:'✦',color:'#ffab8b',master:{id:'fireMaster',name:'탄도 지휘',effect:'공격 속도 추가 +4%'},perks:[
   {id:'rapid',name:'속사 교범',effect:'공격 속도 추가 +6%'},
@@ -525,15 +525,16 @@ const trainingSideTiers=[
  {level:50,requires:3,price:{credits:1100,parts:12,skillData:14}},
  {level:75,requires:4,price:{credits:1800,cores:4,skillData:20}}
 ];
-const treeSize=1040;
+const treeSize=1500;
+let treeZoom=1;
 const hasTrainingPerk=id=>save.trainingPerks?.[id]===true;
-const trainingNodes=[{rank:1},{rank:2},{rank:3},{perk:0},{rank:4},{rank:5},{perk:1},{perk:2},{perk:3},{perk:4},{perk:5}];
+const trainingNodes=[{rank:1},{rank:2},{rank:3},{perk:0},{rank:4},{rank:5},{perk:1},{perk:2},{perk:3},{perk:4},{perk:5},{rank:6},{rank:7},{rank:8},{rank:9}];
 // Coordinates along and across a spoke. Rotate the same constellation for each stat.
-const constellation=[[83,0],[161,0],[235,-28],[313,-87],[311,1],[392,24],[458,-25],[431,-127],[218,80],[295,133],[394,150]];
+const constellation=[[83,0],[161,0],[235,-28],[313,-87],[311,1],[392,24],[458,-25],[431,-127],[218,80],[295,133],[394,150],[490,65],[556,112],[616,65],[686,30]];
 const treeAngles={fire:-90,move:0,reload:90,projectile:180};
-const treeParents=[[-1],[0],[1],[2],[2],[4],[5],[3,6],[1],[8,2],[9,4]];
+const treeParents=[[-1],[0],[1],[2],[2],[4],[5],[3,6],[1],[8,2],[9,4],[5],[11],[12],[13]];
 let treeSelection={branch:'fire',index:0};
-const trainingCap=5;
+const trainingCap=trainingUnlockLevels.length;
 const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
 const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
 const supplyTiers=[
@@ -945,25 +946,48 @@ function renderGrowth(previousScroll){
  growth.prepend(button('‹ 전투 홈',()=>openPage('campaign')));
  const filled=Object.keys(training).reduce((total,branch)=>total+trainingLevel(branch)+
   [0,1,2,3,4,5].filter(index=>hasTrainingPerk(trainingPerk(branch,index).id)).length,0);
- paragraph(growth,filled+' / 44 습득 · 지도를 밀거나 계열을 눌러 이동해.');
+ paragraph(growth,filled+' / '+(Object.keys(training).length*trainingNodes.length)+' 습득 · 지도를 밀거나 계열을 눌러 이동해.');
  const legend=document.createElement('div');legend.className='tree-legend';growth.append(legend);
  for(const [branch,config] of Object.entries(trainingBranches)){
   const key=button(config.symbol+' '+training[branch].name,()=>{
+   if(treeZoom<.75)setZoom(1);
    const target=map.querySelector('#tree-'+branch+'-2');
    locate({x:target.offsetLeft,y:target.offsetTop});
   });key.style.color=config.color;legend.append(key);
  }
+ const controls=document.createElement('div');controls.className='tree-legend';growth.append(controls);
  const scroll=document.createElement('div');scroll.id='tree-scroll';scroll.className='tree-scroll';growth.append(scroll);
- const map=document.createElement('div');map.className='training-map';scroll.append(map);
+ const bounds=document.createElement('div');bounds.className='tree-bounds';scroll.append(bounds);
+ const map=document.createElement('div');map.className='training-map';bounds.append(map);
+ map.style.width=map.style.height=treeSize+'px';
  const paths=document.createElement('canvas');paths.className='tree-paths';paths.width=treeSize*2;paths.height=treeSize*2;
  paths.setAttribute('aria-hidden','true');map.append(paths);
  const ctx=paths.getContext('2d');ctx.scale(2,2);
  const root={x:treeSize/2,y:treeSize/2};
  function locate(point){
-  scroll.scrollLeft=point.x-scroll.clientWidth/2;
-  scroll.scrollTop=point.y-scroll.clientHeight/2;
+  scroll.scrollLeft=point.x*treeZoom-scroll.clientWidth/2;
+  scroll.scrollTop=point.y*treeZoom-scroll.clientHeight/2;
  }
- legend.append(button('중앙으로',()=>locate(root)));
+ function setZoom(scale,point={
+  x:(scroll.scrollLeft+scroll.clientWidth/2)/treeZoom,
+  y:(scroll.scrollTop+scroll.clientHeight/2)/treeZoom
+ }){
+  treeZoom=scale;
+  bounds.style.width=bounds.style.height=Math.floor(treeSize*scale)+'px';
+  map.style.transform='scale('+scale+')';
+  zoomLabel.textContent=Math.round(scale*100)+'%';
+  locate(point);
+ }
+ const overviewScale=()=>Math.min(scroll.clientWidth,scroll.clientHeight)/treeSize;
+ const zoomLabel=document.createElement('output');
+ zoomLabel.setAttribute('aria-label','지도 배율');
+ controls.append(
+  button('− 축소',()=>setZoom(Math.max(overviewScale(),treeZoom-.2))),
+  zoomLabel,
+  button('+ 확대',()=>setZoom(Math.min(1.6,treeZoom+.2))),
+  button('전체 보기',()=>setZoom(overviewScale(),root)),
+  button('중앙으로',()=>setZoom(1,root))
+ );
  const center=document.createElement('div');center.className='tree-core';center.textContent='Lv. '+characterLevel();
  placeTreeNode(center,root);map.append(center);
  for(const [branch,config] of Object.entries(trainingBranches)){
@@ -1000,8 +1024,8 @@ function renderGrowth(previousScroll){
   }
  }
  renderTrainingDetail(growth);
+ setZoom(treeZoom,root);
  if(previousScroll){scroll.scrollLeft=previousScroll.x;scroll.scrollTop=previousScroll.y;}
- else locate(root);
 }
 function placeTreeNode(node,point){
  node.style.left=(point.x/treeSize*100)+'%';
@@ -3037,7 +3061,7 @@ body:not(.fighting){--surface:#203a61;--line:#385981;--muted:#c0d3ee;--teal:#70e
 .operator-card .section-label{margin-top:0;color:var(--operator-color)}
 .operator-card button{margin-top:auto;width:100%}
 
-.training-map{position:relative;width:1040px;height:1040px;background:repeating-radial-gradient(circle at center,transparent 0 77px,#83cbea18 78px,transparent 80px),radial-gradient(circle,#27435b,#101b30 72%)}
+.training-map{position:relative;transform-origin:top left;background:repeating-radial-gradient(circle at center,transparent 0 77px,#83cbea18 78px,transparent 80px),radial-gradient(circle,#27435b,#101b30 72%)}
 .tree-core,.tree-node{position:absolute;transform:translate(-50%,-50%);z-index:1;display:grid;place-items:center}
 .tree-core{width:68px;aspect-ratio:1;border-radius:50%;background:#163b50;border:2px solid #97f1dc;color:#e9ffff;font-weight:800;font-size:clamp(10px,3vw,16px)}
 #menu .tree-node{width:48px;min-height:0;padding:0;aspect-ratio:1;border:2px solid var(--tree-color);border-radius:50%;background:#243856;color:var(--tree-color);font-size:clamp(13px,3.7vw,19px);font-weight:800}
@@ -3056,6 +3080,7 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 #menu .stage-access{margin-bottom:14px;border-color:#e5ae68;background:linear-gradient(120deg,#392f4f,#263f67)}
 .dock-icon.growth{border:2px solid;border-radius:50%;box-shadow:0 -5px 0 -3px currentColor,5px 3px 0 -3px currentColor,-5px 3px 0 -3px currentColor}
 .tree-scroll{height:clamp(290px,54dvh,640px);overflow:auto;overscroll-behavior:contain;border:1px solid #436080;border-radius:14px;background:#142238;margin-top:10px}
+.tree-bounds{overflow:hidden;margin-inline:auto}.tree-legend output{align-self:center;min-width:4ch;text-align:center}
 .tree-paths{position:absolute;inset:0;width:100%;height:100%;max-height:none;aspect-ratio:auto;pointer-events:none}
 .tree-legend{margin-top:10px} #menu .tree-legend button{padding:6px 10px;min-height:42px;font-size:14px}.tree-scroll{min-width:0;max-width:100%;touch-action:pan-x pan-y}.tree-panel{min-width:0}#menu .tree-node.has-perk{border-radius:14px}#menu .tree-node.side-perk{border-radius:40%}
 #menu .tree-detail{margin-top:10px}
