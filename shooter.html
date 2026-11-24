@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.1.2">
+<meta name="game-build" content="1.2.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -241,7 +241,19 @@ const skills={
  overdrive:{name:'가속 장치',description:'3초간 이동 속도 +35%, 장전 속도 2배 · 재사용 11초',cooldown:11,color:'#8ef3ba'}
 };
 const equippedSkill=()=>Object.hasOwn(skills,save.skill)?save.skill:'dash';
-const save={skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
+const training={
+ fire:{name:'공격 속도',percent:1.5},
+ move:{name:'이동 속도',percent:1.5},
+ reload:{name:'재장전 속도',percent:2},
+ projectile:{name:'탄환 속도',percent:2}
+};
+const trainingCap=5;
+const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
+const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
+const supplyPool=Object.keys(gear).filter(id=>id!=='pistol');
+const supplyPrice=260;
+let lastSupply=null;
+const save={training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 try{const stored=JSON.parse(localStorage.getItem(key));if(stored&&typeof stored==='object')Object.assign(save,stored);}catch{}
 function persist(){try{localStorage.setItem(key,JSON.stringify(save));}catch{}}
 const own=id=>Object.hasOwn(save.levels,id);
@@ -296,6 +308,52 @@ function button(text,action,disabled=false,style=''){const b=document.createElem
 function panel(title){const el=document.createElement('section');el.className='panel';const h=document.createElement('h2');h.textContent=title;el.append(h);$('menu').append(el);return el;}
 function paragraph(parent,value,cls='muted'){const p=document.createElement('p');p.textContent=value;p.className=cls;parent.append(p);}
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
+function drawSupply(random=Math.random){
+ if(save.credits<supplyPrice)return null;
+ const id=supplyPool[Math.floor(random()*supplyPool.length)];
+ const duplicate=own(id);
+ save.credits-=supplyPrice;
+ if(duplicate)save.parts+=2;
+ else unlock(id);
+ persist();
+ return {id,duplicate};
+}
+function upgradeTraining(id){
+ const current=trainingLevel(id),price=90+current*65;
+ if(current>=trainingCap||save.credits<price||save.alloy<2+current)return false;
+ save.credits-=price;save.alloy-=2+current;
+ save.training={...save.training,[id]:current+1};
+ persist();
+ return true;
+}
+function renderGrowth(){
+ const supply=panel('장비 뽑기');
+ paragraph(supply,'1회 260 크레딧 · 총기부터 장신구까지 '+supplyPool.length+'종, 장비별 동일 확률 · 중복은 정밀 부품 2개');
+ supply.append(button('보급 상자 열기',()=>{
+  const result=drawSupply();
+  if(result){lastSupply=result;renderMenu();}
+ },save.credits<supplyPrice,'primary'));
+ if(lastSupply){
+  const {id,duplicate}=lastSupply;
+  const result=document.createElement('p');result.setAttribute('role','status');
+  result.style.color=rankColors[grade(id)-1];
+  result.textContent=grade(id)+'성 '+gear[id].name+(duplicate?' · 정밀 부품 +2':' 획득');
+  supply.append(result);
+ }
+ const growth=panel('플레이어 강화');
+ paragraph(growth,'모든 장비에 적용 · 항목별 최대 5단계');
+ const list=grid(growth);
+ for(const [id,stat] of Object.entries(training)){
+  const current=trainingLevel(id),price=90+current*65,alloy=2+current;
+  const card=document.createElement('article');card.className='item';
+  paragraph(card,stat.name+' · '+current+'/'+trainingCap,'');
+  paragraph(card,'현재 +'+(current*stat.percent)+'% · 단계당 +'+stat.percent+'%');
+  card.append(button(current===trainingCap?'최대 강화':price+' 크레딧 · 합금 '+alloy,()=>{
+   if(upgradeTraining(id))renderMenu();
+  },current>=trainingCap||save.credits<price||save.alloy<alloy));
+  list.append(card);
+ }
+}
 function renderMenu(next=page){
  const resetScroll=next!==page||!$('combat').hidden;
  page=next;$('combat').hidden=true;$('menu').hidden=false;document.body.classList.remove('fighting');
@@ -382,6 +440,7 @@ function renderMenu(next=page){
    list.append(equipmentTile(item.slot,id,()=>showEquipment(item.slot,id)));
   }
   inventory.append(list);
+  renderGrowth();
   return;
  }
  if(itemView===null){
@@ -612,6 +671,10 @@ function start(index,contract,bossHunt=false){
  const gunId=save.equipped.gun||'pistol';
  if(campaign){mode='assault';n=3;}
  const stat={...gear[gunId]};
+ stat.interval/= .92*trainingFactor('fire');
+ stat.reload/=trainingFactor('reload');
+ stat.speed*=trainingFactor('projectile');
+ stat.travelTimeScale=1/trainingFactor('projectile');
  if(gunId==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
  if(gunId==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
  const lab=index>=10;
@@ -634,7 +697,7 @@ function start(index,contract,bossHunt=false){
  if(mode==='defend')objects.push({x:450,y:295,r:26,hp:145,max:145,done:false});
  const charm=save.equipped.charm;
  const terrain=campaign?[{kind:'vent',x:165,y:175+(index%3)*80,r:32},{kind:'vent',x:714,y:383-(index%3)*75,r:32},{kind:'drum',x:378,y:207+(index%2)*120,r:18},{kind:'drum',x:632,y:279,r:18}]:[];
- game={skill:equippedSkill(),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+ game={skill:equippedSkill(),moveFactor:trainingFactor('move'),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
   p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
@@ -719,7 +782,7 @@ function shotLifetime(id,mod){
 function firingTarget(p){
  const targets=game.mode==='destroy'?[...game.enemies,...game.objects]:game.enemies;
  const mod=level(p.gunId)>=5?modOf(p.gunId):-1;
- let nearest=null,range=shotLifetime(p.gunId,mod)*p.stat.speed+18;
+ let nearest=null,range=shotLifetime(p.gunId,mod)*p.stat.travelTimeScale*p.stat.speed+18;
  for(const target of targets){
   if(target.hp<=0||target.done)continue;
   const distance=dist(p,target);
@@ -749,7 +812,7 @@ function shoot(){
  const damage=g.damage*(1+l*.043+boost)*(1+.026*gradeBonus(id))*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
-  game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod),damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0)});
+  game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod)*g.travelTimeScale,damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0)});
  }
  game.effects.push({x:p.x+Math.cos(p.dir)*21,y:p.y+Math.sin(p.dir)*21,r:12,color:'#ffda8d',life:.08});
  if(!p.ammo)reload();
@@ -943,7 +1006,7 @@ function step(dt){
  const previousX=p.x,previousY=p.y;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*720*dt,Math.sin(p.dashDir)*720*dt);
  else {
-  const movementSpeed=speed*(p.overdrive>0?1.35:1);
+  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1);
   move(p,input.x*movementSpeed*dt,input.y*movementSpeed*dt);
  }
  trackMovement(g,p.x-previousX,p.y-previousY,dt);
@@ -1088,6 +1151,50 @@ function bar(x,y,hp,max,w){
  ctx.fillStyle='#101619';ctx.fillRect(x-w/2,y,w,5);
  ctx.fillStyle='#a4e8a7';ctx.fillRect(x-w/2,y,w*clamp(hp/max,0,1),5);
 }
+function drawEnemy(e,g){
+ const color=e.stun>0?'#ffe5a1':e.color;
+ const stride=Math.sin(g.t*12+e.x*.021);
+ disc(e.x+3,e.y+5,e.r,'#0b101acc');
+ ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.dir);ctx.scale(e.r/16,e.r/16);
+ if(e.type==='crawler'){
+  // A shambling miner, with boots, torn overalls and outstretched arms.
+  ctx.fillStyle='#333c54';ctx.fillRect(-17,-9+stride*2,10,6);ctx.fillRect(-17,3-stride*2,10,6);
+  polygon(ctx,'#536077',[[-9,-10],[5,-11],[10,0],[5,11],[-9,10]]);
+  ctx.fillStyle=color;ctx.fillRect(-1,-13,16,5);ctx.fillRect(1,8,14,5);
+  disc(5,0,8,color);ctx.fillStyle='#eee9a5';ctx.fillRect(7,-5,4,2);ctx.fillRect(7,3,4,2);
+ }else if(e.type==='runner'||e.type==='sample'){
+  // The translucent slime stretches in the direction of its hop.
+  ctx.scale(1+stride*.14,1-stride*.09);ctx.scale(1.15,.84);
+  disc(0,0,15,'#293750');disc(1,-1,13,color);
+  disc(-4,-5,5,'#ffffff65');disc(5,-4,2.6,'#25233d');disc(5,5,2.6,'#25233d');
+ }else if(e.type==='armor'||e.type==='flanker'){
+  const armored=e.type==='armor';
+  for(const side of [-1,1]){
+   polygon(ctx,armored?'#3e3343':'#245963',[[9,side*7],[12,side*18],[-1,side*12],[-14,side*16],[-9,side*6]]);
+  }
+  polygon(ctx,color,[[18,0],[8,-12],[-8,-11],[-15,0],[-8,11],[8,12]]);
+  polygon(ctx,armored?'#6c4b42':'#296076',[[7,-8],[-6,-7],[-12,0],[-6,7],[7,8],[0,0]]);
+  disc(11,0,3,'#fff2a0');
+ }else if(e.type==='spitter'||e.type==='mortar'){
+  const mortar=e.type==='mortar';
+  polygon(ctx,'#29253c',[[13,-12],[-3,-16],[-14,-9],[-14,9],[-3,16],[13,12]]);
+  disc(-2,0,12,color);disc(-3,0,7,mortar?'#564184':'#63324a');
+  ctx.fillStyle=color;ctx.fillRect(1,-5,mortar?17:14,10);
+  ctx.fillStyle='#fbe3ff';ctx.fillRect(13,-3,4,6);
+ }else if(e.type==='blast'){
+  disc(0,0,14,color);disc(0,0,9,'#533043');
+  polygon(ctx,'#ffeb9d',[[0,-8],[8,0],[0,8],[-8,0]]);
+  disc(0,0,3+stride,'#fff7dd');ctx.fillStyle='#533043';ctx.fillRect(-19,-3,8,6);
+ }else{
+  disc(0,0,16,color);
+  const fins=4+(g.index+20)%5;
+  for(let j=0;j<fins;j++){
+   ctx.rotate(TAU/fins);polygon(ctx,color,[[10,-3],[22,0],[10,4]]);
+  }
+  disc(9,0,4,'#5e3431');
+ }
+ ctx.restore();
+}
 function drawBolt(b,dx,dy,width,glow,core){
  ctx.save();
  ctx.lineCap='round';
@@ -1193,17 +1300,12 @@ function draw(){
   if(e.wind>0){
    ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(e.dir)*250,e.y+Math.sin(e.dir)*250);ctx.lineWidth=13;ctx.strokeStyle='#ff956568';ctx.stroke();
   }
-  disc(e.x+3,e.y+5,e.r,'#10181aaa');disc(e.x,e.y,e.r,e.stun>0?'#ffe5a1':e.color);
-  ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.dir);
-  const fins=e.type==='boss'?4+(g.index+20)%5:e.type==='mortar'?6:e.type==='flanker'?3:4;
-  for(let j=0;j<fins;j++){ctx.rotate(TAU/fins);ctx.fillStyle=e.color;ctx.beginPath();ctx.moveTo(e.r*.6,-5);ctx.lineTo(e.r*(e.type==='boss'?1.36:1.18),0);ctx.lineTo(e.r*.6,6);ctx.fill();}
-  ctx.restore();
-  disc(e.x+Math.cos(e.dir)*e.r*.59,e.y+Math.sin(e.dir)*e.r*.59,e.r*.24,'#5e3431');
+  drawEnemy(e,g);
   if(e.type==='armor'||e.type==='boss'||e.hp<e.max)bar(e.x,e.y-e.r-9,e.hp,e.max,e.r*2);
  }
  for(const b of g.shots){
-  const speed=Math.hypot(b.vx,b.vy),length=b.id==='rail'?34:22;
-  drawBolt(b,b.vx/speed*length,b.vy/speed*length,b.id==='rail'?6:4,'#41ddff','#ecffff');
+  const speed=Math.hypot(b.vx,b.vy),length=b.id==='rail'?68:49;
+  drawBolt(b,b.vx/speed*length,b.vy/speed*length,b.id==='rail'?6:4,'#ffce28','#fff5a1');
  }
  for(const b of g.bolts)drawBolt(b,Math.cos(b.a)*25,Math.sin(b.a)*25,5,'#ff4d72','#fff0e9');
  for(const effect of g.effects){
@@ -1384,6 +1486,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
