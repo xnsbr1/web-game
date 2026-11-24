@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
 <title>심층 탄환</title>
 <style>
@@ -45,7 +47,7 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 <div class="arena" id="arena"><canvas id="screen" width="900" height="580" aria-label="전투 지도"></canvas>
 <div id="joystick" aria-hidden="true"><i></i></div>
 <div id="result" class="result" hidden><article><h2 id="resultTitle"></h2><p id="resultText"></p><div class="row" id="resultActions"></div></article></div></div>
-<p id="combatHint">화면을 끌면 이동하며 같은 방향으로 사격</p>
+<p id="combatHint">화면을 끌어 이동 · 가까운 적 자동 사격</p>
 <button id="dash" aria-label="대시">대시</button>
 </section>
 </main>
@@ -73,6 +75,9 @@ const bossColors={charge:'#f3a56c',line:'#8bd5f4',summon:'#a4d883',burst:'#dfa7f
 const objectiveNames={clear:'몬스터 소탕',destroy:'시설 파괴',survive:'생존',armor:'갑각벌레 처치',boss:'보스 격파',switch:'스위치 작동 후 탈출',samples:'표본 처치',defend:'시설 방어',escape:'출구 도착',recover:'보급 상자 회수',elite:'엘리트 처치',range:'표적 사격'};
 const gear={
  pistol:{name:'권총',slot:'gun',damage:22,interval:.28,mag:9,reload:.82,speed:640,mods:['정밀탄','속사 장치'],desc:'중거리에서 안정적인 기본 총기'},
+ revolver:{name:'리볼버',slot:'gun',damage:45,interval:.55,mag:6,reload:1.05,speed:730,mods:['관통탄','확장 실린더'],desc:'한 발이 강한 6연발 권총'},
+ rifle:{name:'돌격소총',slot:'gun',damage:19,interval:.17,mag:18,reload:1.12,speed:810,mods:['고속 장전','철갑탄'],desc:'중장거리에서 빠르고 안정적인 연사'},
+ sniper:{name:'저격소총',slot:'gun',damage:95,interval:1.12,mag:4,reload:1.45,speed:1040,mods:['중장갑 파쇄','장거리 탄환'],desc:'긴 사거리와 높은 단발 피해'},
  shotgun:{name:'산탄총',slot:'gun',damage:14,interval:.64,mag:5,reload:1.1,speed:580,mods:['충격탄','집속탄'],desc:'근거리에서 산탄 5발 발사'},
  smg:{name:'기관단총',slot:'gun',damage:11,interval:.115,mag:23,reload:1,speed:690,mods:['연쇄탄','표식탄'],desc:'연사로 빠른 적을 제압'},
  rail:{name:'충전포',slot:'gun',damage:74,interval:1.05,mag:3,reload:1.3,speed:900,mods:['관통광선','분열탄'],desc:'느리지만 강한 관통 사격'},
@@ -88,10 +93,10 @@ const gear={
  rift:{name:'균열 코어',slot:'charm',desc:'대시 직후 첫 발 피해 증가'},
  battery:{name:'비상 배터리',slot:'charm',desc:'낮은 체력에서 전투당 한 번 보호막'}
 };
-const unlocks={1:'scoutHelmet',11:'sealedHelmet',3:'plate',4:'shotgun',6:'thrust',8:'quick',9:'smg',12:'insulated',16:'grip',17:'battery',19:'rail'};
+const unlocks={1:'scoutHelmet',2:'revolver',7:'rifle',11:'sealedHelmet',15:'sniper',3:'plate',4:'shotgun',6:'thrust',8:'quick',9:'smg',12:'insulated',16:'grip',17:'battery',19:'rail'};
 const slots={head:'헬멧',gun:'총기',armor:'갑옷',gloves:'장갑',boots:'신발',charm:'장신구'};
 const rankColors=['#b1bec6','#8de2a5','#8bc5ff','#caa6ff','#ffc36d','#ff8491'];
-const baseRanks={pistol:1,shotgun:2,smg:3,rail:4,scoutHelmet:1,sealedHelmet:3,plate:2,insulated:3,thrust:2,grip:3,light:2,quick:2,stable:2,rift:4,battery:3};
+const baseRanks={pistol:1,revolver:2,rifle:3,sniper:4,shotgun:2,smg:3,rail:4,scoutHelmet:1,sealedHelmet:3,plate:2,insulated:3,thrust:2,grip:3,light:2,quick:2,stable:2,rift:4,battery:3};
 const currencies={credits:'크레딧',alloy:'합금',parts:'정밀 부품',cores:'보스 코어'};
 const contracts=[
  {name:'회수 의뢰',mode:'recover',n:3,desc:'몬스터 사이로 이동해 상자 3개 회수 · 합금'},
@@ -107,8 +112,8 @@ const own=id=>Object.hasOwn(save.levels,id);
 const level=id=>save.levels[id]||0;
 function unlock(id){if(!id||own(id))return '';save.levels[id]=0;return ' · '+gear[id].name+' 획득';}
 // Grant earlier first-clear loot to existing saves that already cleared these missions.
-if(save.cleared>=2 && !own('scoutHelmet')){unlock('scoutHelmet');persist();}
-if(save.cleared>=12 && !own('sealedHelmet')){unlock('sealedHelmet');persist();}
+const previousRewards=Object.entries(unlocks).filter(([index,id])=>Number(index)<save.cleared&&!own(id));
+if(previousRewards.length){for(const [,id] of previousRewards)unlock(id);persist();}
 function stageId(index){return (Math.floor(index/10)+1)+'-'+(index%10+1);}
 function addFunds(reward){for(const [name,amount] of Object.entries(reward))save[name]+=amount;}
 function rewardText(reward){return Object.entries(reward).filter(([,v])=>v).map(([k,v])=>currencies[k]+' +'+v).join(' · ');}
@@ -156,9 +161,9 @@ function panel(title){const el=document.createElement('section');el.className='p
 function paragraph(parent,value,cls='muted'){const p=document.createElement('p');p.textContent=value;p.className=cls;parent.append(p);}
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
 function renderMenu(next=page){
- if(document.fullscreenElement===$('combat') && document.exitFullscreen)document.exitFullscreen().catch(()=>{});
- if(next!==page || !$('combat').hidden)window.scrollTo(0,0);
+ const resetScroll=next!==page||!$('combat').hidden;
  page=next;$('combat').hidden=true;$('menu').hidden=false;document.body.classList.remove('fighting');
+ if(resetScroll)window.scrollTo(0,0);
  $('money').textContent=Object.keys(currencies).map(k=>currencies[k]+' '+save[k]).join(' · ');
  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.page===page)));
  $('menu').replaceChildren();
@@ -283,7 +288,7 @@ const mountPoints=[
  ['boots',19,78],['charm',81,78]
 ];
 const hues={
- pistol:'#9ec4e8',shotgun:'#e5a66b',smg:'#89dbad',rail:'#beabfd',
+ pistol:'#9ec4e8',revolver:'#d3a6a0',rifle:'#8bcdc4',sniper:'#e8ce92',shotgun:'#e5a66b',smg:'#89dbad',rail:'#beabfd',
  scoutHelmet:'#9edbb9',sealedHelmet:'#89ceea',plate:'#bfccd3',insulated:'#f5c572',
  thrust:'#f6a881',grip:'#83cbdc',light:'#b5db8c',quick:'#f3c382',stable:'#acb8fb',rift:'#cb96ff',battery:'#83e7cb'
 };
@@ -313,13 +318,16 @@ function equipmentPortrait(slot,id,extra=''){
    shape(glow,[[28,53],[59,47],[70,47],[70,51],[56,55],[28,57]]);
    rect(light,57,62,12,8);break;
   case 'gun': {
-   const long=id==='rail'||id==='shotgun';
+   const long=['rail','shotgun','rifle','sniper'].includes(id);
    g.save();g.translate(45,47);g.rotate(-.44);g.translate(-45,-47);
    shape(mid,[[11,38],[24,33],[66,33],[66,52],[29,56],[12,52]]);
    rect(light,24,34,long?53:42,10);
    rect(dark,long?77:65,36,long?15:12,10);
    shape(dark,[[29,51],[47,51],[41,73],[29,74],[25,69]]);
    rect(light,30,62,9,5);rect(glow,37,39,14,3);
+   if(id==='revolver'){rect(mid,43,41,15,12);rect(light,45,43,4,7);}
+   if(id==='rifle'){shape(mid,[[42,47],[54,47],[58,66],[49,66]]);rect(light,57,29,7,6);}
+   if(id==='sniper'){rect(dark,43,27,23,5);rect(light,48,25,14,4);}
    if(id==='smg')shape(mid,[[43,50],[55,50],[58,67],[47,67]]);
    if(id==='rail'){rect(glow,65,33,13,3);rect(glow,65,46,13,3);}
    g.restore();break;
@@ -450,7 +458,9 @@ function start(index,contract,bossHunt=false){
  const c=contracts[contract];
  const [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,c.mode,c.n,contract===3?'rock':'']:stages[index];
  const gunId=save.equipped.gun||'pistol';
- const stat=gear[gunId];
+ const stat={...gear[gunId]};
+ if(gunId==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
+ if(gunId==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
  const lab=index>=10;
  const shift=(Math.max(index,0)%5)*24;
  const walls=mode==='range'?[]:[{x:260+shift,y:148,w:55,h:125},{x:580-shift,y:307,w:65,h:118}];
@@ -481,10 +491,6 @@ function start(index,contract,bossHunt=false){
   }
  }
  updateHud();draw();
- const combat=$('combat');
- if(!document.fullscreenElement && combat.requestFullscreen){
-  try{combat.requestFullscreen().catch(()=>{});}catch{}
- }
 }
 const modOf=id=>save.mods[id]||0;
 function spawn(type,x,y,scale=1){
@@ -514,7 +520,7 @@ function movement(){
  const x=walk.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0);
  const y=walk.y+(keys.has('s')||keys.has('arrowdown')?1:0)-(keys.has('w')||keys.has('arrowup')?1:0);
  const len=Math.max(1,Math.hypot(x,y));
- return {x:x/len,y:y/len};
+ return portraitField()?{x:y/len,y:-x/len}:{x:x/len,y:y/len};
 }
 function reload(){
  const p=game?.p;
@@ -523,6 +529,29 @@ function reload(){
  p.reload=p.stat.reload*(gloves==='quick'&&p.afterDash>0?.63-level(gloves)*.045:1);
  if(gloves&&level(gloves)>=5&&modOf(gloves)===0)p.reload*=.8;
  p.reload*=1-.028*gradeBonus(gloves);
+}
+function shotLifetime(id,mod){
+ if(id==='shotgun')return .48;
+ if(id==='sniper')return mod===1?1.35:1.05;
+ return 1.4;
+}
+function firingTarget(p){
+ const targets=game.mode==='destroy'?[...game.enemies,...game.objects]:game.enemies;
+ const mod=level(p.gunId)>=5?modOf(p.gunId):-1;
+ let nearest=null,range=shotLifetime(p.gunId,mod)*p.stat.speed+18;
+ for(const target of targets){
+  if(target.hp<=0||target.done)continue;
+  const distance=dist(p,target);
+  if(distance>=range)continue;
+  const samples=Math.ceil(distance/10);
+  let clear=true;
+  for(let i=1;i<samples;i++){
+   const t=i/samples;
+   if(blocked(p.x+(target.x-p.x)*t,p.y+(target.y-p.y)*t,3)){clear=false;break;}
+  }
+  if(clear){nearest=target;range=distance;}
+ }
+ return nearest;
 }
 function shoot(){
  const p=game.p,g=p.stat,id=p.gunId,l=level(id),mod=l>=5?modOf(id):-1;
@@ -539,7 +568,7 @@ function shoot(){
  const damage=g.damage*(1+l*.11+boost)*(1+.05*gradeBonus(id))*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
-  game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:id==='shotgun'?.48:1.4,damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):0});
+  game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod),damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0)});
  }
  game.effects.push({x:p.x+Math.cos(p.dir)*21,y:p.y+Math.sin(p.dir)*21,r:12,color:'#ffda8d',life:.08});
  if(!p.ammo)reload();
@@ -565,8 +594,8 @@ function hurt(damage,origin,electric=false){
 }
 function damageEnemy(e,b){
  let d=b.damage;
- if(e.type==='armor'&&e.stun<=0&&Math.cos(e.dir-angle(e,b))>.25)d*=.16;
- if(e.type==='boss'&&e.stun<=0)d*=e.pattern?.82:.63;
+ if(e.type==='armor'&&e.stun<=0&&Math.cos(e.dir-angle(e,b))>.25)d*=b.id==='sniper'&&b.mod===0?.76:b.id==='rifle'&&b.mod===1?.58:.16;
+ if(e.type==='boss'&&e.stun<=0&&!(b.id==='sniper'&&b.mod===0))d*=e.pattern?.82:.63;
  if(b.id==='smg'&&b.mod===1){d*=1+Math.min(5,e.mark)*.13;e.mark++;}
  e.hp-=d;
  if(b.id==='shotgun'&&b.mod===0)move(e,b.vx*.039,b.vy*.039);
@@ -671,10 +700,10 @@ function step(dt){
  if(p.dash>0)move(p,Math.cos(p.dashDir)*720*dt,Math.sin(p.dashDir)*720*dt);
  else move(p,input.x*speed*dt,input.y*speed*dt);
 
- if(Math.hypot(input.x,input.y)>.01){
-  p.dir=p.dash>0?p.dashDir:Math.atan2(input.y,input.x);
-  shoot();
- }
+ const target=firingTarget(p);
+ if(target){p.dir=angle(p,target);shoot();}
+ else if(p.dash>0)p.dir=p.dashDir;
+ else if(Math.hypot(input.x,input.y)>.01)p.dir=Math.atan2(input.y,input.x);
 
  if(g.t>=g.nextSpawn){
   g.nextSpawn=g.t+(g.mode==='range'?.65:g.mode==='clear'?1.45:3.25);
@@ -794,6 +823,7 @@ function bar(x,y,hp,max,w){
  ctx.fillStyle='#101619';ctx.fillRect(x-w/2,y,w,5);
  ctx.fillStyle='#a4e8a7';ctx.fillRect(x-w/2,y,w*clamp(hp/max,0,1),5);
 }
+function portraitField(){return canvas.clientHeight>canvas.clientWidth;}
 function draw(){
  const g=game,p=g.p;
  const width=canvas.clientWidth,height=canvas.clientHeight;
@@ -801,11 +831,18 @@ function draw(){
  const pixelRatio=Math.min(window.devicePixelRatio||1,2);
  const realWidth=Math.round(width*pixelRatio),realHeight=Math.round(height*pixelRatio);
  if(canvas.width!==realWidth||canvas.height!==realHeight){canvas.width=realWidth;canvas.height=realHeight;}
- const scale=Math.max(width/W,height/H);
- const visibleWidth=width/scale,visibleHeight=height/scale;
- const left=clamp(p.x-visibleWidth/2,0,W-visibleWidth);
- const top=clamp(p.y-visibleHeight/2,0,H-visibleHeight);
- ctx.setTransform(scale*pixelRatio,0,0,scale*pixelRatio,-left*scale*pixelRatio,-top*scale*pixelRatio);
+ const portrait=portraitField();
+ const topSpace=72,bottomSpace=78;
+ const fieldHeight=Math.max(1,height-topSpace-bottomSpace);
+ const sceneWidth=portrait?H:W,sceneHeight=portrait?W:H;
+ const scale=Math.min(width/sceneWidth,fieldHeight/sceneHeight);
+ const dx=(width-sceneWidth*scale)/2;
+ const dy=topSpace+(fieldHeight-sceneHeight*scale)/2;
+ ctx.setTransform(pixelRatio,0,0,pixelRatio,0,0);
+ ctx.fillStyle='#10181a';ctx.fillRect(0,0,width,height);
+ ctx.translate(dx+(portrait?sceneWidth*scale:0),dy);
+ ctx.scale(scale,scale);
+ if(portrait)ctx.rotate(Math.PI/2);
  ctx.fillStyle=g.lab?'#203941':'#302c28';ctx.fillRect(0,0,W,H);
  ctx.strokeStyle=g.lab?'#29464d':'#3d3730';ctx.lineWidth=1;
  for(let x=20;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
@@ -825,7 +862,7 @@ function draw(){
  }
  if(['switch','escape'].includes(g.mode)){
   const ready=g.objects.every(o=>o.done);disc(g.exit.x,g.exit.y,28,ready?'#69d9a5':'#666d62');
-  ctx.textAlign='center';ctx.font='bold 14px system-ui';ctx.fillStyle='#152621';ctx.fillText('출구',g.exit.x,g.exit.y+5);
+  ctx.textAlign='center';ctx.font='bold 14px system-ui';ctx.fillStyle='#152621';ctx.save();ctx.translate(g.exit.x,g.exit.y);if(portrait)ctx.rotate(-Math.PI/2);ctx.fillText('출구',0,5);ctx.restore();
  }
  for(const a of g.warnings){
   const color=a.time>0?'#f4b35d50':'#ff6334aa';
@@ -860,19 +897,8 @@ function draw(){
  ctx.lineWidth=6;ctx.strokeStyle='#b9eee2';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(p.dir)*30,p.y+Math.sin(p.dir)*30);ctx.stroke();
  disc(p.x,p.y,p.r,p.inv>0?'#f6f4c1':'#74e4ce');disc(p.x,p.y,6,'#295a62');
  bar(p.x,p.y-27,p.hp,p.max,40);
- if(visibleWidth<W*.85||visibleHeight<H*.85){
-  ctx.setTransform(pixelRatio,0,0,pixelRatio,0,0);
-  const zoom=.108,mx=width-110,my=76;
-  ctx.fillStyle='#0d171ddc';ctx.fillRect(mx,my,W*zoom,H*zoom);
-  ctx.strokeStyle='#58747e';ctx.lineWidth=1;
-  ctx.strokeRect(mx,my,W*zoom,H*zoom);
-  ctx.strokeRect(mx+left*zoom,my+top*zoom,visibleWidth*zoom,visibleHeight*zoom);
-  for(const e of g.enemies)disc(mx+e.x*zoom,my+e.y*zoom,1.8,'#ee927e');
-  for(const o of g.objects)if(!o.done)disc(mx+o.x*zoom,my+o.y*zoom,2.8,'#ffcb77');
-  if(['switch','escape'].includes(g.mode))disc(mx+g.exit.x*zoom,my+g.exit.y*zoom,2.8,'#73eaa3');
-  disc(mx+p.x*zoom,my+p.y*zoom,2.8,'#8fe8d4');
- }
 }
+
 function pause(){
  if(!game||game.over)return;
  game.paused=!game.paused;releaseStick();keys.clear();
@@ -944,7 +970,7 @@ renderMenu();requestAnimationFrame(frame);
 }
 </style>
 <style>
-body.fighting{overflow:hidden;overscroll-behavior:none}
+body.fighting{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;touch-action:none}
 #combat{position:fixed;inset:0;overflow:hidden;background:#10181a;touch-action:none}
 #combat .arena{position:absolute;inset:0;border:0;border-radius:0}
 #screen{width:100%;height:100%;max-height:none;aspect-ratio:auto;object-fit:fill}
