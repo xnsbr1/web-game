@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.2">
+<meta name="game-build" content="2.0.3">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -809,8 +809,34 @@ function renderSupplyCard(parent,result){
  paragraph(card,outcome==='new'?'새 장비 획득':outcome==='promoted'?previousRank+'성 → '+rank+'성 · 강화 유지':'복제본 +1 · 정밀 부품 +1');
 }
 function dayKey(){return new Date(Date.now()+9*3600000).toISOString().slice(0,10);}
+function dailyWeaponPrice(stage,tickets){
+ const multiplier=2.2+2*Math.log10(10000/tickets);
+ return Math.ceil(supplyPrice(stage)*multiplier/10)*10;
+}
+function dailyWeaponOffer(stage,random=Math.random){
+ let ticket=Math.floor(random()*10000);
+ const tier=supplyOdds(stage).find(entry=>(ticket-=entry.tickets)<0);
+ const guns=tier.items.filter(id=>gear[id].slot==='gun');
+ const id=guns[Math.floor(random()*guns.length)];
+ return {id,rank:tier.rank,tickets:tier.tickets,price:dailyWeaponPrice(stage,tier.tickets)};
+}
+function buyDailyWeapon(date){
+ const shop=save.shop,offer=shop?.weapon;
+ if(date!==dayKey()||shop?.date!==date||!offer||shop.weaponPurchased||save.credits<offer.price)return false;
+ save.credits-=offer.price;
+ if(own(offer.id))grantRewardGun(offer.id,offer.rank,0);
+ else{unlock(offer.id);save.ranks[offer.id]=offer.rank;}
+ shop.weaponPurchased=true;
+ persist();
+ return true;
+}
 function dailyShop(){
  const p=panel('일일 상점'),date=dayKey(),list=grid(p);list.classList.add('daily-stock');
+ if(save.shop?.date!==date)save.shop={date,bought:[]};
+ if(!save.shop.weapon){
+  save.shop.weapon=dailyWeaponOffer(supplyStage());
+  persist();
+ }
  const deals=[[0,{credits:45}],[35,{alloy:5}],[80,{parts:2}],[65,{skillData:4}],[120,{['core'+coreRank(supplyStage())]:1}],[50,{[familyMaterial[gunFamilies[(new Date().getUTCDate())%7]]]:3}]];
  for(const [i,[price,reward]] of deals.entries()){
   const sold=save.shop?.date===date&&save.shop.bought.includes(i);
@@ -821,6 +847,17 @@ function dailyShop(){
    save.credits-=price;addFunds(reward);save.shop.bought.push(i);persist();renderMenu();
   },sold||save.credits<price));
  }
+ const {id,rank,tickets,price}=save.shop.weapon;
+ const sold=save.shop.weaponPurchased;
+ const weapon=largeEntry(rank+'성 '+gear[id].name,
+  '당일 무기 · '+rank+'성 등장 확률 '+(tickets/100)+'% · '+(sold?'구매 완료':price.toLocaleString('ko-KR')+' 크레딧'),
+  ()=>{
+   if(buyDailyWeapon(date))notice=rank+'성 '+gear[id].name+' 구매 완료';
+   renderMenu();
+  },sold||save.credits<price);
+ weapon.classList.add('daily-weapon');
+ weapon.style.setProperty('--weapon-rank',rankColors[rank-1]);
+ p.append(weapon);
 }
 function guidePanel(){
  const missions=['1-1에서 보스를 쓰러뜨려.','장비 뽑기에서 테마 장비를 얻어.','장비 하나를 +1 이상 강화해.','스테이지 1-6 중간 보스를 격파해.','1-10을 클리어하고 장비 탭에서 무기 선택권을 사용해.'];
@@ -3153,6 +3190,7 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 #menu .tree-node[data-tier="큰"]{width:66px;font-size:26px;border-radius:21px;border-style:double;border-width:5px}
 .stage-chapters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
 .salvage-row{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}.salvage-row input{width:20px;height:20px;flex:none}
+#menu .daily-weapon{margin-top:10px;border-color:var(--weapon-rank);color:var(--weapon-rank)}
 </style>
 </body></html>
 
