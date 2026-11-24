@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.7.0">
+<meta name="game-build" content="1.7.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -585,11 +585,18 @@ function disclosure(parent,title){
  summary.textContent=title;details.append(summary);parent.append(details);
  return details;
 }
+const mobArts={
+  fan:{name:'파편 부채탄',color:'#ff92cc',range:350,windup:1.05},
+  ring:{name:'공명 고리',color:'#ffbc66',range:134,windup:1.15},
+  mend:{name:'수복 파동',color:'#76f5cc',range:128,windup:1.25}
+};
+const mobArtByType={gunner:'fan',spitter:'fan',crawler:'ring',armor:'ring',blast:'ring',runner:'mend',flanker:'mend'};
 function squadBrief(parent,index){
  const squad=stageSquads[index];
- paragraph(parent,squad.units.map((unit,i)=>(i+1)+'R '+unit.name).join(' → '));
+ paragraph(parent,squad.units.map((unit,i)=>(i+1)+'R '+unit.name+(mobArtByType[unit.type]?' ('+mobArts[mobArtByType[unit.type]].name+')':'')).join(' → '));
  if(squad.units.some(unit=>unit.type==='gunner'))paragraph(parent,'신호사수가 1R부터 합류해. 분홍 점선이 멈추면 옆으로 피해.');
  paragraph(parent,squad.trait+' · '+traitGuide[squad.trait]+' · 보스전 잡몹 최대 3마리');
+ paragraph(parent,'6초 동안 피해를 피하면 최대 체력의 0.5%씩 매초 회복해.');
  paragraph(parent,'바닥의 주황 원은 폭격 예고야. 같은 자리에 머무르면 집중 포격이 강해져.');
 }
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
@@ -1323,7 +1330,7 @@ function start(index,contract,bossHunt=false,band=0){
 
  const transcendStats=Object.fromEntries(Object.keys(slots).map(slot=>[slot,transcendPower(save.equipped[slot])]));
  game={transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:trainingFactor('move')*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.0024),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
-  p:{x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
+  p:{regenAt:0,x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
  $('combatHint').textContent=campaign?'» 가속 · + 응급 회복 · ! 폭발통':'화면을 끌어 이동 · 가까운 적 자동 사격';
@@ -1349,7 +1356,7 @@ function spawn(type,x,y,scale=1){
  const d=enemyTypes[type]||enemyTypes.crawler;
  if(x===undefined){const edge=game.spawned%4;const t=Math.random();x=edge===0?35:edge===1?W-35:55+t*(W-110);y=edge<2?55+t*(H-110):edge===2?32:H-32;}
  const hp=Math.round(d.hp*scale*(game.dungeon?contractScale(game.dungeonLevel).hp:type==='boss'?1:1+Math.max(0,game.index)*.023));
- game.enemies.push({type,...d,x,y,hp,max:hp,clock:type==='boss'?1.9:1.2,wind:0,rush:0,stun:0,dir:Math.PI,mark:0});
+ game.enemies.push({type,...d,x,y,hp,max:hp,art:mobArtByType[type],artReady:game.t+3+(game.spawned%4)*.75,clock:type==='boss'?1.9:1.2,wind:0,rush:0,stun:0,dir:Math.PI,mark:0});
 }
 function blocked(x,y,r){return game.walls.some(w=>Math.hypot(x-clamp(x,w.x,w.x+w.w),y-clamp(y,w.y,w.y+w.h))<r);}
 function move(body,dx,dy){
@@ -1478,7 +1485,9 @@ function hurt(damage,origin,electric=false){
  if(armor&&level(armor)>=5&&modOf(armor)===0)damage*=.85;
  if(armor&&level(armor)>=5&&modOf(armor)===1&&healthRatio<.35)damage*=.72;
  damage*=(1-.015*(gradeBonus(head)+gradeBonus(armor)))*(1-.0024*(advancedLevel(head)+advancedLevel(armor)));
- p.hp-=Math.round(damage*(1-game.bonuses.defense)*game.damageScale);game.hits++;playEffect('hurt');p.inv=.52;
+ const loss=Math.round(damage*(1-game.bonuses.defense)*game.damageScale);
+ if(loss>0)p.regenAt=game.t+6;
+ p.hp-=loss;game.hits++;playEffect('hurt');p.inv=.52;
  const charm=save.equipped.charm;
  if(p.hp>0&&p.hp/p.max<=.32&&gearFamily(charm)==='battery'&&!game.usedBattery){
   p.inv=2+effectLevel(charm)*.43+gradeBonus(charm)*.14+(level(charm)>=5&&modOf(charm)===0?.8:0);game.usedBattery=true;
@@ -1558,9 +1567,42 @@ function coverDetour(e,target){
  }
  return best;
 }
+const fanAngles=[-.48,-.24,0,.24,.48];
+function mendTargets(e){
+ return game.enemies.filter(ally=>ally!==e&&ally.type!=='boss'&&ally.hp>0&&ally.hp<ally.max&&dist(e,ally)<=mobArts.mend.range&&clearShot(e,ally));
+}
+function useMobArt(e,p,dt){
+ const spec=mobArts[e.art];
+ if(!spec)return false;
+ if(e.cast){
+  const cast=e.cast;
+  if(e.stun>0||cast.health-e.hp>=e.max*.15){e.cast=null;return false;}
+  cast.left-=dt;
+  if(cast.left>0)return true;
+  e.cast=null;
+  if(e.art==='fan'){
+   for(const offset of fanAngles)game.bolts.push({x:e.x,y:e.y,a:cast.dir+offset,life:spec.range/285,hit:Math.round(e.hit*.72),steers:false});
+  }else if(e.art==='ring'){
+   const d=dist(e,p);
+   if(d>=56-p.r&&d<=spec.range+p.r&&clearShot(e,p))hurt(e.hit,e);
+  }else{
+   for(const ally of mendTargets(e))ally.hp=Math.min(ally.max,ally.hp+ally.max*.12);
+  }
+  game.effects.push({x:e.x,y:e.y,r:e.art==='fan'?32:spec.range,color:spec.color,life:.24,ring:true});
+  return true;
+ }
+ if(e.stun>0||game.t<e.artReady||e.rush>0||e.wind>0||e.aimTime>0)return false;
+ e.artReady=game.t+.35;
+ if(game.enemies.some(other=>other.hp>0&&other.cast))return false;
+ if(e.art==='mend'?!mendTargets(e).length:dist(e,p)>spec.range||!clearShot(e,p))return false;
+ e.cast={left:spec.windup,dir:angle(e,p),health:e.hp};
+ e.artReady=game.t+8+spec.windup;
+ return true;
+}
 function updateEnemy(e,dt){
  const p=game.p;
  if(e.hp<=0)return;
+ if(useMobArt(e,p,dt))return;
  if(e.stun>0){e.stun-=dt;return;}
  if(e.trait==='재생'){
   if(e.hp<(e.previousHp??e.max))e.lastHit=game.t;
@@ -1774,9 +1816,14 @@ function updateDevices(g,dt){
   }
  }
 }
+function recoverHealth(p,time,dt){
+ if(p.hp<=0||p.hp>=p.max||time<=p.regenAt)return;
+ p.hp=Math.min(p.max,p.hp+p.max*.005*Math.min(dt,time-p.regenAt));
+}
 function step(dt,refreshHud=true){
  const g=game,p=g.p;
  g.t+=dt;
+ recoverHealth(p,g.t,dt);
  for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent','skillStride'])p[key]=Math.max(0,p[key]-dt);
  if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;}}
  hazards();
@@ -1893,7 +1940,8 @@ function updateHud(){
  meter.firstElementChild.style.width=healthRatio*100+'%';
  meter.firstElementChild.style.background=healthRatio<=.3?'#ee606f':'#29bf94';
  meter.setAttribute('aria-valuemax',p.max);
- meter.lastElementChild.textContent='HP '+hp+' / '+p.max;meter.setAttribute('aria-valuenow',hp);
+ const recovering=p.hp>0&&p.hp<p.max&&g.t>p.regenAt;
+ meter.lastElementChild.textContent='HP '+hp+' / '+p.max+(recovering?' · 회복 중':'');meter.setAttribute('aria-valuenow',hp);
  $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초';
  const skillButton=$('dash'),skillName=skills[g.skill].name;
  skillButton.disabled=!skillReady();
@@ -1942,6 +1990,24 @@ function disc(x,y,r,color){
 function bar(x,y,hp,max,w){
  ctx.fillStyle='#101619';ctx.fillRect(x-w/2,y,w,5);
  ctx.fillStyle='#a4e8a7';ctx.fillRect(x-w/2,y,w*clamp(hp/max,0,1),5);
+}
+function drawCast(e){
+ const spec=mobArts[e.art];
+ ctx.save();ctx.translate(e.x,e.y);ctx.strokeStyle=spec.color;ctx.lineWidth=3;
+ if(e.art==='fan'){
+  ctx.setLineDash([8,8]);
+  for(const offset of fanAngles){
+   const a=e.cast.dir+offset;
+   ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*spec.range,Math.sin(a)*spec.range);ctx.stroke();
+  }
+ }else{
+  ctx.beginPath();ctx.arc(0,0,spec.range,0,TAU);
+  if(e.art==='ring'){ctx.moveTo(56,0);ctx.arc(0,0,56,0,TAU,true);}
+  ctx.fillStyle=spec.color+'30';ctx.fill('evenodd');ctx.stroke();
+ }
+ ctx.setLineDash([]);ctx.lineWidth=5;ctx.beginPath();
+ ctx.arc(0,0,e.r+7,-Math.PI/2,-Math.PI/2+TAU*(1-e.cast.left/spec.windup));ctx.stroke();
+ ctx.restore();
 }
 function drawEnemy(e,g){
  const color=e.stun>0?'#ffe5a1':e.color;
@@ -2103,6 +2169,7 @@ function draw(){
   if(['destroy','defend'].includes(g.mode))bar(o.x,o.y-28,o.hp,o.max,42);
  }
  for(const e of g.enemies){
+  if(e.cast)drawCast(e);
   if(e.aimTime>0){
    ctx.save();ctx.setLineDash([9,7]);ctx.strokeStyle='#ff8cab';ctx.lineWidth=3;
    ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(e.dir)*420,e.y+Math.sin(e.dir)*420);ctx.stroke();ctx.restore();
