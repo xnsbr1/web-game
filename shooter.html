@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.12.0">
+<meta name="game-build" content="1.13.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -525,11 +525,13 @@ const trainingSideTiers=[
  {level:50,requires:3,price:{credits:1100,parts:12,skillData:14}},
  {level:75,requires:4,price:{credits:1800,cores:4,skillData:20}}
 ];
-const treeHeight=1120;
+const treeSize=1040;
 const hasTrainingPerk=id=>save.trainingPerks?.[id]===true;
 const trainingNodes=[{rank:1},{rank:2},{rank:3},{perk:0},{rank:4},{rank:5},{perk:1},{perk:2},{perk:3},{perk:4},{perk:5}];
-const treeColumns={fire:[79,52,75,51,67,44,61,48],move:[167,144,177,150,170,146,174,152],
- reload:[274,294,263,287,269,297,269,284],projectile:[363,389,364,388,373,395,375,393]};
+// Coordinates along and across a spoke. Rotate the same constellation for each stat.
+const constellation=[[83,0],[161,0],[235,-28],[313,-87],[311,1],[392,24],[458,-25],[431,-127],[218,80],[295,133],[394,150]];
+const treeAngles={fire:-90,move:0,reload:90,projectile:180};
+const treeParents=[[-1],[0],[1],[2],[2],[4],[5],[3,6],[1],[8,2],[9,4]];
 let treeSelection={branch:'fire',index:0};
 const trainingCap=5;
 const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
@@ -930,9 +932,7 @@ function buyTrainingPerk(branch,index){
  return true;
 }
 function drawTreeLine(ctx,from,to,color){
- const hinge=from.y-(from.y-to.y)*.58;
- ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(from.x,hinge+16);
- ctx.lineTo(to.x,hinge-12);ctx.lineTo(to.x,to.y);
+ ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);
  ctx.strokeStyle=color;ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();
 }
 function renderGrowth(previousScroll){
@@ -941,36 +941,41 @@ function renderGrowth(previousScroll){
  growth.prepend(button('‹ 전투 홈',()=>openPage('campaign')));
  const filled=Object.keys(training).reduce((total,branch)=>total+trainingLevel(branch)+
   [0,1,2,3,4,5].filter(index=>hasTrainingPerk(trainingPerk(branch,index).id)).length,0);
- paragraph(growth,filled+' / 44 습득 · 위로 스크롤하고 노드를 눌러 효과와 비용을 확인해.');
+ paragraph(growth,filled+' / 44 습득 · 지도를 밀거나 계열을 눌러 이동해.');
  const legend=document.createElement('div');legend.className='tree-legend';growth.append(legend);
  for(const [branch,config] of Object.entries(trainingBranches)){
-  const key=document.createElement('span');key.textContent=config.symbol+' '+training[branch].name;key.style.color=config.color;legend.append(key);
+  const key=button(config.symbol+' '+training[branch].name,()=>{
+   const target=map.querySelector('#tree-'+branch+'-2');
+   locate({x:target.offsetLeft,y:target.offsetTop});
+  });key.style.color=config.color;legend.append(key);
  }
  const scroll=document.createElement('div');scroll.id='tree-scroll';scroll.className='tree-scroll';growth.append(scroll);
  const map=document.createElement('div');map.className='training-map';scroll.append(map);
- const paths=document.createElement('canvas');paths.className='tree-paths';paths.width=880;paths.height=treeHeight*2;
+ const paths=document.createElement('canvas');paths.className='tree-paths';paths.width=treeSize*2;paths.height=treeSize*2;
  paths.setAttribute('aria-hidden','true');map.append(paths);
  const ctx=paths.getContext('2d');ctx.scale(2,2);
- const root={x:220,y:1075};
+ const root={x:treeSize/2,y:treeSize/2};
+ function locate(point){
+  scroll.scrollLeft=point.x-scroll.clientWidth/2;
+  scroll.scrollTop=point.y-scroll.clientHeight/2;
+ }
+ legend.append(button('중앙으로',()=>locate(root)));
  const center=document.createElement('div');center.className='tree-core';center.textContent='Lv. '+characterLevel();
  placeTreeNode(center,root);map.append(center);
  for(const [branch,config] of Object.entries(trainingBranches)){
   const current=trainingLevel(branch);
-  const fork={x:branch==='fire'||branch==='move'?128:312,y:1005};
-  drawTreeLine(ctx,root,fork,'#6d8eaf');
-  const points=treeColumns[branch].map((x,index)=>({x,y:949-index*120}));
-  const sideX={fire:120,move:222,reload:325,projectile:400}[branch];
-  const sidePoints=[{x:sideX,y:769},{x:sideX-8,y:529},{x:sideX+2,y:289}];
-  let previous=fork;
+  const angle=treeAngles[branch]*Math.PI/180;
+  const points=constellation.map(([along,across])=>({
+   x:root.x+along*Math.cos(angle)-across*Math.sin(angle),
+   y:root.y+along*Math.sin(angle)+across*Math.cos(angle)
+  }));
   for(const [index,entry] of trainingNodes.entries()){
-   const side=index>=8;
-   const point=side?sidePoints[index-8]:points[index];
-   const source=side?(index===8?points[1]:sidePoints[index-9]):previous;
+   const point=points[index];
    const status=entry.rank?null:trainingPerkStatus(branch,entry.perk);
    const learned=entry.rank?current>=entry.rank:status.learned;
    const ready=entry.rank?current+1===entry.rank&&characterLevel()>=trainingUnlockLevels[entry.rank-1]:status.ready;
-   drawTreeLine(ctx,source,point,learned?config.color:side?'#6a7192':'#4d6283');
-   if(!side)previous=point;
+   for(const parent of treeParents[index])
+    drawTreeLine(ctx,parent<0?root:points[parent],point,learned?config.color:ready?'#91a9bf':'#43536b');
    const label=entry.rank?config.symbol+entry.rank:entry.perk===2||entry.perk>=4?'★':entry.perk===3?'+':'✧';
    const node=button(label,()=>{
     treeSelection={branch,index};renderMenu();
@@ -990,11 +995,12 @@ function renderGrowth(previousScroll){
   }
  }
  renderTrainingDetail(growth);
- scroll.scrollTop=previousScroll??scroll.scrollHeight;
+ if(previousScroll){scroll.scrollLeft=previousScroll.x;scroll.scrollTop=previousScroll.y;}
+ else locate(root);
 }
 function placeTreeNode(node,point){
- node.style.left=(point.x/440*100)+'%';
- node.style.top=(point.y/treeHeight*100)+'%';
+ node.style.left=(point.x/treeSize*100)+'%';
+ node.style.top=(point.y/treeSize*100)+'%';
 }
 function renderTrainingDetail(parent){
  const {branch,index}=treeSelection,entry=trainingNodes[index],current=trainingLevel(branch);
@@ -1026,7 +1032,8 @@ function renderTrainingDetail(parent){
  },learned||!ready||!available(tier.price),'primary'));
 }
 function renderMenu(next=page){
- const treeScroll=next==='growth'&&page==='growth'?$('tree-scroll')?.scrollTop:undefined;
+ const viewport=next==='growth'&&page==='growth'&&$('tree-scroll');
+ const treeScroll=viewport?{x:viewport.scrollLeft,y:viewport.scrollTop}:undefined;
  const resetScroll=next!==page||!$('combat').hidden;
  page=next;$('combat').hidden=true;$('menu').hidden=false;document.body.classList.remove('fighting');
  document.body.classList.toggle('stage-screen',page==='stages');
@@ -3025,10 +3032,10 @@ body:not(.fighting){--surface:#203a61;--line:#385981;--muted:#c0d3ee;--teal:#70e
 .operator-card .section-label{margin-top:0;color:var(--operator-color)}
 .operator-card button{margin-top:auto;width:100%}
 
-.training-map{position:relative;width:min(100%,620px);aspect-ratio:440/1120;margin:auto;background:radial-gradient(ellipse at center,#263b59,#142238 72%)}
+.training-map{position:relative;width:1040px;height:1040px;background:repeating-radial-gradient(circle at center,transparent 0 77px,#83cbea18 78px,transparent 80px),radial-gradient(circle,#27435b,#101b30 72%)}
 .tree-core,.tree-node{position:absolute;transform:translate(-50%,-50%);z-index:1;display:grid;place-items:center}
-.tree-core{width:15%;aspect-ratio:1;border-radius:50%;background:#163b50;border:2px solid #97f1dc;color:#e9ffff;font-weight:800;font-size:clamp(10px,3vw,16px)}
-#menu .tree-node{width:clamp(37px,11%,56px);min-height:0;padding:0;aspect-ratio:1;border:2px solid var(--tree-color);border-radius:50%;background:#243856;color:var(--tree-color);font-size:clamp(13px,3.7vw,19px);font-weight:800}
+.tree-core{width:68px;aspect-ratio:1;border-radius:50%;background:#163b50;border:2px solid #97f1dc;color:#e9ffff;font-weight:800;font-size:clamp(10px,3vw,16px)}
+#menu .tree-node{width:48px;min-height:0;padding:0;aspect-ratio:1;border:2px solid var(--tree-color);border-radius:50%;background:#243856;color:var(--tree-color);font-size:clamp(13px,3.7vw,19px);font-weight:800}
 #menu .tree-node.side-perk{box-shadow:0 0 10px #ffce8255}
 #menu .tree-node.has-perk{border-style:double;border-width:4px}
 #menu .tree-node.locked{border-color:#677897;color:#c1cce0;background:#1b2840}
@@ -3045,7 +3052,7 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 .dock-icon.growth{border:2px solid;border-radius:50%;box-shadow:0 -5px 0 -3px currentColor,5px 3px 0 -3px currentColor,-5px 3px 0 -3px currentColor}
 .tree-scroll{height:clamp(290px,54dvh,640px);overflow:auto;overscroll-behavior:contain;border:1px solid #436080;border-radius:14px;background:#142238;margin-top:10px}
 .tree-paths{position:absolute;inset:0;width:100%;height:100%;max-height:none;aspect-ratio:auto;pointer-events:none}
-.tree-legend{margin-top:10px}
+.tree-legend{margin-top:10px} #menu .tree-legend button{padding:6px 10px;min-height:42px;font-size:14px}.tree-scroll{min-width:0;max-width:100%;touch-action:pan-x pan-y}.tree-panel{min-width:0}#menu .tree-node.has-perk{border-radius:14px}#menu .tree-node.side-perk{border-radius:40%}
 #menu .tree-detail{margin-top:10px}
 .daily-stock{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#menu .daily-stock button{font-size:13px;padding:8px 3px;min-height:56px}
 #reserveSkill{position:absolute;z-index:2;right:calc(92px + env(safe-area-inset-right));bottom:calc(22px + env(safe-area-inset-bottom));width:62px;height:62px;border-radius:50%;color:#102535;font-weight:800;padding:2px}
