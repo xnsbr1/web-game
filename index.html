@@ -58,12 +58,12 @@ aside h2{font-size:15px;margin:0 0 8px}
 #best{color:var(--muted);font-size:11px}
 @media(max-width:760px){main{grid-template-columns:minmax(0,1fr)}.cards{grid-template-columns:repeat(3,minmax(0,1fr))}.detail{min-height:36px}aside{padding:10px}header{margin-bottom:12px}.shell{padding-top:14px}}
 @media(max-width:475px){.crest{width:29px;height:34px;font-size:17px}.brand{gap:6px}.subtitle{display:none}header{gap:5px}.stat{min-width:44px;padding:3px 4px}.stat span{font-size:9px}.stat strong{font-size:14px}.stats{gap:3px}.card{grid-template-columns:21px 1fr;gap:3px;padding:5px;min-height:48px}.icon{width:19px;height:22px;font-size:14px}.card small{display:none}.price{grid-column:2;font-size:10px;line-height:1}.board-footer{padding:6px}.quiet{padding:4px 6px}#status{font-size:11px}.shell{padding-inline:8px}}
-</style>
+.workshop{border-bottom:1px solid var(--outline);padding-bottom:12px;margin-bottom:12px}.workshop p{font-size:12px;color:var(--gold);margin:8px 0}.workshop button{min-height:34px}#rail[hidden]{display:none}</style>
 </head>
 <body>
 <div class="shell">
 <header>
-  <div class="brand"><div class="crest" aria-hidden="true">◆</div><div><h1>녹안 협곡</h1><p class="subtitle">협곡을 지나오는 적으로부터 요새를 지켜라</p></div></div>
+  <div class="brand"><div class="crest" aria-hidden="true">◆</div><div><h1 id="region">녹안 협곡</h1><p class="subtitle">협곡을 지나오는 적으로부터 요새를 지켜라</p></div></div>
   <div class="stats">
     <div class="stat"><span>웨이브</span><strong id="wave">0 / 10</strong></div>
     <div class="stat"><span>골드</span><strong id="gold">160</strong></div>
@@ -84,7 +84,7 @@ aside h2{font-size:15px;margin:0 0 8px}
     </div>
   </section>
   <aside aria-label="타워와 웨이브 조작">
-    <h2>타워 건설</h2>
+    <section class="workshop"><h2>원정 · 대장간</h2><button class="quiet" id="travel"></button> <button class="quiet" id="rail" hidden></button><p id="oreCount"></p><button class="quiet" id="forge"></button></section><h2>타워 건설</h2>
     <div class="cards" id="cards"></div>
     <div class="detail" id="detail"></div>
     <button type="button" class="primary" id="launch">웨이브 1 시작</button>
@@ -110,14 +110,36 @@ const enemies = {
   guard: { hp:96, speed:49, reward:17, radius:12, color:'#e0898e', damage:1 },
   boss: { hp:405, speed:37, reward:60, radius:17, color:'#e5a4f1', damage:3 }
 };
+const valleyRoute = route.slice();
+const mineRoutes = [
+  [[-20,97],[143,97],[143,216],[560,216],[560,275],[428,275],[428,421],[746,421]],
+  [[-20,97],[320,97],[320,216],[560,216],[560,355],[428,355],[428,421],[746,421]]
+];
+let mine = false;
+let track = 0;
+let forgeSave = {ore:0, level:0};
+try {
+  const saved = JSON.parse(localStorage.getItem('greenwatch-forge') || '{}');
+  for (const key of ['ore','level']) if (Number.isSafeInteger(saved[key]) && saved[key]>=0) forgeSave[key]=saved[key];
+  forgeSave.level=Math.min(5,forgeSave.level);
+} catch {}
+function saveForge() {
+  try { localStorage.setItem('greenwatch-forge',JSON.stringify(forgeSave)); } catch {}
+}
 const segments = [];
 let routeLength = 0;
+function buildRoute() {
+segments.length = 0;
+routeLength = 0;
+route.splice(0,route.length,...(mine ? mineRoutes[track] : valleyRoute));
 route.slice(1).forEach(([x,y], index) => {
   const [fromX,fromY] = route[index];
   const length = Math.hypot(x-fromX,y-fromY);
   segments.push({fromX,fromY,x,y,length,start:routeLength});
   routeLength += length;
 });
+}
+buildRoute();
 const byId = id => document.getElementById(id);
 const canvas = byId('map');
 const ctx = canvas.getContext('2d');
@@ -145,6 +167,16 @@ function reset() {
 }
 
 function sync() {
+  byId('region').textContent = mine ? '폐철광산' : '녹안 협곡';
+  byId('travel').textContent = mine ? '협곡으로 이동' : '폐철광산으로 이동';
+  byId('travel').disabled = game.wave > 0 || game.towers.some(Boolean);
+  byId('rail').hidden = !mine;
+  byId('rail').disabled = game.phase !== 'ready';
+  byId('rail').textContent = '선로 ' + (track+1) + ' · 전환';
+  byId('oreCount').textContent = '철광석 ' + forgeSave.ore + '개 · 화살촉 +' + forgeSave.level;
+  const cost = 3 + forgeSave.level * 2;
+  byId('forge').textContent = forgeSave.level === 5 ? '화살촉 최대 강화' : '화살촉 강화 · 철광석 ' + cost + '개';
+  byId('forge').disabled = forgeSave.level >= 5 || forgeSave.ore < cost;
   byId('wave').textContent = game.wave + ' / ' + MAX_WAVE;
   byId('gold').textContent = game.gold;
   byId('health').textContent = game.hp;
@@ -175,7 +207,7 @@ function renderDetail() {
   const tower = game.towers[game.selected];
   if (!tower) {
     const type = types[game.type];
-    setDetailMarkup('<strong>' + type.name + '</strong> · ' + type.description + '<br>설치하려면 지도에서 +를 눌러.');
+    setDetailMarkup('<strong>' + type.name + '</strong> · ' + type.description + (game.type === 'arrow' ? ' · Lv.3 관통 쇠뇌' : '') + '<br>설치하려면 지도에서 +를 눌러.');
     return;
   }
   const cost = upgradeCost(tower);
@@ -308,7 +340,16 @@ function tick(dt) {
       if (!target || enemy.progress > target.progress) target = enemy;
     }
     if (!target) return;
-    const damage = type.damage*(1+.65*(tower.level-1));
+    const damage = type.damage*(1+.65*(tower.level-1))*(tower.type === 'arrow' ? 1+.15*forgeSave.level : 1);
+    if (tower.type === 'arrow' && tower.level === 3) {
+      const dx=target.x-x, dy=target.y-y, distance=Math.hypot(dx,dy)||1;
+      for (const other of game.enemies) {
+        if (other === target || other.hp<=0) continue;
+        const ox=other.x-x, oy=other.y-y;
+        const forward=(ox*dx+oy*dy)/distance;
+        if (forward>0 && forward<range+60 && Math.abs(ox*dy-oy*dx)/distance<12) other.hp-=damage*.8;
+      }
+    }
     tower.cooldown = type.interval*(1-.09*(tower.level-1));
     tower.angle = Math.atan2(target.y-y,target.x-x);
     target.hp -= damage;
@@ -329,6 +370,9 @@ function tick(dt) {
   });
   if (!game.queue.length && !game.enemies.length) {
     game.cleared = game.wave;
+    const oreReward = mine ? (game.wave%5===0 ? 8 : 3) : 1;
+    forgeSave.ore += oreReward;
+    saveForge();
     if (game.wave > best) {
       best = game.wave;
       try { localStorage.setItem('greenwatch-best', String(best)); } catch {}
@@ -337,7 +381,7 @@ function tick(dt) {
     const bonus = 23+game.wave*3;
     game.gold += bonus;
     game.phase = 'ready';
-    game.status = '웨이브 ' + game.wave + ' 방어 성공 · 보너스 ' + bonus + ' G';
+    game.status = '웨이브 ' + game.wave + ' 방어 성공 · 보너스 ' + bonus + ' G · 철광석 ' + oreReward + '개';
     changed = true;
   }
   if (changed) sync();
@@ -400,6 +444,11 @@ function paintTerrain() {
     ground.lineWidth = width;
     ground.strokeStyle = color;
     ground.stroke();
+  }
+  if (mine) {
+    trace(ground); ground.strokeStyle='#373635'; ground.lineWidth=15; ground.stroke();
+    trace(ground); ground.strokeStyle='#9e9984'; ground.lineWidth=10; ground.stroke();
+    trace(ground); ground.strokeStyle='#50493d'; ground.lineWidth=6; ground.stroke();
   }
   for (let d=35;d<routeLength-30;d+=59) {
     const [x,y] = position(d);
@@ -583,6 +632,26 @@ pads.forEach(([x,y],index) => {
   byId('pads').append(button);
   padButtons.push(button);
 });
+function changeMap() {
+  buildRoute(); paintTerrain(); sync(); draw();
+}
+byId('travel').onclick = () => {
+  if (game.wave || game.towers.some(Boolean)) return;
+  mine=!mine; track=0;
+  game.status=mine ? '폐철광산 · 웨이브마다 철광석을 캐. 전투 전에 선로를 바꿀 수 있어.' : '녹안 협곡에 도착했어.';
+  changeMap();
+};
+byId('rail').onclick = () => {
+  if (!mine || game.phase !== 'ready') return;
+  track=1-track; changeMap();
+};
+byId('forge').onclick = () => {
+  const cost=3+forgeSave.level*2;
+  if (forgeSave.level>=5 || forgeSave.ore<cost) return;
+  forgeSave.ore-=cost; forgeSave.level++; saveForge();
+  game.status='화살촉 강화 성공 · 모든 활탑 피해 +' + (15*forgeSave.level) + '%';
+  sync();
+};
 byId('launch').onclick = startWave;
 byId('restart').onclick = () => { reset(); draw(); cards.arrow.focus(); };
 byId('speed').onclick = () => { game.speed = game.speed === 3 ? 1 : game.speed+1; sync(); };
