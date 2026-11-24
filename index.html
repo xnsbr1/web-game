@@ -65,7 +65,7 @@ aside h2{font-size:15px;margin:0 0 8px}
 <header>
   <div class="brand"><div class="crest" aria-hidden="true">◆</div><div><h1 id="region">녹안 협곡</h1><p class="subtitle">6개 지역 · 24개 스테이지</p></div></div>
   <div class="stats">
-    <div class="stat"><span>웨이브</span><strong id="wave">0 / 10</strong></div>
+    <div class="stat"><span>웨이브</span><strong id="wave">0 / 5</strong></div>
     <div class="stat"><span>골드</span><strong id="gold">160</strong></div>
     <div class="stat"><span>요새 체력</span><strong id="health">15</strong></div>
   </div>
@@ -97,7 +97,7 @@ aside h2{font-size:15px;margin:0 0 8px}
 <script>
 'use strict';
 
-const MAX_WAVE = 10;
+const MAX_WAVE = 5;
 const route = [[-20,97],[143,97],[143,216],[320,216],[320,93],[560,93],[560,275],[428,275],[428,421],[746,421]];
 const pads = [[72,153],[199,148],[222,270],[269,154],[374,154],[432,43],[490,148],[614,163],[502,217],[613,296],[376,328],[493,344],[369,451],[559,362],[628,464]];
 const types = {
@@ -138,7 +138,7 @@ const realms = [
   ['서리 항구','빙로','#487b89','#233746','빠른 적 증원'],
   ['잿불 공장','용광로','#855846','#372d30','중장갑 적 증원'],
   ['별무덤 사막','별길','#867745','#353548','적 처치 골드 +3'],
-  ['달빛 성채','성벽','#64547e','#28283d','5웨이브마다 보스 두 마리']
+  ['달빛 성채','성벽','#64547e','#28283d','마지막 웨이브에 보스 두 마리']
 ];
 const routes = [valleyRoute,mineRoutes[0],
  [[-20,97],[220,97],[220,350],[380,350],[380,170],[610,170],[610,421],[746,421]],
@@ -321,19 +321,19 @@ function startWave() {
   game.spellReady=true;
   const count = 6+game.wave+chapter()*2;
   game.queue = Array.from({length:count},(_,index) => {
-    if (index === count-1 && (game.wave === 5 || game.wave === 10)) return 'boss';
+    if (index === count-1 && (game.wave === MAX_WAVE)) return 'boss';
     if (game.wave >= 3 && (index+1)%4 === 0) return 'guard';
     if (game.wave >= 2 && (index+1)%3 === 0) return 'runner';
     return 'scout';
   });
   if(realm()===2) game.queue.unshift('runner','runner');
   if(realm()===3) game.queue.push('guard');
-  if(realm()===5 && game.wave%5===0)game.queue.push('boss');
+  if(realm()===5 && game.wave===MAX_WAVE)game.queue.push('boss');
   game.total = game.queue.length;
   game.spawned = 0;
   game.spawnTimer = 0;
   game.phase = 'running';
-  game.status = game.wave === 5 || game.wave === 10 ? '보스가 마지막에 나타나!' : '적이 협곡에 들어왔어.';
+  game.status = game.wave === MAX_WAVE ? '보스가 마지막에 나타나!' : '적이 협곡에 들어왔어.';
   sync();
 }
 
@@ -371,7 +371,7 @@ function tick(dt) {
     game.enemies.push({key, hp, max:hp, progress:0, x:route[0][0], y:route[0][1], slow:0});
     game.spawned++;
     if(game.spawned===1)sync();
-    game.spawnTimer = Math.max(.43,.93-game.wave*.048);
+    game.spawnTimer = Math.max(.43,.8-game.wave*.05);
   }
   let changed = false;
   for (const enemy of game.enemies) {
@@ -439,8 +439,8 @@ function tick(dt) {
   });
   if (!game.queue.length && !game.enemies.length) {
     game.cleared = game.wave;
-    game.choice=[3,6,9].includes(game.wave);
-    const oreReward = mine ? (game.wave%5===0 ? 8 : 3) : 1;
+    game.choice=[1,3].includes(game.wave);
+    const oreReward = mine ? (game.wave===MAX_WAVE ? 10 : 5) : 2;
     forgeSave.ore += oreReward;
     saveForge();
     if (game.wave > best) {
@@ -448,7 +448,7 @@ function tick(dt) {
       try { localStorage.setItem('greenwatch-best', String(best)); } catch {}
     }
     if (game.wave === MAX_WAVE) { finish(true); return; }
-    const bonus = 23+game.wave*3;
+    const bonus = 40+game.wave*5;
     game.gold += bonus;
     game.phase = 'ready';
     game.status = '웨이브 ' + game.wave + ' 방어 성공 · 보너스 ' + bonus + ' G · 철광석 ' + oreReward + '개';
