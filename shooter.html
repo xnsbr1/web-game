@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.6.0">
+<meta name="game-build" content="1.7.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -276,20 +276,20 @@ const stageBosses=[
  ['관측교 잠복자','line',7,1.27],['역류 아귀','strike',6,.99],['암전 포식자','burst',9,1.02],['심전 장어','line',9,1.16]
 ];
 const stageSquads=[
- ['광분', 'crawler:갱도 일꾼', 'runner:광차 점액체', 'armor:곡괭이 갑충'],
+ ['광분', 'crawler:갱도 일꾼', 'gunner:갱도 신호사수', 'armor:곡괭이 갑충'],
  ['질주', 'runner:침목 슬라임', 'flanker:선로 추적벌', 'mortar:신호탄 포수'],
  ['재생', 'crawler:포자 일꾼', 'spitter:곰팡이 사수', 'blast:포자낭 폭충'],
  ['갑피', 'runner:쇳가루 점액체', 'mortar:철편 포충', 'armor:방패 광부'],
- ['광분', 'crawler:폐석 벌레', 'flanker:절삭 날벌레', 'armor:굴착 파수병'],
+ ['광분', 'crawler:폐석 벌레', 'gunner:리벳 사수', 'armor:굴착 파수병'],
  ['질주', 'runner:틈새 점액체', 'spitter:메아리 사수', 'flanker:바위틈 사냥벌'],
  ['갑피', 'crawler:분진 보행자', 'blast:낙석 폭충', 'mortar:천장 박격충'],
  ['광분', 'runner:재 슬라임', 'blast:불씨 유충', 'mortar:잿불 투척수'],
- ['재생', 'crawler:승강장 경비병', 'flanker:승강줄 사냥벌', 'armor:권양기 중갑충'],
+ ['재생', 'crawler:승강장 경비병', 'gunner:승강장 경비사수', 'armor:권양기 중갑충'],
  ['갑피', 'spitter:금맥 사수', 'blast:수정 폭충', 'armor:광맥 철갑수'],
  ['재생', 'runner:물거품 슬라임', 'crawler:침수 경비병', 'spitter:염수 포충'],
- ['질주', 'crawler:배수관 유충', 'blast:수로 폭충', 'flanker:배관 추적벌'],
+ ['질주', 'crawler:배수관 유충', 'gunner:배수관 작살사수', 'flanker:배관 추적벌'],
  ['광분', 'runner:전류 슬라임', 'spitter:전극 사수', 'mortar:코일 박격충'],
- ['재생', 'runner:배양 점액체', 'flanker:미성숙 표본', 'blast:영양낭 폭충'],
+ ['재생', 'runner:배양 점액체', 'gunner:침탄 표본', 'blast:영양낭 폭충'],
  ['갑피', 'crawler:압력 보행자', 'spitter:증기 포충', 'armor:격납고 갑각수'],
  ['광분', 'crawler:격리 감염체', 'mortar:격벽 박격충', 'flanker:탈주 사냥벌'],
  ['질주', 'runner:유리 점액체', 'spitter:관측교 저격충', 'armor:난간 돌격수'],
@@ -382,7 +382,7 @@ function contractReward(contract,band){
  const [first,second]=contract.materials,quantity=3+Math.floor(band/2);
  return {credits:32+band*5,[first]:quantity+1,[second]:quantity};
 }
-function contractScale(level){return {hp:1+(level-1)*.013,damage:1+(level-1)*.007};}
+function contractScale(level){return {hp:1.35+(level-1)*.020,damage:1.30+(level-1)*.012};}
 function available(price){return Object.entries(price).every(([id,amount])=>balance(id)>=amount);}
 function pay(price){for(const [id,amount] of Object.entries(price))changeBalance(id,-amount);}
 function balance(id){return id!=='xp'&&Object.hasOwn(materialNames,id)?save.materials[id]||0:save[id];}
@@ -588,7 +588,9 @@ function disclosure(parent,title){
 function squadBrief(parent,index){
  const squad=stageSquads[index];
  paragraph(parent,squad.units.map((unit,i)=>(i+1)+'R '+unit.name).join(' → '));
+ if(squad.units.some(unit=>unit.type==='gunner'))paragraph(parent,'신호사수가 1R부터 합류해. 분홍 점선이 멈추면 옆으로 피해.');
  paragraph(parent,squad.trait+' · '+traitGuide[squad.trait]+' · 보스전 잡몹 최대 3마리');
+ paragraph(parent,'바닥의 주황 원은 폭격 예고야. 같은 자리에 머무르면 집중 포격이 강해져.');
 }
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
 function rollSupply(random,tiers){
@@ -1245,6 +1247,7 @@ const angle=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
 const points=[[145,140],[445,120],[750,140],[140,440],[455,445],[745,445]];
 const enemyTypes={
  flanker:{hp:39,v:145,r:13,color:'#62dbdd',hit:14},
+ gunner:{hp:38,v:84,r:15,color:'#ef8ea8',hit:12},
  mortar:{hp:56,v:62,r:18,color:'#b7a0ff',hit:16},
  crawler:{hp:35,v:100,r:15,color:'#a8c474',hit:12},
  runner:{hp:23,v:157,r:12,color:'#ecc471',hit:10},
@@ -1283,7 +1286,7 @@ function start(index,contract,bossHunt=false,band=0){
  const dungeonLevel=c?contractLevel(band):null;
  if(index<0&&dungeonLevel===null)return;
  enableAudio();beat=0;
- let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,'raid',12,c.hazard]:stages[index];
+ let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,'raid',20,c.hazard]:stages[index];
  const campaign=index>=0&&!bossHunt;
  const gunId=save.equipped.gun||'pistol';
  if(campaign){mode='assault';n=3;}
@@ -1319,7 +1322,7 @@ function start(index,contract,bossHunt=false,band=0){
  const maxHp=characterMaxHp();
 
  const transcendStats=Object.fromEntries(Object.keys(slots).map(slot=>[slot,transcendPower(save.equipped[slot])]));
- game={transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,damageScale:c?contractScale(dungeonLevel).damage:1,skill:equippedSkill(),moveFactor:trainingFactor('move')*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.0024),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+ game={transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:trainingFactor('move')*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.0024),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
   p:{x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
@@ -1336,7 +1339,7 @@ function start(index,contract,bossHunt=false,band=0){
   if(bossHunt){
    const [,pattern,intensity,tempo]=stageBosses[index];
    Object.assign(boss,{pattern,intensity,tempo,signature:index,color:bossColors[pattern]});
-   boss.hp=boss.max=Math.round(230+index*18);
+   boss.hp=boss.max=Math.round(625+index*40);
   }
  }
  updateHud();measureArenaInsets();draw();
@@ -1567,6 +1570,20 @@ function updateEnemy(e,dt){
  const stride=e.trait==='광분'&&e.hp<e.max*.5?1.24:e.trait==='질주'&&(game.t+e.phase)%4.5<.8?1.32:1;
  const target=game.mode==='defend'&&e.type!=='boss'&&(e.type==='spitter'||dist(e,p)>170)?game.objects[0]:p;
  const d=dist(e,target);
+ if(e.type==='gunner'){
+  if(e.aimTime>0){
+   e.aimTime-=dt;
+   if(e.aimTime<=0){
+    game.bolts.push({x:e.x,y:e.y,a:e.dir,life:2,hit:Math.round(e.hit*.72),steers:false,turnUsed:0});
+    e.clock=2.5;
+   }
+   return;
+  }
+  if(e.clock<=0&&d<420&&game.t>=(e.nextSight||0)){
+   e.nextSight=game.t+.22;
+   if(clearShot(e,target,4)){e.dir=angle(e,target);e.aimTime=.78;return;}
+  }
+ }
  if((e.type==='spitter'||e.type==='armor')&&e.clock<=0&&game.t>=(e.nextSight||0)){
   e.hasSight=clearShot(e,target,e.type==='armor'?e.r:3);e.nextSight=game.t+.25;
  }
@@ -1583,7 +1600,7 @@ function updateEnemy(e,dt){
  }else{
   e.dir=angle(e,target);e.clock-=dt;
   if(e.pattern&&e.clock<=0){
-   huntAttack(e,p);e.clock=3.65*e.tempo*(e.pattern==='summon'?1.35:1)*(e.hp<e.max/2?.78:1);
+   huntAttack(e,p);e.clock=3.05*e.tempo*(e.pattern==='summon'?1.35:1)*(e.hp<e.max/2?.78:1);
   }else if(!e.pattern&&(e.type==='boss'||e.type==='armor'&&e.hasSight)&&d<420&&e.clock<=0){
    e.wind=.58;e.clock=e.type==='boss'&&e.hp<e.max/2?1.25:2.4;
   }else if((e.type==='spitter'&&e.hasSight||e.type==='boss')&&e.clock<=0){
@@ -1617,6 +1634,21 @@ function hazards(dt){
  g.nextHazard=g.t+(g.hazard==='cart'?4.7:enraged?1.8:3.2);
  g.warnings.push({x:p.x,y:g.hazard==='cart'?H/2:p.y,r:g.hazard==='shock'?98:g.hazard==='cart'?30:64,cart:g.hazard==='cart',time:g.hazard==='cart'?1.15:.94,active:.32,damage:g.campaign&&g.index===1?12:18});
 }
+function pressureStrike(g){
+ if(g.t<g.nextBarrage)return;
+ const late=g.dungeon?g.dungeonLevel>=51:g.index>=10;
+ const boss=g.bossHunt||g.bossEntered;
+ const radius=late?63:53;
+ const repeat=g.lastStrike&&dist(g.lastStrike,g.p)<radius;
+ g.focusFire=repeat?Math.min(4,(g.focusFire||0)+1):0;
+ g.lastStrike={x:g.p.x,y:g.p.y};
+ g.warnings.push({x:g.p.x,y:g.p.y,r:radius,time:1.05,active:.24,damage:(boss?30:24)+12*g.focusFire});
+ if(late||boss){
+  const heading=g.movementHeading;
+  g.warnings.push({x:clamp(g.p.x+Math.cos(heading)*100,30,W-30),y:clamp(g.p.y+Math.sin(heading)*100,30,H-30),r:radius-6,time:1.34,active:.24,damage:25});
+ }
+ g.nextBarrage=g.t+Math.max(3.5,(boss?5.3:late?6.2:7.5)-g.focusFire);
+}
 function updateWarnings(dt){
  for(const a of game.warnings){
   a.time-=dt;
@@ -1624,15 +1656,16 @@ function updateWarnings(dt){
  }
  game.warnings=game.warnings.filter(a=>a.time>-a.active);
 }
-const sectorQuota=index=>14+Math.min(4,Math.floor(index/4));
+const sectorQuota=index=>index===0?18:22+Math.min(16,index);
 const liveAdds=g=>g.enemies.filter(e=>e.type!=='boss'&&e.hp>0).length;
 const bossAddCap=3;
 function squadSpawn(g,tier,x,y){
  const squad=stageSquads[g.index],unit=squad.units[tier];
  spawn(unit.type,x,y);
  const e=g.enemies.at(-1);
- e.hp=e.max=Math.round(([31,48,69][tier]+enemyTypes[e.type].hp*.23)*(1+g.index*.023));
+ e.hp=e.max=Math.round(([40,61,86][tier]+enemyTypes[e.type].hp*.23)*(1+g.index*.032));
  e.hit=Math.round(([10,14,19][tier]+e.hit*.22)*(1+g.index*.007));
+ e.v*=1.08+tier*.035;
  e.trait=squad.trait;e.tier=tier;e.name=unit.name;e.phase=g.spawned*.73;
  e.color=['#93dcbb','#ffbf69','#ee8bd7'][tier];
  if(x===undefined&&dist(e,g.p)<175)e.x=g.p.x>W/2?35:W-35;
@@ -1647,23 +1680,31 @@ function campaignTick(g){
  const quota=sectorQuota(g.index);
  if(!g.bossEntered&&g.sectorKills>=quota){
   g.sectorKills=0;
-  g.p.hp=Math.min(g.p.max,g.p.hp+12);
+  g.p.hp=Math.min(g.p.max,g.p.hp+(g.index===0?12:8));
   if(g.sector===2){
    g.bossEntered=true;g.nextSpawn=g.t+7;playEffect('boss');
    spawn('boss',g.p.x>W/2?95:W-95,H/2);
    const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
    Object.assign(e,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
-   e.hp=e.max=740+g.index*16;
+   e.hp=e.max=940+g.index*36;
    return;
   }
   g.sector++;g.roundSpawn=0;g.nextSpawn=g.t;
  }
- const cap=g.bossEntered||g.sector===2?bossAddCap:(g.index<10?4:5);
- if(g.t<g.nextSpawn||liveAdds(g)>=cap)return;
- const roundCount=g.roundSpawn||0;
- const tier=g.bossEntered?g.spawned%2:g.sector===0?0:g.sector===1?(roundCount%3===2?0:1):[2,1,2,0][roundCount%4];
- squadSpawn(g,tier);g.spawned++;g.roundSpawn=roundCount+1;
- g.nextSpawn=g.t+(g.bossEntered?7.5:3.55*14/quota);
+ // Reserve space for the boss escort as the last round approaches its quota.
+ const fieldCap=g.index===0?5:g.index<10?8:10;
+ const cap=g.bossEntered?bossAddCap:g.sector===2?Math.min(fieldCap,quota-g.sectorKills+bossAddCap):fieldCap;
+ const alive=liveAdds(g);
+ if(alive>=cap||g.t<g.nextSpawn)return;
+ const packSize=g.index===0&&g.spawned>0?3:4;
+ const count=Math.min(cap-alive,g.bossEntered?1:packSize);
+ for(let i=0;i<count;i++){
+  const n=g.roundSpawn||0;
+  const earlyScout=g.sector===0&&stageSquads[g.index].units[1].type==='gunner'&&n%6===2;
+  const tier=g.bossEntered?g.spawned%2:g.sector===0?Number(earlyScout):g.sector===1?(n%3===2?0:1):[2,1,2,0][n%4];
+  squadSpawn(g,tier);g.spawned++;g.roundSpawn=n+1;
+ }
+ g.nextSpawn=g.t+(g.bossEntered?7.5:3.2);
 }
 function trackMovement(g,dx,dy,dt){
  if(g.p.dash>0||Math.hypot(dx,dy)<70*dt){
@@ -1693,15 +1734,19 @@ function dungeonTick(g){
  if(g.spawned>=g.n){
   if(g.enemies.length)return;
   g.bossEntered=true;playEffect('boss');
-  spawn('boss',g.p.x>W/2?95:W-95,H/2,.9);
+  spawn('boss',g.p.x>W/2?95:W-95,H/2,1.3);
   const boss=g.enemies.at(-1),pattern=g.dungeon.pattern;
   Object.assign(boss,{pattern,tempo:1,intensity:g.contract===0?2:3,color:bossColors[pattern]});
   return;
  }
- if(g.t<g.nextSpawn||g.enemies.length>=5)return;
- spawn(g.dungeon.pack[g.spawned%g.dungeon.pack.length]);
- g.spawned++;
- g.nextSpawn=g.t+2.15;
+ if(g.t<g.nextSpawn)return;
+ const count=Math.min(3,7-liveAdds(g),g.n-g.spawned);
+ for(let i=0;i<count;i++){
+  spawn(g.dungeon.pack[g.spawned%g.dungeon.pack.length]);g.spawned++;
+  const e=g.enemies.at(-1);
+  if(dist(e,g.p)<175)e.x=g.p.x>W/2?35:W-35;
+ }
+ g.nextSpawn=g.t+2.5;
 }
 function updateDevices(g,dt){
  const p=g.p;
@@ -1751,7 +1796,13 @@ function step(dt,refreshHud=true){
  else if(p.dash>0)p.dir=p.dashDir;
  else if(Math.hypot(input.x,input.y)>.01)p.dir=Math.atan2(input.y,input.x);
 
+ pressureStrike(g);
  if(g.dungeon)dungeonTick(g);
+ else if(g.bossHunt){
+  if(g.t>=g.nextSpawn&&liveAdds(g)<bossAddCap){
+   squadSpawn(g,g.spawned%2);g.spawned++;g.nextSpawn=g.t+7.5;
+  }
+ }
  else if(g.campaign)campaignTick(g);
  else if(g.t>=g.nextSpawn){
   g.nextSpawn=g.t+(g.mode==='range'?.65:g.mode==='clear'?1.45:3.25);
@@ -1827,7 +1878,7 @@ function updateHud(){
  if(g.dungeon){
   const boss=g.enemies.find(e=>e.type==='boss');
   progress='Lv. '+g.dungeonLevel+' · '+(g.bossEntered?g.dungeon.boss+' '+(boss?Math.ceil(100*boss.hp/boss.max):0)+'%':g.kills+'/'+g.n+' 처치');
- }else if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/(740+g.index*16))+'%':(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index)+' 처치';
+ }else if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/(940+g.index*36))+'%':(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index)+' 처치';
  else if(g.mode==='defend')progress=Math.ceil(Math.max(0,g.n-g.t))+'초 · 시설 '+Math.max(0,Math.ceil(g.objects[0].hp));
  else if(g.mode==='survive')progress=Math.ceil(Math.max(0,g.n-g.t))+'초';
  else if(g.mode==='escape')progress='녹색 출구';
@@ -1916,6 +1967,11 @@ function drawEnemy(e,g){
   polygon(ctx,color,[[18,0],[8,-12],[-8,-11],[-15,0],[-8,11],[8,12]]);
   polygon(ctx,armored?'#6c4b42':'#296076',[[7,-8],[-6,-7],[-12,0],[-6,7],[7,8],[0,0]]);
   disc(11,0,3,'#fff2a0');
+ }else if(e.type==='gunner'){
+  polygon(ctx,'#243953',[[-13,-10],[1,-14],[11,-7],[11,8],[-4,12],[-14,5]]);
+  disc(-3,-1,9,color);ctx.fillStyle='#2d233c';ctx.fillRect(-2,-5,13,6);
+  ctx.fillStyle='#ff6f98';ctx.fillRect(5,-5,8,3);
+  ctx.fillStyle='#8bb1d5';ctx.fillRect(3,3,20,5);ctx.fillStyle='#ffe2bb';ctx.fillRect(20,2,4,7);
  }else if(e.type==='spitter'||e.type==='mortar'){
   const mortar=e.type==='mortar';
   polygon(ctx,'#29253c',[[13,-12],[-3,-16],[-14,-9],[-14,9],[-3,16],[13,12]]);
@@ -2047,6 +2103,10 @@ function draw(){
   if(['destroy','defend'].includes(g.mode))bar(o.x,o.y-28,o.hp,o.max,42);
  }
  for(const e of g.enemies){
+  if(e.aimTime>0){
+   ctx.save();ctx.setLineDash([9,7]);ctx.strokeStyle='#ff8cab';ctx.lineWidth=3;
+   ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(e.dir)*420,e.y+Math.sin(e.dir)*420);ctx.stroke();ctx.restore();
+  }
   if(e.wind>0){
    ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(e.dir)*250,e.y+Math.sin(e.dir)*250);ctx.lineWidth=13;ctx.strokeStyle='#ff956568';ctx.stroke();
   }
