@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.5">
+<meta name="game-build" content="1.4.6">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -51,13 +51,34 @@ details{margin:12px 0}
 summary{cursor:pointer;min-height:44px;display:list-item;padding:10px 12px;border:1px solid var(--line);background:#20323b;border-radius:8px;font-weight:750}
 details[open]>summary{border-color:var(--teal);margin-bottom:8px}
 details .item{margin-bottom:8px}
-.dungeon-picker .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dungeon-cards{display:grid;gap:8px;margin-top:12px}
+.dungeon-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 10px;padding:10px 12px}
+.dungeon-category{color:var(--teal);font-size:12px;font-weight:800}
+.dungeon-name{color:var(--text);font-size:18px;font-weight:800}
+.dungeon-launch{min-height:44px;padding-inline:9px;white-space:nowrap}
+.dungeon-picker{grid-column:1/-1;margin:4px 0 0}
+.dungeon-picker summary{padding:7px 10px;min-height:36px;font-size:13px}
+.dungeon-picker .grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:0}
+.dungeon-picker button small{display:block;font-size:10px;line-height:1.2}
+
 .dungeon-picker button{padding:7px 4px;min-height:44px;font-size:12px}
  .supply-reveal{--crate-accent:#80dfd1;min-height:186px;display:grid;justify-items:center;align-content:center;gap:4px;margin:14px 0;padding:12px;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:radial-gradient(ellipse at center,#2c454e,#141d28 73%);text-align:center}
  .supply-crate{position:relative;width:104px;height:68px;margin:22px 0 14px;border:3px solid #547f88;border-radius:10px;background:linear-gradient(110deg,#42616d,#223d48 65%);box-shadow:inset 0 8px #597c87,0 10px 18px #0c1824;transform-origin:50% 85%}
  .supply-crate::before{content:'';position:absolute;inset:17px 4px auto;border-top:3px solid #a3e2dd}
  .supply-crate::after{content:'';position:absolute;left:39%;top:12px;width:20%;height:23px;border:2px solid #c2f5eb;border-radius:4px;background:#529d9b}
  .crate-opening .supply-crate{animation:crate-unlock .85s both}
+ .crate-opening .supply-crate::before{border-color:var(--crate-accent);box-shadow:0 0 10px var(--crate-accent)}
+ .crate-beam{position:absolute;pointer-events:none;z-index:1;left:-18px;right:-18px;top:-75px;height:96px;opacity:0;background:linear-gradient(to top,var(--crate-accent),transparent 95%);clip-path:polygon(3% 0,97% 0,83% 100%,17% 100%);animation:crate-beam .85s ease-out both}
+ @keyframes crate-beam{0%,20%{opacity:0;transform:scaleY(.35);transform-origin:bottom}75%,100%{opacity:.88;transform:scaleY(1);transform-origin:bottom}}
+ .supply-actions{gap:8px}
+ .supply-actions button{min-height:44px;flex:1 1 auto}
+ .supply-results{width:100%;display:grid;gap:8px}
+ .supply-result{min-width:0;display:grid;gap:4px;justify-items:center;padding:6px}
+ .supply-results-batch{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .supply-results-batch .supply-result{border:1px solid var(--crate-accent);border-radius:8px;background:#111b26}
+ .supply-results-batch .supply-portrait{width:48px}
+ .supply-results-batch .crate-name{font-size:14px}
+ @media(min-width:620px){.supply-results-batch{grid-template-columns:repeat(5,minmax(0,1fr))}}
  .crate-revealed{border-color:var(--crate-accent);background:radial-gradient(ellipse at center,color-mix(in srgb,var(--crate-accent) 35%,#1b2634),#161e2a 75%);animation:crate-reveal .48s both}
  .crate-rare{box-shadow:inset 0 0 26px color-mix(in srgb,var(--crate-accent) 50%,transparent)}
  .supply-reveal .supply-portrait{width:84px;height:auto;aspect-ratio:1}
@@ -397,7 +418,7 @@ function upgradeSkill(id){
  pay(price);save.skillLevels[id]=skillLevel(id)+1;persist();
  return true;
 }
-let lastSupply=null,supplyOpening=false,supplyOddsOpen=false;
+let lastSupply=null,pendingSupply=null,supplyOddsOpen=false;
 const save={copies:{},ascension:{},skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 Object.assign(save,testSnapshot||readSave(key));
 if(testMode){
@@ -528,15 +549,12 @@ function disclosure(parent,title){
  return details;
 }
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
-function drawSupply(random=Math.random){
- const price=supplyPrice();
- if(save.credits<price)return null;
+function rollSupply(random){
  let ticket=random()*100;
  const tier=supplyTiers.find(group=>(ticket-=group.chance)<0)||supplyTiers.at(-1);
  const id=tier.items[Math.floor(random()*tier.items.length)];
  const previousRank=own(id)?grade(id):0;
  const outcome=previousRank===0?'new':tier.rank>previousRank?'promoted':'duplicate';
- save.credits-=price;
  if(outcome==='duplicate'){
   save.parts+=1;
   save.copies[id]??={};
@@ -546,8 +564,15 @@ function drawSupply(random=Math.random){
   unlock(id);
   save.ranks[id]=tier.rank;
  }
- persist();
  return {id,rank:tier.rank,previousRank,outcome};
+}
+function drawSupplies(count,random=Math.random){
+ const price=supplyPrice()*count;
+ if((count!==1&&count!==10)||save.credits<price)return null;
+ save.credits-=price;
+ const cards=Array.from({length:count},()=>rollSupply(random));
+ persist();
+ return {cards,highest:Math.max(...cards.map(card=>card.rank)),skipped:false};
 }
 function upgradeTraining(id,contractMaterials=false){
  const current=trainingLevel(id);
@@ -558,44 +583,74 @@ function upgradeTraining(id,contractMaterials=false){
  persist();
  return true;
 }
-function openSupply(){
- if(supplyOpening)return;
- const drawn=drawSupply();
- if(!drawn)return;
- enableAudio();playEffect('crate');
- supplyOpening=true;
+function revealSupply(batch,skipped=false){
+ if(pendingSupply!==batch)return;
+ pendingSupply=null;
+ lastSupply=batch;batch.skipped=skipped;
+ if(page==='supply'){
+  playEffect(batch.highest>=5?'crateRare':'crateReveal');
+  renderMenu();
+ }
+}
+function openSupply(count){
+ if(pendingSupply)return;
+ const batch=drawSupplies(count);
+ if(!batch)return;
+ enableAudio();
+ pendingSupply=batch;
+ if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){
+  revealSupply(batch,true);
+  return;
+ }
+ playEffect('crate');
  renderMenu();
- const duration=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?0:850;
- setTimeout(()=>{
-  supplyOpening=false;lastSupply=drawn;
-  if(page==='supply'){
-   playEffect(drawn.rank>=5?'crateRare':'crateReveal');
-   renderMenu();
-  }
- },duration);
+ setTimeout(()=>revealSupply(batch),850);
+}
+function renderSupplyCard(parent,result){
+ const {id,rank,previousRank,outcome}=result;
+ const card=document.createElement('article');card.className='supply-result';
+ card.style.setProperty('--crate-accent',rankColors[rank-1]);
+ parent.append(card);
+ card.append(equipmentPortrait(gear[id].slot,id,'supply-portrait',rank));
+ paragraph(card,'★'.repeat(rank)+' · '+rank+'성','crate-rank');
+ paragraph(card,gear[id].name,'crate-name');
+ paragraph(card,outcome==='new'?'새 장비 획득':outcome==='promoted'?previousRank+'성 → '+rank+'성 · 강화 유지':'복제본 +1 · 정밀 부품 +1');
 }
 function renderSupply(){
  const supply=panel('장비 뽑기');
  const price=supplyPrice();
- paragraph(supply,'1회 '+price+' 크레딧 · 클리어한 스테이지가 5개 늘 때마다 +35 크레딧');
+ paragraph(supply,'클리어한 스테이지가 5개 늘 때마다 상자당 +35 크레딧');
  const reveal=document.createElement('div');
- reveal.className='supply-reveal'+(supplyOpening?' crate-opening':lastSupply?' crate-revealed':'');
- reveal.setAttribute('role','status');reveal.setAttribute('aria-atomic','true');
+ reveal.className='supply-reveal'+(pendingSupply?' crate-opening':lastSupply&&!lastSupply.skipped?' crate-revealed':'');
+ reveal.setAttribute('role','status');
  supply.append(reveal);
- if(supplyOpening||!lastSupply){
-  const crate=document.createElement('div');crate.className='supply-crate';crate.setAttribute('aria-hidden','true');
-  reveal.append(crate);
-  paragraph(reveal,supplyOpening?'보급 상자 여는 중…':'보급 상자');
- }else{
-  const {id,rank,previousRank,outcome}=lastSupply;
-  reveal.style.setProperty('--crate-accent',rankColors[rank-1]);
-  if(rank>=5)reveal.classList.add('crate-rare');
-  reveal.append(equipmentPortrait(gear[id].slot,id,'supply-portrait',rank));
-  paragraph(reveal,'★'.repeat(rank)+' · '+rank+'성','crate-rank');
-  paragraph(reveal,gear[id].name,'crate-name');
-  paragraph(reveal,outcome==='new'?'새 장비 획득':outcome==='promoted'?previousRank+'성 → '+rank+'성으로 상승 · 강화 유지':'중복 · '+rank+'성 복제본 +1 · 정밀 부품 +1');
+ const batch=pendingSupply||lastSupply;
+ if(batch){
+  reveal.style.setProperty('--crate-accent',rankColors[batch.highest-1]);
+  if(batch.highest>=5)reveal.classList.add('crate-rare');
  }
- supply.append(button(supplyOpening?'여는 중…':'보급 상자 열기',openSupply,supplyOpening||save.credits<price,'primary'));
+ if(pendingSupply||!lastSupply){
+  const crate=document.createElement('div');crate.className='supply-crate';crate.setAttribute('aria-hidden','true');
+  if(pendingSupply){
+   const beam=document.createElement('div');beam.className='crate-beam';crate.append(beam);
+  }
+  reveal.append(crate);
+  paragraph(reveal,pendingSupply?'보급 상자 여는 중…':'보급 상자');
+ }else{
+  if(lastSupply.cards.length===10)paragraph(reveal,'10연뽑 결과 · 최고 '+lastSupply.highest+'성','crate-rank');
+  const cards=document.createElement('div');
+  cards.className=lastSupply.cards.length===10?'supply-results supply-results-batch':'supply-results';
+  reveal.append(cards);
+  for(const result of lastSupply.cards)renderSupplyCard(cards,result);
+ }
+ const actions=document.createElement('div');actions.className='row supply-actions';supply.append(actions);
+ if(pendingSupply){
+  const batch=pendingSupply;
+  actions.append(button('연출 스킵 · 결과 보기',()=>revealSupply(batch,true),false,'primary'));
+ }else{
+  actions.append(button('1회 열기 · '+price+' 크레딧',()=>openSupply(1),save.credits<price));
+  actions.append(button('10연뽑 · '+price*10+' 크레딧',()=>openSupply(10),save.credits<price*10,'primary'));
+ }
  const odds=disclosure(supply,'등급별 확률과 등장 테마');
  odds.open=supplyOddsOpen;
  odds.ontoggle=()=>{supplyOddsOpen=odds.open;};
@@ -726,25 +781,33 @@ function renderMenu(next=page){
  if(page==='contracts'){
   const p=panel('던전');
   paragraph(p,'캐릭터 Lv. '+characterLevel()+' · 최대 체력 '+characterMaxHp()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
-  const list=grid(p);
+  const list=document.createElement('div');list.className='dungeon-cards';p.append(list);
   for(const [i,c] of contracts.entries()){
    const band=selectedBands[i],range=contractBands[band],difficulty=contractLevel(band);
-   const card=document.createElement('article');card.className='item';list.append(card);
-   paragraph(card,c.reward==='xp'?'레벨업 던전':c.reward?'스킬 레벨업 던전':'장비 재료 던전','section-label');
-   paragraph(card,c.name+' · '+c.boss,'');
-   if(c.slots)paragraph(card,c.slots.map((slot,j)=>slots[slot]+' · '+materialNames[c.materials[j]]+' '+balance(c.materials[j])+'개 보유').join(' / '));
-   const picker=disclosure(card,'현재 '+(band+1)+'단계 · Lv. '+range.min+'–'+range.max);
+   const card=document.createElement('article');card.className='item dungeon-card';list.append(card);
+   const info=document.createElement('div');info.className='dungeon-info';card.append(info);
+   paragraph(info,c.reward==='xp'?'레벨업 던전':c.reward?'스킬 레벨업 던전':'장비 재료 던전','dungeon-category');
+   paragraph(info,c.name,'dungeon-name');
+   paragraph(info,c.boss+' · '+rewardText(contractReward(c,band)));
+   if(c.slots)paragraph(info,c.slots.map((slot,j)=>slots[slot]+' 재료 '+balance(c.materials[j])+'개').join(' · ')+' 보유');
+   card.append(button('Lv. '+difficulty+' 출격',()=>start(-1,i,false,band),difficulty===null,'primary dungeon-launch'));
+   const picker=disclosure(card,(band+1)+'단계 · Lv. '+range.min+'–'+range.max);
    picker.className='dungeon-picker';
+   picker.ontoggle=()=>{
+    if(!picker.open)return;
+    list.querySelectorAll('.dungeon-picker[open]').forEach(other=>{if(other!==picker)other.open=false;});
+   };
    const options=grid(picker);
    for(const [j,option] of contractBands.entries()){
     const locked=contractLevel(j)===null;
-    const pick=button((j+1)+'단계 · Lv. '+option.min+'–'+option.max+(locked?' 🔒':''),()=>{
+    const pick=button((j+1)+'단계',()=>{
      selectedBands[i]=j;renderMenu();
     },locked,j===band?'primary':'');
+    const levels=document.createElement('small');levels.textContent=option.min+'–'+option.max;
+    pick.append(levels);
+    pick.setAttribute('aria-label',(j+1)+'단계, 레벨 '+option.min+'부터 '+option.max+(locked?', 잠김':''));
     pick.setAttribute('aria-pressed',String(j===band));options.append(pick);
    }
-   paragraph(card,'클리어 보상 · '+rewardText(contractReward(c,band)));
-   card.append(button('Lv. '+difficulty+' 출격',()=>start(-1,i,false,band),difficulty===null,'primary'));
   }
   return;
  }
@@ -1992,6 +2055,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
