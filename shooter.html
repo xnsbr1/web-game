@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.1.1">
+<meta name="game-build" content="1.1.2">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -42,6 +42,7 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 #settings input{display:block;width:100%;height:34px;accent-color:#70dfc5}
 #settings button{min-height:44px}
 .version-panel{border-top:1px solid #53636d;margin:18px 0 14px;padding-top:14px}
+.selected-skill{border-color:var(--teal)}
 </style>
 </head>
 <body><main>
@@ -233,7 +234,14 @@ const contracts=[
  {name:'철턱 재도전',mode:'boss',n:1,desc:'3회 격파마다 보스 코어 · 첫 피격 2회 이하 승리에 장신구'}
 ];
 const key='deep-rounds-save-v1';
-const save={credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
+const skills={
+ dash:{name:'대시',description:'짧게 돌진하며 피해를 피함. 신발에 따라 재사용 시간 감소.'},
+ shield:{name:'보호막',description:'1.4초간 피해 무효 · 재사용 12초',cooldown:12,color:'#62e0ff'},
+ pulse:{name:'충격파',description:'주변 적탄 제거 및 적에게 피해와 경직 · 재사용 9초',cooldown:9,color:'#e7a8ff'},
+ overdrive:{name:'가속 장치',description:'3초간 이동 속도 +35%, 장전 속도 2배 · 재사용 11초',cooldown:11,color:'#8ef3ba'}
+};
+const equippedSkill=()=>Object.hasOwn(skills,save.skill)?save.skill:'dash';
+const save={skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 try{const stored=JSON.parse(localStorage.getItem(key));if(stored&&typeof stored==='object')Object.assign(save,stored);}catch{}
 function persist(){try{localStorage.setItem(key,JSON.stringify(save));}catch{}}
 const own=id=>Object.hasOwn(save.levels,id);
@@ -312,6 +320,17 @@ function renderMenu(next=page){
   const info=panel('전투 준비');
   const gun=save.equipped.gun||'pistol';
   info.append(largeEntry(gear[gun].name+' +'+level(gun),'현재 총기 · 장비 열기',()=>openPage('gear')));
+  const fieldSkill=panel('전투 스킬');
+  const skillList=grid(fieldSkill);
+  for(const [id,skill] of Object.entries(skills)){
+   const selected=id===equippedSkill();
+   const choice=largeEntry(skill.name+(selected?' · 장착 중':''),skill.description,()=>{
+    save.skill=id;persist();renderMenu();
+   });
+   choice.setAttribute('aria-pressed',String(selected));
+   if(selected)choice.classList.add('selected-skill');
+   skillList.append(choice);
+  }
   const progress=panel('작전 기록');
   paragraph(progress,save.cleared+' / '+stages.length+' 스테이지 클리어');
   paragraph(progress,Object.values(save.stars).reduce((sum,count)=>sum+count,0)+' / 60 ★ · 보스 추적 '+save.cleared+'종 해금');
@@ -583,7 +602,7 @@ function releaseStick(){
  $('joystick').style.display='none';
  if(pointer!==null&&arena.hasPointerCapture(pointer))arena.releasePointerCapture(pointer);
 }
-const dashReady=()=>game&&!game.paused&&!game.over&&game.p.cd<=0;
+const skillReady=()=>game&&!game.paused&&!game.over&&game.p.cd<=0;
 function start(index,contract,bossHunt=false){
  if(bossHunt && (index<0||index>=save.cleared))return;
  enableAudio();beat=0;
@@ -615,8 +634,8 @@ function start(index,contract,bossHunt=false){
  if(mode==='defend')objects.push({x:450,y:295,r:26,hp:145,max:145,done:false});
  const charm=save.equipped.charm;
  const terrain=campaign?[{kind:'vent',x:165,y:175+(index%3)*80,r:32},{kind:'vent',x:714,y:383-(index%3)*75,r:32},{kind:'drum',x:378,y:207+(index%2)*120,r:18},{kind:'drum',x:632,y:279,r:18}]:[];
- game={movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
-  p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,gunId,stat}};
+ game={skill:equippedSkill(),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+  p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
  document.body.classList.add('fighting');$('menu').hidden=true;$('combat').hidden=false;$('result').hidden=true;
@@ -651,9 +670,27 @@ function move(body,dx,dy){
  if(!blocked(body.x,y,body.r))body.y=y;else hit=true;
  return hit;
 }
-function dash(){
- if(!dashReady())return;
- const p=game.p, boots=save.equipped.boots,l=level(boots),m=modOf(boots);
+function activateSkill(){
+ if(!skillReady())return;
+ const g=game,p=g.p;
+ if(g.skill!=='dash'){
+  const skill=skills[g.skill];
+  p.cd=skill.cooldown;
+  playEffect('dash');
+  g.effects.push({x:p.x,y:p.y,r:g.skill==='pulse'?128:42,color:skill.color,life:.35,ring:true});
+  if(g.skill==='shield')p.shield=1.4;
+  if(g.skill==='overdrive')p.overdrive=3;
+  if(g.skill==='pulse'){
+   g.bolts=g.bolts.filter(b=>dist(b,p)>128);
+   for(const e of g.enemies){
+    if(dist(e,p)>128+e.r)continue;
+    e.hp-=e.type==='boss'?50:65;
+    e.wind=0;e.rush=0;e.stun=Math.max(e.stun,.7);
+   }
+  }
+  return;
+ }
+ const boots=save.equipped.boots,l=level(boots),m=modOf(boots);
  const input=movement();
  p.dashDir=Math.hypot(input.x,input.y)>.1?Math.atan2(input.y,input.x):p.dir;
  playEffect('dash');p.dash=.145+(boots==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
@@ -718,7 +755,7 @@ function shoot(){
  if(!p.ammo)reload();
 }
 function hurt(damage,origin,electric=false){
- const p=game.p;if(p.inv>0)return;
+ const p=game.p;if(p.inv>0||p.shield>0)return;
  const head=save.equipped.head;
  if(head==='scoutHelmet'||(head==='sealedHelmet'&&electric))damage*=1-(head==='scoutHelmet'?.11:.24)-level(head)*.022;
  if(head&&level(head)>=5){
@@ -897,15 +934,18 @@ function steerBolt(b,g,dt){
 function step(dt){
  const g=game,p=g.p;
  g.t+=dt;
- for(const key of ['cool','inv','cd','afterDash','dash'])p[key]=Math.max(0,p[key]-dt);
- if(p.reload>0){p.reload-=dt;if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;}}
+ for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive'])p[key]=Math.max(0,p[key]-dt);
+ if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;}}
  hazards();
  const input=movement();
  const boosted=g.terrain.some(o=>o.kind==="vent"&&dist(o,p)<o.r+p.r);
  const speed=boosted?280:g.wet&&save.equipped.boots!=='grip'?142:212;
  const previousX=p.x,previousY=p.y;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*720*dt,Math.sin(p.dashDir)*720*dt);
- else move(p,input.x*speed*dt,input.y*speed*dt);
+ else {
+  const movementSpeed=speed*(p.overdrive>0?1.35:1);
+  move(p,input.x*movementSpeed*dt,input.y*movementSpeed*dt);
+ }
  trackMovement(g,p.x-previousX,p.y-previousY,dt);
 
  const target=firingTarget(p);
@@ -996,7 +1036,10 @@ function updateHud(){
  meter.firstElementChild.style.width=hp+'%';meter.firstElementChild.style.background=hp<=30?'#ee606f':'#29bf94';
  meter.lastElementChild.textContent='HP '+hp+' / '+p.max;meter.setAttribute('aria-valuenow',hp);
  $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.mode==='range'?75:300)-g.t))+'초';
- $('dash').disabled=!dashReady();$('dash').textContent=p.cd>0?p.cd.toFixed(1)+'초':'대시';
+ const skillButton=$('dash'),skillName=skills[g.skill].name;
+ skillButton.disabled=!skillReady();
+ skillButton.setAttribute('aria-label',skillName);
+ skillButton.textContent=p.cd>0?p.cd.toFixed(1)+'초':skillName;
 }
 function finish(won,reason){
  playEffect(won?'win':'lose');
@@ -1056,6 +1099,29 @@ function drawBolt(b,dx,dy,width,glow,core){
  ctx.restore();
 }
 function portraitField(){return canvas.clientHeight>canvas.clientWidth;}
+function arenaPalette(index,lab,hazard){
+ if(hazard==='dark')return {floor:'#39304d',edge:'#141323',light:'#bb90ff',cover:'#69587c',face:'#39304b'};
+ if(hazard==='blast')return {floor:'#51332f',edge:'#21151b',light:'#ff8861',cover:'#965d4a',face:'#533133'};
+ if(lab)return index%2===0
+  ?{floor:'#243f52',edge:'#111c31',light:'#76ccff',cover:'#53788e',face:'#2b435d'}
+  :{floor:'#284a46',edge:'#111f27',light:'#70efd9',cover:'#568574',face:'#284a49'};
+ return index%2===0
+  ?{floor:'#453f37',edge:'#1d191f',light:'#f6c17a',cover:'#8f7257',face:'#4d3b37'}
+  :{floor:'#41364d',edge:'#1b1726',light:'#d9a2ff',cover:'#826882',face:'#433449'};
+}
+function drawArenaFloor(palette){
+ const lighting=ctx.createRadialGradient(W*.54,H*.44,30,W*.54,H*.44,570);
+ lighting.addColorStop(0,palette.floor);lighting.addColorStop(1,palette.edge);
+ ctx.fillStyle=lighting;ctx.fillRect(0,0,W,H);
+ for(let y=0;y<H;y+=58){
+  for(let x=0;x<W;x+=90){
+   ctx.fillStyle=(x/90+y/58)%2===0?'#ffffff08':'#00000010';
+   ctx.fillRect(x+2,y+2,86,54);
+  }
+ }
+ ctx.strokeStyle=palette.light+'60';ctx.lineWidth=3;ctx.strokeRect(8,8,W-16,H-16);
+ ctx.strokeStyle='#00000070';ctx.lineWidth=5;ctx.strokeRect(16,16,W-32,H-32);
+}
 function draw(){
  const g=game,p=g.p;
  const width=canvas.clientWidth,height=canvas.clientHeight;
@@ -1075,10 +1141,8 @@ function draw(){
  ctx.translate(dx+(portrait?sceneWidth*scale:0),dy);
  ctx.scale(scale,scale);
  if(portrait)ctx.rotate(Math.PI/2);
- ctx.fillStyle=g.lab?'#203941':'#302c28';ctx.fillRect(0,0,W,H);
- ctx.strokeStyle=g.lab?'#29464d':'#3d3730';ctx.lineWidth=1;
- for(let x=20;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
- for(let y=20;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+ const palette=g.palette;
+ drawArenaFloor(palette);
  if(g.hazard==='water'||g.hazard==='tide'){
   const water=g.hazard==='tide'?135+75*Math.sin(g.t*.68):100;
   ctx.fillStyle='#5ab0cf42';ctx.fillRect(0,0,W,water);ctx.fillRect(0,H-water,W,water);
@@ -1093,11 +1157,14 @@ function draw(){
   disc(x,y,pulse+3,g.lab?'#39bfd322':'#ffbc4c22');disc(x,y,pulse,g.lab?'#5bacbd':'#a98247');
  }
  for(const w of g.walls){
-  ctx.fillStyle='#121b1f';ctx.fillRect(w.x+6,w.y+8,w.w,w.h);
-  ctx.fillStyle=g.lab?'#55747e':'#77624b';ctx.fillRect(w.x,w.y,w.w,w.h);
-  ctx.fillStyle=g.lab?'#6b929d':'#ad8a61';ctx.fillRect(w.x,w.y,w.w,5);
-  ctx.strokeStyle=g.lab?'#99c8d1':'#cfac78';ctx.lineWidth=2;ctx.strokeRect(w.x+5,w.y+6,w.w-10,w.h-12);
-  for(let i=10;i<w.w-8;i+=16){ctx.fillStyle=g.lab?'#6df5dd':'#e6ac55';ctx.fillRect(w.x+i,w.y+w.h-10,8,3);}
+  ctx.fillStyle='#06091290';ctx.fillRect(w.x+8,w.y+11,w.w,w.h);
+  const bevel=ctx.createLinearGradient(w.x,w.y,w.x+w.w,w.y+w.h);
+  bevel.addColorStop(0,palette.cover);bevel.addColorStop(1,palette.face);
+  ctx.fillStyle=bevel;ctx.fillRect(w.x,w.y,w.w,w.h);
+  ctx.fillStyle=palette.light+'9a';ctx.fillRect(w.x,w.y,w.w,4);
+  ctx.fillStyle='#00000066';ctx.fillRect(w.x,w.y+w.h-7,w.w,7);
+  ctx.strokeStyle=palette.light+'55';ctx.lineWidth=2;ctx.strokeRect(w.x+6,w.y+8,w.w-12,w.h-20);
+  for(let i=10;i<w.w-8;i+=16){ctx.fillStyle=palette.light;ctx.fillRect(w.x+i,w.y+w.h-10,7,3);}
  
  }
  for(const o of g.terrain){
@@ -1139,7 +1206,11 @@ function draw(){
   drawBolt(b,b.vx/speed*length,b.vy/speed*length,b.id==='rail'?6:4,'#41ddff','#ecffff');
  }
  for(const b of g.bolts)drawBolt(b,Math.cos(b.a)*25,Math.sin(b.a)*25,5,'#ff4d72','#fff0e9');
- for(const effect of g.effects)disc(effect.x,effect.y,effect.r,effect.color+'77');
+ for(const effect of g.effects){
+  if(!effect.ring){disc(effect.x,effect.y,effect.r,effect.color+'77');continue;}
+  ctx.strokeStyle=effect.color;ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(effect.x,effect.y,effect.r*(1-effect.life*.9),0,TAU);ctx.stroke();
+ }
  if(g.hazard==='dark'){
   const lights=g.objects.filter(o=>o.done);
   if(lights.length<g.objects.length){
@@ -1150,6 +1221,10 @@ function draw(){
  }
  ctx.lineWidth=6;ctx.strokeStyle='#b9eee2';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(p.dir)*30,p.y+Math.sin(p.dir)*30);ctx.stroke();
  disc(p.x,p.y,p.r,p.inv>0?'#f6f4c1':'#74e4ce');disc(p.x,p.y,6,'#295a62');
+ if(p.shield>0||p.overdrive>0){
+  ctx.strokeStyle=p.shield>0?skills.shield.color:skills.overdrive.color;
+  ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y,p.r+8,0,TAU);ctx.stroke();
+ }
  bar(p.x,p.y-27,p.hp,p.max,40);
 }
 
@@ -1162,12 +1237,12 @@ function pause(){
  $('result').hidden=!game.paused;updateHud();
 }
 $('pause').onclick=pause;
-$('dash').onpointerdown=e=>{e.preventDefault();dash();};
-$('dash').onclick=e=>{if(e.detail===0)dash();};
+$('dash').onpointerdown=e=>{e.preventDefault();activateSkill();};
+$('dash').onclick=e=>{if(e.detail===0)activateSkill();};
 document.addEventListener('keydown',e=>{
  if($('combat').hidden||!game||game.over)return;
  const k=e.key.toLowerCase();if(k===' '||k.startsWith('arrow'))e.preventDefault();
- keys.add(k);if(e.repeat)return;if(k===' ')dash();if(k==='r')reload();if(k==='escape')pause();
+ keys.add(k);if(e.repeat)return;if(k===' ')activateSkill();if(k==='r')reload();if(k==='escape')pause();
 });
 document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&game&&!game.over&&!game.paused&&!$('combat').hidden)pause();});
