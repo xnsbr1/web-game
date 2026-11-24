@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.1">
+<meta name="game-build" content="1.4.2">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -53,6 +53,22 @@ details[open]>summary{border-color:var(--teal);margin-bottom:8px}
 details .item{margin-bottom:8px}
 .dungeon-picker .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .dungeon-picker button{padding:7px 4px;min-height:44px;font-size:12px}
+ .supply-reveal{--crate-accent:#80dfd1;min-height:186px;display:grid;justify-items:center;align-content:center;gap:4px;margin:14px 0;padding:12px;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:radial-gradient(ellipse at center,#2c454e,#141d28 73%);text-align:center}
+ .supply-crate{position:relative;width:104px;height:68px;margin:22px 0 14px;border:3px solid #547f88;border-radius:10px;background:linear-gradient(110deg,#42616d,#223d48 65%);box-shadow:inset 0 8px #597c87,0 10px 18px #0c1824;transform-origin:50% 85%}
+ .supply-crate::before{content:'';position:absolute;inset:17px 4px auto;border-top:3px solid #a3e2dd}
+ .supply-crate::after{content:'';position:absolute;left:39%;top:12px;width:20%;height:23px;border:2px solid #c2f5eb;border-radius:4px;background:#529d9b}
+ .crate-opening .supply-crate{animation:crate-unlock .85s both}
+ .crate-revealed{border-color:var(--crate-accent);background:radial-gradient(ellipse at center,color-mix(in srgb,var(--crate-accent) 35%,#1b2634),#161e2a 75%);animation:crate-reveal .48s both}
+ .crate-rare{box-shadow:inset 0 0 26px color-mix(in srgb,var(--crate-accent) 50%,transparent)}
+ .supply-reveal .supply-portrait{width:84px;height:auto;aspect-ratio:1}
+ .crate-rank{color:var(--crate-accent);font-weight:800}
+ .crate-name{font-size:18px;font-weight:800}
+ .supply-odds{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+ .supply-odds th,.supply-odds td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+ .supply-odds td:nth-child(-n+2),.supply-odds th:nth-child(-n+2){white-space:nowrap}
+ @keyframes crate-unlock{0%{transform:rotate(0)}25%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}75%{transform:rotate(-5deg)}100%{transform:scale(1.12);filter:brightness(1.55)}}
+ @keyframes crate-reveal{0%{opacity:.65;transform:scale(.95)}100%{opacity:1;transform:scale(1)}}
+ @media(prefers-reduced-motion:reduce){.crate-opening .supply-crate,.crate-revealed{animation:none}}
 </style>
 </head>
 <body><main>
@@ -144,7 +160,8 @@ const soundProfiles={
  shotgun:[128,35,.16,.2,'sawtooth'],sniper:[210,38,.17,.19,'triangle'],rail:[710,86,.22,.13,'triangle'],
  dash:[120,470,.15,.13,'triangle'],hurt:[105,48,.2,.18,'sawtooth'],
  boss:[63,47,.65,.23,'triangle'],win:[330,440,.31,.16,'triangle'],
- lose:[210,58,.43,.16,'triangle']
+ lose:[210,58,.43,.16,'triangle'],
+ crate:[105,220,.35,.16,'triangle'],crateReveal:[440,660,.38,.16,'triangle'],crateRare:[440,1100,.65,.22,'triangle']
 };
 function playEffect(name){
  if(audioSettings.effects>0)tone(effectsGain,...soundProfiles[name]);
@@ -248,11 +265,11 @@ const slots={head:'헬멧',gun:'총기',armor:'갑옷',gloves:'장갑',boots:'�
 const rankColors=['#b1bec6','#8de2a5','#8bc5ff','#caa6ff','#ffc36d','#ff8491'];
 const baseRanks={pistol:1,revolver:2,rifle:3,sniper:4,shotgun:2,smg:3,rail:4,scoutHelmet:1,sealedHelmet:3,plate:2,insulated:3,thrust:2,grip:3,light:2,quick:2,stable:2,rift:4,battery:3};
 const themes={
- vanguard:{name:'선봉대',color:'#edd281',items:['scoutHelmet','rifle','plate','stable','thrust','battery'],three:{damage:.05},six:{damage:.09},text:['공격 피해 +5%','공격 피해 추가 +9%']},
- sentinel:{name:'철벽 수호',color:'#95c1eb',items:['scoutHelmet','shotgun','plate','quick','grip','battery'],three:{defense:.06},six:{defense:.12},text:['받는 피해 6% 감소','받는 피해 추가 12% 감소']},
- tide:{name:'심해 탐사',color:'#65e2cf',items:['sealedHelmet','smg','insulated','quick','grip','battery'],three:{move:.05},six:{reload:.14},text:['이동 속도 +5%','재장전 속도 +14%']},
- specter:{name:'유령 정찰',color:'#cba8f1',items:['sealedHelmet','sniper','plate','stable','light','rift'],three:{fire:.05},six:{damage:.10},text:['공격 속도 +5%','공격 피해 +10%']},
- arc:{name:'과전압 연구',color:'#ff9a86',items:['sealedHelmet','rail','insulated','quick','thrust','rift'],three:{projectile:.07},six:{cooldown:.12},text:['탄환 속도 +7%','스킬 재사용 시간 12% 감소']}
+ vanguard:{name:'선봉대',color:'#edd281',items:['scoutHelmet','rifle','plate','stable','thrust','battery'],three:{damage:.04},six:{damage:.07},text:['공격 피해 +4%','공격 피해 추가 +7%']},
+ sentinel:{name:'철벽 수호',color:'#95c1eb',items:['scoutHelmet','shotgun','plate','quick','grip','battery'],three:{defense:.06},six:{defense:.10},text:['받는 피해 6% 감소','받는 피해 추가 10% 감소']},
+ tide:{name:'심해 탐사',color:'#65e2cf',items:['sealedHelmet','smg','insulated','quick','grip','battery'],three:{move:.06},six:{reload:.16},text:['이동 속도 +6%','재장전 속도 +16%']},
+ specter:{name:'유령 정찰',color:'#cba8f1',items:['sealedHelmet','sniper','plate','stable','light','rift'],three:{fire:.08},six:{damage:.12},text:['공격 속도 +8%','공격 피해 +12%']},
+ arc:{name:'과전압 연구',color:'#ff9a86',items:['sealedHelmet','rail','insulated','quick','thrust','rift'],three:{projectile:.10},six:{cooldown:.16,damage:.06},text:['탄환 속도 +10%','스킬 재사용 시간 16% 감소 · 공격 피해 +6%']}
 };
 for(const [themeId,theme] of Object.entries(themes)){
  theme.ids=theme.items.map((base,index)=>{
@@ -352,8 +369,12 @@ const trainingCap=5;
 const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
 const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
 const supplyTiers=[
- {rank:2,chance:60},{rank:3,chance:30},{rank:4,chance:10}
-].map(tier=>({...tier,items:Object.values(themes).flatMap(theme=>theme.ids).filter(id=>baseRanks[id]===tier.rank)}));
+ {rank:2,chance:52,themes:['vanguard','sentinel']},
+ {rank:3,chance:29,themes:['vanguard','sentinel','tide']},
+ {rank:4,chance:14,themes:['sentinel','tide','specter']},
+ {rank:5,chance:4.5,themes:['tide','specter','arc']},
+ {rank:6,chance:.5,themes:['specter','arc']}
+].map(tier=>({...tier,items:tier.themes.flatMap(id=>themes[id].ids)}));
 const supplyPrice=()=>220+35*Math.floor(save.cleared/5);
 const maxSkillLevel=10;
 let keepSkillPanelOpen=false;
@@ -370,7 +391,7 @@ function upgradeSkill(id){
  pay(price);save.skillLevels[id]=skillLevel(id)+1;persist();
  return true;
 }
-let lastSupply=null;
+let lastSupply=null,supplyOpening=false,supplyOddsOpen=false;
 const save={skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 Object.assign(save,testSnapshot||readSave(key));
 if(testMode){
@@ -436,7 +457,7 @@ function rewardText(reward){return Object.entries(reward).filter(([,v])=>v).map(
 function grade(id){
  if(!id)return 1;
  const saved=save.ranks[id];
- return Number.isInteger(saved)?clamp(saved,baseRanks[id],6):baseRanks[id];
+ return Number.isInteger(saved)?clamp(saved,gear[id].theme?2:baseRanks[id],6):baseRanks[id];
 }
 function gradeBonus(id){return grade(id)-1;}
 function promotionCost(id){
@@ -487,12 +508,16 @@ function drawSupply(random=Math.random){
  let ticket=random()*100;
  const tier=supplyTiers.find(group=>(ticket-=group.chance)<0)||supplyTiers.at(-1);
  const id=tier.items[Math.floor(random()*tier.items.length)];
- const duplicate=own(id);
+ const previousRank=own(id)?grade(id):0;
+ const outcome=previousRank===0?'new':tier.rank>previousRank?'promoted':'duplicate';
  save.credits-=price;
- if(duplicate)save.parts+=1;
- else unlock(id);
+ if(outcome==='duplicate')save.parts+=1;
+ else{
+  unlock(id);
+  save.ranks[id]=tier.rank;
+ }
  persist();
- return {id,duplicate};
+ return {id,rank:tier.rank,previousRank,outcome};
 }
 function upgradeTraining(id,contractMaterials=false){
  const current=trainingLevel(id);
@@ -503,27 +528,64 @@ function upgradeTraining(id,contractMaterials=false){
  persist();
  return true;
 }
+function openSupply(){
+ if(supplyOpening)return;
+ const drawn=drawSupply();
+ if(!drawn)return;
+ enableAudio();playEffect('crate');
+ supplyOpening=true;
+ renderMenu();
+ const duration=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?0:850;
+ setTimeout(()=>{
+  supplyOpening=false;lastSupply=drawn;
+  if(page==='supply'){
+   playEffect(drawn.rank>=5?'crateRare':'crateReveal');
+   renderMenu();
+  }
+ },duration);
+}
 function renderSupply(){
  const supply=panel('장비 뽑기');
  const price=supplyPrice();
- paragraph(supply,'1회 '+price+' 크레딧 · 클리어한 스테이지가 5개 늘 때마다 +35 크레딧 · 중복은 정밀 부품 1개');
-
- supply.append(button('보급 상자 열기',()=>{
-  const result=drawSupply();
-  if(result){lastSupply=result;renderMenu();}
- },save.credits<price,'primary'));
- if(lastSupply){
-  const {id,duplicate}=lastSupply;
-  const result=document.createElement('p');result.setAttribute('role','status');
-  result.style.color=rankColors[grade(id)-1];
-  result.textContent=grade(id)+'성 '+gear[id].name+(duplicate?' · 정밀 부품 +1':' 획득');
-  supply.append(result);
+ paragraph(supply,'1회 '+price+' 크레딧 · 클리어한 스테이지가 5개 늘 때마다 +35 크레딧');
+ const reveal=document.createElement('div');
+ reveal.className='supply-reveal'+(supplyOpening?' crate-opening':lastSupply?' crate-revealed':'');
+ reveal.setAttribute('role','status');reveal.setAttribute('aria-atomic','true');
+ supply.append(reveal);
+ if(supplyOpening||!lastSupply){
+  const crate=document.createElement('div');crate.className='supply-crate';crate.setAttribute('aria-hidden','true');
+  reveal.append(crate);
+  paragraph(reveal,supplyOpening?'보급 상자 여는 중…':'보급 상자');
+ }else{
+  const {id,rank,previousRank,outcome}=lastSupply;
+  reveal.style.setProperty('--crate-accent',rankColors[rank-1]);
+  if(rank>=5)reveal.classList.add('crate-rare');
+  reveal.append(equipmentPortrait(gear[id].slot,id,'supply-portrait',rank));
+  paragraph(reveal,'★'.repeat(rank)+' · '+rank+'성','crate-rank');
+  paragraph(reveal,gear[id].name,'crate-name');
+  paragraph(reveal,outcome==='new'?'새 장비 획득':outcome==='promoted'?previousRank+'성 → '+rank+'성으로 상승 · 강화 유지':'중복 · 정밀 부품 +1');
  }
- const odds=disclosure(supply,'확률표 · 등장 장비 30종');
+ supply.append(button(supplyOpening?'여는 중…':'보급 상자 열기',openSupply,supplyOpening||save.credits<price,'primary'));
+ const odds=disclosure(supply,'등급별 확률과 등장 테마');
+ odds.open=supplyOddsOpen;
+ odds.ontoggle=()=>{supplyOddsOpen=odds.open;};
+ const table=document.createElement('table');
+ table.className='supply-odds';
+ const head=table.createTHead().insertRow();
+ for(const title of ['등급','확률','등장 테마']){
+  const cell=document.createElement('th');cell.scope='col';cell.textContent=title;head.append(cell);
+ }
+ const body=table.createTBody();
  for(const tier of supplyTiers){
-  paragraph(odds,tier.rank+'성 '+tier.chance+'% · 개별 '+tier.chance/tier.items.length+'%','section-label');
-  paragraph(odds,tier.items.map(id=>gear[id].name).join(' · '));
+  const row=body.insertRow();
+  row.insertCell().textContent=tier.rank+'성';
+  row.cells[0].style.color=rankColors[tier.rank-1];
+  row.insertCell().textContent=tier.chance+'%';
+  row.insertCell().textContent=tier.themes.map(id=>themes[id].name).join(' · ');
  }
+ odds.append(table);
+ paragraph(odds,'같은 등급 안에서 등장 테마와 장비 부위는 각각 같은 확률이야.');
+ paragraph(odds,'보유 장비보다 높은 등급을 뽑으면 등급이 올라가고 강화는 유지돼. 같은 등급이나 낮은 등급은 정밀 부품 1개로 바뀌어.');
 }
 function renderGrowth(){
  const growth=panel('플레이어 강화');
@@ -740,13 +802,13 @@ function polygon(g,fill,points){
  g.fillStyle=fill;g.beginPath();
  points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.fill();
 }
-function equipmentPortrait(slot,id,extra=''){
+function equipmentPortrait(slot,id,extra='',displayRank=id?grade(id):1){
  const canvas=document.createElement('canvas');
  canvas.width=96;canvas.height=96;canvas.className='equipment-art '+extra;
  canvas.setAttribute('aria-hidden','true');
  if(id){
   canvas.classList.add('ranked-portrait');
-  canvas.style.setProperty('--rank-color',rankColors[grade(id)-1]);
+  canvas.style.setProperty('--rank-color',rankColors[displayRank-1]);
  }
  const g=canvas.getContext('2d');
  const light=themes[gear[id]?.theme]?.color||hues[id]||'#73868e',dark='#233947',mid='#506979',glow='#9af9eb';
@@ -1816,6 +1878,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
