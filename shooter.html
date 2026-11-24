@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.11.1">
+<meta name="game-build" content="1.12.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -114,7 +114,7 @@ details .item{margin-bottom:8px}
 <div id="joystick" aria-hidden="true"><i></i></div>
 <div id="result" class="result" hidden><article><h2 id="resultTitle"></h2><p id="resultText"></p><div class="row" id="resultActions"></div></article></div></div>
 <p id="combatHint">화면을 끌어 이동 · 가까운 적 자동 사격</p>
-<button id="dash" aria-label="대시">대시</button>
+<button id="reserveSkill">보조</button><button id="dash" aria-label="대시">대시</button>
 </section>
 <dialog id="settings" aria-labelledby="settingsTitle">
  <h2 id="settingsTitle">설정</h2>
@@ -194,7 +194,9 @@ function playGunshot(id){
  if(audioSettings.effects<=0)return;
  const sound=gunSounds[id];
  tone(effectsGain,...sound);
- tone(effectsGain,sound[0]*1.65,sound[0],.023,sound[3]*.28);
+ const accents={pistol:[1.7,.020,'triangle'],revolver:[.55,.065,'sine'],rifle:[2.4,.017,'square'],smg:[1.3,.014,'triangle'],shotgun:[.42,.078,'sawtooth'],sniper:[2.1,.042,'sine'],rail:[1.9,.09,'sine']};
+ const [ratio,duration,wave]=accents[id];
+ tone(effectsGain,sound[0]*ratio,sound[1]*ratio,duration,sound[3]*.22,wave);
 }
 const soundProfiles={
  dash:[120,470,.15,.13,'triangle'],hurt:[105,48,.2,.18,'sawtooth'],
@@ -307,7 +309,7 @@ const gear={
  sniper:{name:'저격소총',slot:'gun',damage:95,interval:1.12,mag:4,reload:1.45,speed:1040,mods:['중장갑 파쇄','장거리 탄환'],desc:'긴 사거리와 높은 단발 피해'},
  shotgun:{name:'산탄총',slot:'gun',damage:14,interval:.64,mag:5,reload:1.1,speed:580,mods:['충격탄','집속탄'],desc:'근거리에서 산탄 5발 발사'},
  smg:{name:'기관단총',slot:'gun',damage:11,interval:.115,mag:23,reload:1,speed:690,mods:['연쇄탄','표식탄'],desc:'연사로 빠른 적을 제압'},
- rail:{name:'충전포',slot:'gun',damage:74,interval:1.05,mag:3,reload:1.3,speed:900,mods:['관통광선','분열탄'],desc:'느리지만 강한 관통 사격'},
+ rail:{name:'충전포',slot:'gun',damage:74,interval:1.05,mag:3,reload:1.3,speed:900,mods:['관통광선','집속광선'],desc:'느리지만 강한 관통 사격'},
  scoutHelmet:{name:'정찰 헬멧',slot:'head',desc:'모든 피격 피해를 조금 줄여 줘.'},
  sealedHelmet:{name:'밀폐 헬멧',slot:'head',desc:'감전 피해를 줄여 줘.'},
  plate:{name:'철판 갑옷',slot:'armor',desc:'정면에서 받는 피해 감소'},
@@ -325,11 +327,11 @@ const slots={head:'헬멧',gun:'총기',armor:'갑옷',gloves:'장갑',boots:'�
 const rankColors=['#b1bec6','#8de2a5','#8bc5ff','#caa6ff','#ffc36d','#ff8491'];
 const baseRanks={pistol:1,revolver:2,rifle:3,sniper:4,shotgun:2,smg:3,rail:4,scoutHelmet:1,sealedHelmet:3,plate:2,insulated:3,thrust:2,grip:3,light:2,quick:2,stable:2,rift:4,battery:3};
 const themes={
- vanguard:{name:'선봉대',color:'#edd281',items:['scoutHelmet','rifle','plate','stable','thrust','battery'],three:{damage:.04},six:{damage:.07},text:['공격 피해 +4%','공격 피해 추가 +7%']},
- sentinel:{name:'철벽 수호',color:'#95c1eb',items:['scoutHelmet','shotgun','plate','quick','grip','battery'],three:{defense:.06},six:{defense:.10},text:['받는 피해 6% 감소','받는 피해 추가 10% 감소']},
- tide:{name:'심해 탐사',color:'#65e2cf',items:['sealedHelmet','smg','insulated','quick','grip','battery'],three:{move:.06},six:{reload:.16},text:['이동 속도 +6%','재장전 속도 +16%']},
- specter:{name:'유령 정찰',color:'#cba8f1',items:['sealedHelmet','sniper','plate','stable','light','rift'],three:{fire:.08},six:{damage:.12},text:['공격 속도 +8%','공격 피해 +12%']},
- arc:{name:'과전압 연구',color:'#ff9a86',items:['sealedHelmet','rail','insulated','quick','thrust','rift'],three:{projectile:.10},six:{cooldown:.16,damage:.06},text:['탄환 속도 +10%','스킬 재사용 시간 16% 감소 · 공격 피해 +6%']}
+ vanguard:{name:'선봉대',color:'#edd281',items:['scoutHelmet','rifle','plate','stable','thrust','battery'],three:{damage:.04},six:{damage:.14},text:['공격 피해 +4%','공격 피해 +14%']},
+ sentinel:{name:'철벽 수호',color:'#95c1eb',items:['scoutHelmet','shotgun','plate','quick','grip','battery'],three:{defense:.06},six:{defense:.19},text:['받는 피해 6% 감소','받는 피해 19% 감소']},
+ tide:{name:'심해 탐사',color:'#65e2cf',items:['sealedHelmet','smg','insulated','quick','grip','battery'],three:{move:.06},six:{reload:.22},text:['이동 속도 +6%','재장전 속도 +22%']},
+ specter:{name:'유령 정찰',color:'#cba8f1',items:['sealedHelmet','sniper','plate','stable','light','rift'],three:{fire:.08},six:{damage:.17},text:['공격 속도 +8%','공격 피해 +17%']},
+ arc:{name:'과전압 연구',color:'#ff9a86',items:['sealedHelmet','rail','insulated','quick','thrust','rift'],three:{projectile:.10},six:{cooldown:.19,damage:.09},text:['탄환 속도 +10%','스킬 재사용 시간 19% 감소 · 공격 피해 +9%']}
 };
 const gunFamilies=Object.keys(gear).filter(id=>gear[id].slot==='gun');
 for(const [themeId,theme] of Object.entries(themes)){
@@ -355,7 +357,7 @@ function setBonuses(equipped){
  }
  for(const [id,count] of Object.entries(counts)){
   if(count<3)continue;
-  for(const tier of count>=6?['three','six']:['three']){
+  for(const tier of count>=6?['six']:['three']){
    for(const [stat,value] of Object.entries(themes[id][tier]))bonuses[stat]+=value;
   }
  }
@@ -365,6 +367,17 @@ const materialNames={
  iron:'정제 철편',spring:'압축 용수철',fiber:'방탄 섬유',polymer:'절연 수지',
  lens:'초점 렌즈',coil:'가속 코일',enzyme:'활성 효소',gel:'신경 겔',skillData:'전술 데이터',xp:'경험치'
 };
+const elementNames=['화염','냉기','전격','독','공명'];
+const familyMaterial=Object.fromEntries(gunFamilies.map((id,i)=>[id,'gunMat'+i]));
+for(const id of gunFamilies)materialNames[familyMaterial[id]]=gear[id].name+' 강화재';
+for(let rank=1;rank<=6;rank++)materialNames['core'+rank]=rank+'성 보스 코어';
+const coreRank=index=>[1,1,2,2,3,3,3,4,4,4,3,4,4,4,5,5,5,5,6,6][index];
+function itemElement(id){return gear[id]?.element??0;}
+for(const [id,item] of Object.entries(gear)){
+ const family=gearFamily(id),theme=Object.keys(themes).indexOf(item.theme);
+ item.element=item.slot==='gun'?gunFamilies.indexOf(family)%5:theme>=0?theme:family==='insulated'?2:1;
+ if(item.slot==='armor')item.name=elementNames[item.element]+' '+item.name;
+}
 const currencies={credits:'크레딧',alloy:'합금',parts:'정밀 부품',cores:'보스 코어'};
 const contracts=[
  {name:'폐선로 회수',boss:'철로 파쇄충',pattern:'charge',pack:['crawler','armor','runner','flanker'],materials:['iron','spring'],slots:['gun','charm'],hazard:'cart',unlock:'light'},
@@ -378,17 +391,17 @@ const maxCharacterLevel=100;
 const characterLevel=()=>Math.min(maxCharacterLevel,1+Math.floor(save.xp/100));
 const operators={
  ranger:{name:'정찰병',icon:'◎',color:'#8cebd9',price:0,description:'균형형 · 기본 능력치'},
- bulwark:{name:'방패병',icon:'⬟',color:'#8bbcff',price:550,hp:35,defense:.12,move:.86,description:'최대 체력 +35 · 받는 피해 −12% · 이동 속도 −14%'},
- leech:{name:'흡혈 사수',icon:'◈',color:'#ff93b6',price:850,hp:-15,leech:.05,description:'총기 피해의 5% 흡혈 · 회복 한도 3 HP, 매초 3 HP 충전 · 최대 체력 −15'},
- runner:{name:'기동병',icon:'➤',color:'#ffd184',price:500,hp:-12,move:1.16,description:'이동 속도 +16% · 최대 체력 −12'},
+ bulwark:{name:'방패병',icon:'⬟',color:'#8bbcff',price:550,hp:80,defense:.12,move:.86,description:'최대 체력 +80 · 받는 피해 −12% · 이동 속도 −14%'},
+ leech:{name:'흡혈 사수',icon:'◈',color:'#ff93b6',price:850,hp:-15,leech:.035,description:'총기 피해의 3.5% 흡혈 · 회복 한도 3 HP, 매초 3 HP 충전 · 최대 체력 −15'},
+ runner:{name:'기동병',icon:'➤',color:'#ffd184',price:500,projectile:1.15,move:1.16,description:'이동 속도 +16% · 탄환 속도 +15%'},
  gunner:{name:'총기 기술자',icon:'✦',color:'#b4a6ff',price:700,reload:1.24,projectile:1.15,description:'재장전 속도 +24% · 탄환 속도 +15%'},
- hunter:{name:'현상금 사냥꾼',icon:'⌖',color:'#ffaf78',price:900,boss:1.18,damage:.95,description:'보스에게 주는 총기 피해 +18% · 잡몹에게 주는 총기 피해 −5%'},
- tech:{name:'전술 기술자',icon:'ϟ',color:'#8eeeff',price:800,cooldown:.84,hp:-8,description:'스킬 재사용 시간 −16% · 최대 체력 −8'},
- medic:{name:'의무병',icon:'✚',color:'#92eda8',price:650,recovery:1.7,recoveryDelay:4,description:'피격 후 4초부터 자동 회복 · 회복량 +70%'}
+ hunter:{name:'현상금 사냥꾼',icon:'⌖',color:'#ffaf78',price:900,boss:1.22,damage:.92,description:'보스에게 주는 총기 피해 +22% · 잡몹에게 주는 총기 피해 −8%'},
+ tech:{name:'전술 기술자',icon:'ϟ',color:'#8eeeff',price:800,cooldown:.88,hp:-8,description:'스킬 재사용 시간 −12% · 명중 시 0.3초 마비 (대상당 2초) · 최대 체력 −8'},
+ medic:{name:'의무병',icon:'✚',color:'#92eda8',price:650,recovery:2,recoveryDelay:4,description:'피격 후 4초부터 자동 회복 · 회복량 +100% · 피격 후 처음 2초간 회복량 +150%'}
 };
 const selectedOperator=()=>Object.hasOwn(operators,save.operator)&&ownsOperator(save.operator)?save.operator:'ranger';
 const ownsOperator=id=>id==='ranger'||save.operators?.[id]===true;
-const characterMaxHp=()=>100+Math.floor(characterLevel()/2)+(operators[selectedOperator()].hp||0);
+const characterMaxHp=()=>Math.round((100+Math.floor(characterLevel()/2)+(operators[selectedOperator()].hp||0))*trainingFactor('move'));
 function chooseOperator(id){
  if(!Object.hasOwn(operators,id))return false;
  if(!ownsOperator(id)){
@@ -407,7 +420,8 @@ function contractReward(contract,band){
  if(contract.reward==='xp')return {xp:95+band*12};
  if(contract.reward==='skillData')return {skillData:3+Math.floor(band/2)};
  const [first,second]=contract.materials,quantity=3+Math.floor(band/2);
- return {credits:32+band*5,[first]:quantity+1,[second]:quantity};
+ const weaponMats=[gunFamilies.slice(0,2),gunFamilies.slice(2,4),gunFamilies.slice(4)][contracts.indexOf(contract)];
+ return {...Object.fromEntries(weaponMats.map(id=>[familyMaterial[id],1+Math.floor(band/3)])),credits:Math.round((32+band*5)*(1-Math.min(.2,Math.max(0,characterLevel()-contractBands[band].max)*.0025))),[first]:quantity+1,[second]:quantity};
 }
 function contractScale(level){return {hp:1.35+(level-1)*.020,damage:1.30+(level-1)*.012};}
 function available(price){return Object.entries(price).every(([id,amount])=>balance(id)>=amount);}
@@ -423,7 +437,7 @@ const gearMaterialPrice=id=>{
  const {slot}=gear[id];
  const dungeon=contracts.find(entry=>entry.slots?.includes(slot));
  const material=dungeon.materials[dungeon.slots.indexOf(slot)],next=level(id)+1;
- return {credits:12+next*5,[material]:1+Math.floor(next/7)+(next>20?next-20:0),cores:next%5===0&&next>=25?1:0};
+ return {credits:12+next*5,...(slot==='gun'?{[familyMaterial[gearFamily(id)]]:1}:{}),[material]:1+Math.floor(next/7)+(next>20?next-20:0),...coreCost(id,next)};
 };
 const trainingMaterialPrice=id=>materialPrice(id==='fire'||id==='projectile'?['lens','coil']:['enzyme','gel'],65+trainingLevel(id)*45,2+trainingLevel(id));
 function priceText(price){
@@ -442,17 +456,23 @@ const testSnapshot=readSave(testKey);
 const testMode=testSnapshot!==null;
 
 const skills={
+ volley:{name:'속사 탄막',description:'가까운 적 최대 3마리에 55 피해 · 5초',cooldown:5,color:'#ffb955'},
+ charge:{name:'전투 장전',description:'즉시 장전하고 다음 사격 강화 · 6초',cooldown:6,color:'#9ed9ff'},
+ heal:{name:'응급 주사',description:'최대 체력의 18% 회복 · 16초',cooldown:16,color:'#83ffc3'},
+ storm:{name:'전자 폭풍',description:'반경 240 안의 적에게 100 피해와 경직 · 14초',cooldown:14,color:'#c498ff'},
  dash:{name:'대시',description:'짧게 돌진하며 피해를 피함. 신발에 따라 재사용 시간 감소.'},
  shield:{name:'보호막',description:'1.4초간 피해 무효 · 재사용 12초',cooldown:12,color:'#62e0ff'},
- pulse:{name:'충격파',description:'주변 적탄 제거 및 적에게 피해와 경직 · 재사용 9초',cooldown:9,color:'#e7a8ff'},
+ pulse:{name:'충격파',description:'주변 적탄 제거 및 적에게 피해와 경직 · 재사용 10초',cooldown:10,color:'#e7a8ff'},
  overdrive:{name:'가속 장치',description:'3초간 이동 속도 +35%, 장전 속도 2배 · 재사용 11초',cooldown:11,color:'#8ef3ba'}
 };
 const equippedSkill=()=>Object.hasOwn(skills,save.skill)?save.skill:'dash';
+const secondarySkill=()=>Object.hasOwn(skills,save.secondary)&&save.secondary!==equippedSkill()?save.secondary:equippedSkill()==='pulse'?'dash':'pulse';
+let editingSlot=0;
 const training={
- fire:{name:'공격 속도',percent:1.5},
- move:{name:'이동 속도',percent:1.5},
- reload:{name:'재장전 속도',percent:2},
- projectile:{name:'탄환 속도',percent:2}
+ fire:{name:'공격력',percent:2},
+ move:{name:'체력',percent:2},
+ reload:{name:'치명타 확률',percent:1},
+ projectile:{name:'치명타 피해',percent:4}
 };
 const trainingUnlockLevels=[1,10,25,45,65];
 const trainingBranches={
@@ -478,8 +498,36 @@ const trainingPerkTiers=[
  {level:85,requires:5,price:{credits:960,cores:3,skillData:16}},
  {level:100,requires:5,price:{credits:1600,cores:5,skillData:24}}
 ];
+const trainingSideBranches={
+ fire:[
+  {id:'steadyTrigger',name:'사선 유지',effect:'총기 피해 +3%'},
+  {id:'counterfire',name:'빈틈 포착',effect:'기절한 보스에게 주는 총기 피해 +12%'},
+  {id:'finisher',name:'마무리 사격',effect:'체력이 25% 이하인 적에게 주는 총기 피해 +8%'}
+ ],
+ move:[
+  {id:'footwork',name:'전술 보폭',effect:'이동 속도 추가 +2%'},
+  {id:'reloadStride',name:'이동 장전',effect:'재장전 중 이동 속도 +12%'},
+  {id:'dashGuard',name:'회피 엄호',effect:'대시 사용 시 무적 시간이 0.18초 늘어나'}
+ ],
+ reload:[
+  {id:'magPouch',name:'확장 탄창',effect:'장착한 총의 탄창 용량 +1발'},
+  {id:'combatReload',name:'위기 장전',effect:'체력이 35% 이하일 때 재장전 속도 +15%'},
+  {id:'returnFire',name:'반격 장전',effect:'재장전 직후 첫 사격 피해 추가 +10%'}
+ ],
+ projectile:[
+  {id:'lightRounds',name:'경량 탄두',effect:'탄환 속도 추가 +3%'},
+  {id:'secondWind',name:'긴급 처치',effect:'살아 있는 상태로 체력이 25% 아래로 떨어지면 최대 체력의 12% 회복 · 전투당 한 번'},
+  {id:'safeBreathing',name:'호흡 조절',effect:'자동 체력 회복이 시작되기까지 1.2초 단축'}
+ ]
+};
+const trainingSideTiers=[
+ {level:18,requires:2,price:{credits:240,alloy:5}},
+ {level:50,requires:3,price:{credits:1100,parts:12,skillData:14}},
+ {level:75,requires:4,price:{credits:1800,cores:4,skillData:20}}
+];
+const treeHeight=1120;
 const hasTrainingPerk=id=>save.trainingPerks?.[id]===true;
-const trainingNodes=[{rank:1},{rank:2},{rank:3},{perk:0},{rank:4},{rank:5},{perk:1},{perk:2}];
+const trainingNodes=[{rank:1},{rank:2},{rank:3},{perk:0},{rank:4},{rank:5},{perk:1},{perk:2},{perk:3},{perk:4},{perk:5}];
 const treeColumns={fire:[79,52,75,51,67,44,61,48],move:[167,144,177,150,170,146,174,152],
  reload:[274,294,263,287,269,297,269,284],projectile:[363,389,364,388,373,395,375,393]};
 let treeSelection={branch:'fire',index:0};
@@ -488,26 +536,28 @@ const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
 const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
 const supplyTiers=[
  {rank:2,unlockAt:0,themes:['vanguard','sentinel']},
- {rank:3,unlockAt:2,initial:1800,perStage:65,themes:['vanguard','sentinel','tide']},
- {rank:4,unlockAt:6,initial:700,perStage:50,themes:['sentinel','tide','specter']},
- {rank:5,unlockAt:12,initial:180,perStage:38,themes:['tide','specter','arc']},
+ {rank:3,unlockAt:2,initial:2050,perStage:65,themes:['vanguard','sentinel','tide']},
+ {rank:4,unlockAt:6,initial:790,perStage:50,themes:['sentinel','tide','specter']},
+ {rank:5,unlockAt:7,initial:5,perStage:0,themes:['tide','specter','arc']},
  {rank:6,unlockAt:17,initial:20,perStage:15,themes:['specter','arc']}
 ].map(tier=>({...tier,items:tier.themes.flatMap(id=>themes[id].dropPool)}));
 const supplyStage=()=>testMode&&Number.isInteger(save.testSupplyStage)?clamp(save.testSupplyStage,0,stages.length-1):Math.min(save.cleared,stages.length-1);
 const supplyPrice=(stage=supplyStage())=>220+8*stage;
 function supplyOdds(stage){
  const tiers=supplyTiers.map(tier=>({...tier,tickets:tier.rank>2&&stage>=tier.unlockAt?tier.initial+(stage-tier.unlockAt)*tier.perStage:0}));
+ if(stage>=12)tiers[3].tickets=200+(stage-12)*38;
+ else if(stage>=7)tiers[3].tickets=5+(stage-7)*6;
  tiers[0].tickets=10000-tiers.reduce((total,tier)=>total+tier.tickets,0);
  return tiers;
 }
-const maxSkillLevel=10;
+const maxSkillLevel=25;
 let keepSkillPanelOpen=false;
 const skillLevel=id=>save.skillLevels[id]||1;
 const skillPrice=id=>({credits:20+skillLevel(id)*8,skillData:1+Math.ceil(skillLevel(id)*.7)});
 function skillUpgradeText(id,lv){
- const extra=lv-1;
+ const extra=(lv-1)*.7;
  const effect={dash:'돌진 지속 +'+Math.round(extra*1.2)/100+'초',shield:'보호막 지속 +'+Math.round(extra*6)/100+'초',pulse:'범위 +'+extra*3+' · 피해 +'+extra*4,overdrive:'가속 지속 +'+Math.round(extra*15)/100+'초'};
- return effect[id]+' · 재사용 시간 '+extra+'% 감소';
+ return (effect[id]||'효과 강화 +'+Math.round(extra*2)+'%')+' · 재사용 시간 '+Number(extra.toFixed(1))+'% 감소';
 }
 function upgradeSkill(id){
  const price=skillPrice(id);
@@ -627,7 +677,17 @@ function grade(id){
  return Number.isInteger(saved)?clamp(saved,gear[id].theme?2:baseRanks[id],6):baseRanks[id];
 }
 function gradeBonus(id){return grade(id)-1;}
-function costs(id){const next=level(id)+1;return {credits:18+next*8,alloy:1+Math.floor(next/5),parts:next>=10?1+Math.floor((next-10)/6):0,cores:next%5===0&&next>=25?1:0};}
+function enhancePaid(id){
+ const held=gear[id].slot==='gun'&&Math.random()<.04;
+ if(!held)save.levels[id]++;
+ notice=held?'강화 유지 · 재료를 사용했고 강화 단계는 유지됐어.':'강화 성공 · +'+level(id);
+ persist();renderMenu();
+}
+function coreCost(id,next){
+ if(gear[id].slot==='gun')return next%5===0?{['core'+grade(id)]:1}:{};
+ return {cores:next%5===0&&next>=25?1:0};
+}
+function costs(id){const next=level(id)+1;return {credits:18+next*8,alloy:1+Math.floor(next/5),parts:next>=10?1+Math.floor((next-10)/6):0,...coreCost(id,next)};}
 let page='campaign';
 let notice='';
 let chapterView=0, stageView=null, itemView=null;
@@ -671,7 +731,7 @@ function squadBrief(parent,index){
  if(squad.units.some(unit=>unit.type==='gunner'))paragraph(parent,'신호사수가 1R부터 합류해. 분홍 점선이 멈추면 옆으로 피해.');
  paragraph(parent,squad.trait+' · '+traitGuide[squad.trait]+' · 보스전 잡몹 최대 2마리');
  const operator=operators[selectedOperator()];
- paragraph(parent,(operator.recoveryDelay||6)+'초 동안 피해를 피하면 최대 체력의 '+Number((.5*(operator.recovery||1)*(hasTrainingPerk('recovery')?1.2:1)).toFixed(2))+'%씩 매초 회복해.');
+ paragraph(parent,Number(recoveryDelay(operator).toFixed(1))+'초 동안 피해를 피하면 최대 체력의 '+Number((.5*(operator.recovery||1)*(hasTrainingPerk('recovery')?1.2:1)).toFixed(2))+'%씩 매초 회복해.');
  paragraph(parent,'바닥의 주황 원은 폭격 예고야. 같은 자리에 머무르면 집중 포격이 강해져.');
 }
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
@@ -743,6 +803,38 @@ function renderSupplyCard(parent,result){
  paragraph(card,'★'.repeat(rank)+' · '+rank+'성','crate-rank');
  paragraph(card,gear[id].name,'crate-name');
  paragraph(card,outcome==='new'?'새 장비 획득':outcome==='promoted'?previousRank+'성 → '+rank+'성 · 강화 유지':'복제본 +1 · 정밀 부품 +1');
+}
+function dayKey(){return new Date(Date.now()+9*3600000).toISOString().slice(0,10);}
+function dailyShop(){
+ const p=panel('일일 상점'),date=dayKey(),list=grid(p);list.classList.add('daily-stock');
+ const deals=[[0,{credits:45}],[35,{alloy:5}],[80,{parts:2}],[65,{skillData:4}],[120,{['core'+coreRank(supplyStage())]:1}],[50,{[familyMaterial[gunFamilies[(new Date().getUTCDate())%7]]]:3}]];
+ for(const [i,[price,reward]] of deals.entries()){
+  const sold=save.shop?.date===date&&save.shop.bought.includes(i);
+  list.append(button((sold?'수령 완료':price?price+' 크레딧':'무료 선물')+' · '+rewardText(reward),()=>{
+   if(date!==dayKey()){renderMenu();return;}
+   if(save.shop?.date!==date)save.shop={date,bought:[]};
+   if(save.shop.bought.includes(i)||save.credits<price)return;
+   save.credits-=price;addFunds(reward);save.shop.bought.push(i);persist();renderMenu();
+  },sold||save.credits<price));
+ }
+}
+function guidePanel(){
+ const missions=['1-1에서 보스를 쓰러뜨려.','장비 뽑기에서 테마 장비를 얻어.','장비 하나를 +1 이상 강화해.','스테이지 1-6 중간 보스를 격파해.','1-10을 클리어하고 장비 탭에서 무기 선택권을 사용해.'];
+ const index=save.guideStep||0;
+ if(index>=missions.length)return;
+ const p=panel('진행 가이드 '+(index+1)+' / '+missions.length);paragraph(p,missions[index]);
+ const done=[save.cleared>=1,Object.keys(save.levels).some(id=>gear[id]?.theme),Object.values(save.levels).some(l=>l>=1),save.cleared>=6,save.cleared>=10&&!save.gunTickets?.length][index];
+ const reward=index===3?{credits:120,core3:1}:{credits:50+index*20};
+ p.append(button('보상 수령 · '+rewardText(reward),()=>{if(!done||(save.guideStep||0)!==index)return;addFunds(reward);save.guideStep=index+1;persist();renderMenu();},!done));
+}
+function farmPanel(){
+ const p=panel('보급 기지');
+ if(!save.farmSince){save.farmSince=Date.now();persist();}
+ const quantity=()=>Math.min(240,Math.max(0,Math.floor((Date.now()-save.farmSince)/60000)));
+ const available=quantity();paragraph(p,'자리를 비운 동안 분당 1크레딧 · 최대 4시간 보관');
+ p.append(button('보급 수확 · '+available+' 크레딧',()=>{const n=quantity();if(n){save.credits+=n;save.farmSince=Date.now();persist();}renderMenu();}));
+ const today=dayKey();
+ p.append(button('오늘의 접속 보상 · 60크레딧',()=>{if(save.loginDay===dayKey())return;save.credits+=60;save.loginDay=dayKey();persist();renderMenu();},save.loginDay===today));
 }
 function renderSupply(){
  const supply=panel('장비 뽑기');
@@ -820,12 +912,15 @@ function renderSupplyOdds(parent,stage){
 }
 function trainingPerk(branch,index){
  const config=trainingBranches[branch];
+ if(index>=3)return trainingSideBranches[branch]?.[index-3];
  return index===2?config?.master:config?.perks[index];
 }
 function trainingPerkStatus(branch,index){
- const perk=trainingPerk(branch,index),tier=trainingPerkTiers[index];
- const prerequisites=index!==2||trainingBranches[branch].perks.every(item=>hasTrainingPerk(item.id));
- return {perk,tier,prerequisites,learned:hasTrainingPerk(perk.id),ready:prerequisites&&characterLevel()>=tier.level&&trainingLevel(branch)>=tier.requires};
+ const perk=trainingPerk(branch,index),tier=index>=3?trainingSideTiers[index-3]:trainingPerkTiers[index];
+ const required=index===2?trainingBranches[branch].perks:index>=4?[trainingPerk(branch,index-1)]:[];
+ const missing=required.filter(item=>!hasTrainingPerk(item.id)).map(item=>item.name);
+ const prerequisites=missing.length===0;
+ return {perk,tier,missing,learned:hasTrainingPerk(perk.id),ready:prerequisites&&characterLevel()>=tier.level&&trainingLevel(branch)>=tier.requires};
 }
 function buyTrainingPerk(branch,index){
  if(!trainingPerk(branch,index))return false;
@@ -844,32 +939,39 @@ function renderGrowth(previousScroll){
  const growth=panel('플레이어 스킬 트리');
  growth.classList.add('tree-panel');
  growth.prepend(button('‹ 전투 홈',()=>openPage('campaign')));
- paragraph(growth,'위로 스크롤해 가지를 따라가고, 노드를 누르면 효과와 비용을 볼 수 있어.');
+ const filled=Object.keys(training).reduce((total,branch)=>total+trainingLevel(branch)+
+  [0,1,2,3,4,5].filter(index=>hasTrainingPerk(trainingPerk(branch,index).id)).length,0);
+ paragraph(growth,filled+' / 44 습득 · 위로 스크롤하고 노드를 눌러 효과와 비용을 확인해.');
  const legend=document.createElement('div');legend.className='tree-legend';growth.append(legend);
  for(const [branch,config] of Object.entries(trainingBranches)){
   const key=document.createElement('span');key.textContent=config.symbol+' '+training[branch].name;key.style.color=config.color;legend.append(key);
  }
  const scroll=document.createElement('div');scroll.id='tree-scroll';scroll.className='tree-scroll';growth.append(scroll);
  const map=document.createElement('div');map.className='training-map';scroll.append(map);
- const paths=document.createElement('canvas');paths.className='tree-paths';paths.width=880;paths.height=1840;
+ const paths=document.createElement('canvas');paths.className='tree-paths';paths.width=880;paths.height=treeHeight*2;
  paths.setAttribute('aria-hidden','true');map.append(paths);
  const ctx=paths.getContext('2d');ctx.scale(2,2);
- const root={x:220,y:875};
+ const root={x:220,y:1075};
  const center=document.createElement('div');center.className='tree-core';center.textContent='Lv. '+characterLevel();
  placeTreeNode(center,root);map.append(center);
  for(const [branch,config] of Object.entries(trainingBranches)){
   const current=trainingLevel(branch);
-  const fork={x:branch==='fire'||branch==='move'?128:312,y:805};
+  const fork={x:branch==='fire'||branch==='move'?128:312,y:1005};
   drawTreeLine(ctx,root,fork,'#6d8eaf');
+  const points=treeColumns[branch].map((x,index)=>({x,y:949-index*120}));
+  const sideX={fire:120,move:222,reload:325,projectile:400}[branch];
+  const sidePoints=[{x:sideX,y:769},{x:sideX-8,y:529},{x:sideX+2,y:289}];
   let previous=fork;
   for(const [index,entry] of trainingNodes.entries()){
-   const point={x:treeColumns[branch][index],y:749-index*97};
+   const side=index>=8;
+   const point=side?sidePoints[index-8]:points[index];
+   const source=side?(index===8?points[1]:sidePoints[index-9]):previous;
    const status=entry.rank?null:trainingPerkStatus(branch,entry.perk);
    const learned=entry.rank?current>=entry.rank:status.learned;
    const ready=entry.rank?current+1===entry.rank&&characterLevel()>=trainingUnlockLevels[entry.rank-1]:status.ready;
-   drawTreeLine(ctx,previous,point,learned?config.color:'#4d6283');
-   previous=point;
-   const label=entry.rank?config.symbol+entry.rank:entry.perk===2?'★':'✧';
+   drawTreeLine(ctx,source,point,learned?config.color:side?'#6a7192':'#4d6283');
+   if(!side)previous=point;
+   const label=entry.rank?config.symbol+entry.rank:entry.perk===2||entry.perk>=4?'★':entry.perk===3?'+':'✧';
    const node=button(label,()=>{
     treeSelection={branch,index};renderMenu();
     $('tree-'+branch+'-'+index)?.focus?.({preventScroll:true});
@@ -879,7 +981,8 @@ function renderGrowth(previousScroll){
    node.style.setProperty('--tree-color',config.color);
    if(learned)node.classList.add('learned');
    else if(!ready)node.classList.add('locked');
-   if(!entry.rank)node.classList.add('has-perk');
+   if(!entry.rank&&entry.perk!==3)node.classList.add('has-perk');
+   if(entry.perk>=4)node.classList.add('side-perk');
    const name=entry.rank?training[branch].name+' '+entry.rank+'단계':status.perk.name;
    node.setAttribute('aria-label',name+(learned?', 습득 완료':ready?'':', 잠김'));
    node.setAttribute('aria-pressed',String(treeSelection.branch===branch&&treeSelection.index===index));
@@ -891,7 +994,7 @@ function renderGrowth(previousScroll){
 }
 function placeTreeNode(node,point){
  node.style.left=(point.x/440*100)+'%';
- node.style.top=(point.y/920*100)+'%';
+ node.style.top=(point.y/treeHeight*100)+'%';
 }
 function renderTrainingDetail(parent){
  const {branch,index}=treeSelection,entry=trainingNodes[index],current=trainingLevel(branch);
@@ -913,11 +1016,11 @@ function renderTrainingDetail(parent){
   }
   return;
  }
- const {perk,tier,prerequisites,learned,ready}=trainingPerkStatus(branch,entry.perk);
- card.classList.add('tree-perk');
- paragraph(card,perk.name+(entry.perk===2?' · 최종 특수 능력':' · 특수 능력'),'section-label');
+ const {perk,tier,missing,learned,ready}=trainingPerkStatus(branch,entry.perk);
+ if(entry.perk!==3)card.classList.add('tree-perk');
+ paragraph(card,perk.name+(entry.perk===2?' · 최종 특수 능력':entry.perk===3?' · 곁가지 강화':' · 특수 능력'),'section-label');
  paragraph(card,perk.effect);
- if(!learned)paragraph(card,'필요 Lv. '+tier.level+' · 기본 강화 '+tier.requires+'단계'+(!prerequisites?' · 이 갈래의 특수 능력 2개 선행':''));
+ if(!learned)paragraph(card,'필요 Lv. '+tier.level+' · 기본 강화 '+tier.requires+'단계'+(missing.length?' · 선행 '+missing.join(', '):''));
  card.append(button(learned?'습득 완료':priceText(tier.price),()=>{
   if(buyTrainingPerk(branch,entry.perk))renderMenu();
  },learned||!ready||!available(tier.price),'primary'));
@@ -932,9 +1035,11 @@ function renderMenu(next=page){
  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.page===(page==='skills'?'gear':page==='operators'?'campaign':page))));
  $('menu').replaceChildren();
  if(notice){const note=panel('보상');paragraph(note,notice);notice='';}
- if(page==='supply'){renderSupply();return;}
+ if(page==='supply'){renderSupply();dailyShop();return;}
+ if(page==='salvage'){batchSalvage();return;}
  if(page==='growth'){renderGrowth(treeScroll);return;}
  if(page==='campaign'){
+  guidePanel();
   const current=Math.min(save.cleared,stages.length-1);
   const [name,mode]=stages[current];
   const complete=save.cleared>=stages.length;
@@ -965,6 +1070,7 @@ function renderMenu(next=page){
   squadBrief(intel,current);
   info.append(largeEntry(skills[equippedSkill()].name+' Lv. '+skillLevel(equippedSkill()),'스킬 장착 및 강화',()=>openPage('skills')));
   const progress=panel('작전 기록');
+  farmPanel();
   paragraph(progress,save.cleared+' / '+stages.length+' 스테이지 클리어');
   paragraph(progress,Object.values(save.stars).reduce((sum,count)=>sum+count,0)+' / 60 ★ · 보스 추적 '+save.cleared+'종 해금');
   return;
@@ -989,11 +1095,15 @@ function renderMenu(next=page){
  if(page==='skills'){
   const back=panel('스킬 정비');back.append(button('‹ 장비',()=>openPage('gear')));
   const fieldSkill=panel('전투 스킬');
+  for(const [slot,id] of [equippedSkill(),secondarySkill()].entries())fieldSkill.append(button((slot+1)+'번 · '+skills[id].name,()=>{editingSlot=slot;renderMenu();},editingSlot===slot));
   const skillList=grid(fieldSkill);
   for(const [id,skill] of Object.entries(skills)){
-   const selected=id===equippedSkill();
+   const selected=id===(editingSlot?secondarySkill():equippedSkill());
    const choice=largeEntry(skill.name+' Lv. '+skillLevel(id)+(selected?' · 장착 중':''),skill.description,()=>{
-    save.skill=id;persist();renderMenu();
+    const primary=equippedSkill(),second=secondarySkill();
+    if(editingSlot){save.secondary=id;if(id===primary)save.skill=second;}
+    else{save.skill=id;save.secondary=id===second?primary:second;}
+    persist();renderMenu();
    });
    choice.setAttribute('aria-pressed',String(selected));
    if(selected)choice.classList.add('selected-skill');
@@ -1033,7 +1143,10 @@ function renderMenu(next=page){
   squadBrief(p,index);
   p.prepend(button('‹ 스테이지 목록',()=>{stageView=null;renderMenu();}));
   paragraph(p,index<save.cleared?'첫 클리어 보상 · 수령 완료':'첫 클리어 보상','section-label');
-  paragraph(p,rewardPreview(index));
+  paragraph(p,rewardPreview(index)+' · '+materialNames['core'+coreRank(index)]+' · 적 공격 속성 '+elementNames[index%5]);
+  p.append(button('알파 · 어려움',()=>start(index,undefined,false,0,'alpha'),!testMode&&index>=save.cleared));
+  if(index%10===9)p.append(button('챕터 보스 연전 · 10연속',()=>start(index-9,undefined,true,0,'rush'),!testMode&&save.cleared<=index));
+  if(index%10===5||index%10===9)paragraph(p,index%10===5?'챕터 중간 보스':'챕터 최종 보스','section-label');
   p.append(button(!testMode&&index>save.cleared?'이전 스테이지 클리어 필요':'스테이지 출격',()=>start(index),!testMode&&index>save.cleared,'primary'));
   const [name]=stageBosses[index];
   const farm=panel(name);
@@ -1079,7 +1192,8 @@ function renderMenu(next=page){
   return;
  }
  if(itemView===null){
-  renderEquipmentBoard();
+  ticketPanel();renderEquipmentBoard();
+  const salvage=panel('무기 분해');salvage.append(button('분해할 무기 선택',()=>openPage('salvage')));
   const workshop=panel('전술 정비');workshop.append(largeEntry('스킬 장착 및 강화',skills[equippedSkill()].name+' · 전술 데이터 '+resourceLabel(balance('skillData')),()=>openPage('skills')));
   renderSets();
   const inventory=panel('보유 장비');inventory.id='owned-inventory';
@@ -1096,6 +1210,7 @@ function renderMenu(next=page){
    const equipped=save.equipped[slot]===id;const max=maxGearLevel(id);
    paragraph(card,item.name+' +'+level(id)+' / +'+max+(equipped?' · 장착 중':''),'');
    paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*gearPower(id)*(1+.038*gradeBonus(id))):''));
+   if(slot==='gun'||slot==='armor')paragraph(card,elementNames[itemElement(id)]+(slot==='gun'?' 속성탄 · 같은 속성의 적에게 추가 피해 +8%':' 저항 · 해당 속성 피해 20% 감소'));
    if(item.theme)paragraph(card,themes[item.theme].name+' 세트');
    const advancedLabel={head:'받는 피해 감소',armor:'받는 피해 감소',gloves:'재장전 속도 증가',boots:'이동 속도 증가',charm:'스킬 재사용 시간 감소'};
    if(slot!=='gun'&&max>5){
@@ -1105,25 +1220,25 @@ function renderMenu(next=page){
    const row=document.createElement('div');row.className='big-actions';card.append(row);
    row.append(button(equipped?'장착 중':'장착',()=>equipItem(id),equipped));
    if(level(id)<max){
+    if(slot==='gun')paragraph(card,'강화 성공 96% · 단계 유지 4% (재료 소모)');
     const price=costs(id);
-    paragraph(card,Object.entries(price).filter(([,v])=>v).map(([k,v])=>currencies[k]+' '+v).join(' · '));
+    paragraph(card,priceText(price));
     row.append(button('강화 +'+(level(id)+1),()=>{
-     if(Object.entries(price).some(([k,v])=>save[k]<v))return;
-     for(const [k,v] of Object.entries(price))save[k]-=v;
-     save.levels[id]++;persist();renderMenu();
-    },Object.entries(price).some(([k,v])=>save[k]<v)));
+     if(!available(price))return;
+     pay(price);enhancePaid(id);
+    },!available(price)));
     const materials=gearMaterialPrice(id);
     paragraph(card,'던전 재료로 강화 · '+priceText(materials));
     row.append(button('던전 재료 사용',()=>{
      if(level(id)>=max||!available(materials))return;
-     pay(materials);save.levels[id]++;persist();renderMenu();
+     pay(materials);enhancePaid(id);
     },!available(materials)));
    }
-   if(level(id)>=5){
+   if(slot==='gun')paragraph(card,'고유 탄종 · '+item.mods[intrinsicGunMod[gearFamily(id)]]);
+   if(level(id)>=5&&slot!=='gun'){
     const mods=item.mods||(slot==='boots'?['긴 대시','빠른 회복']:slot==='gloves'?['재장전 가속','정밀 조준']:['효과 증폭','비상 보호막']);
     mods.forEach((mod,i)=>row.append(button(mod,()=>{save.mods[id]=i;persist();renderMenu();},(save.mods[id]||0)===i)));
    }
-   if(gearFamily(id)==='rail'&&level(id)>=5)paragraph(card,'분열탄 장착 시 한 발이 처음 적중할 때, 주변의 다른 적 최대 4마리에게 파편 발사. 파편은 엄폐물에 막혀.');
    if(slot==='gun'&&level(id)>=10)paragraph(card,'특수 효과 · 대시 후 첫 사격 피해 증가');
    renderTranscendence(card,id);
    renderSalvage(card,id);
@@ -1332,6 +1447,24 @@ function dismantle(id,rank,copy){
  }
  addFunds(salvageReward(rank));persist();return true;
 }
+function batchSalvage(){
+ const p=panel('무기 분해');p.prepend(button('‹ 장비',()=>openPage('gear')));
+ const entries=Object.keys(save.levels).filter(id=>gear[id]?.slot==='gun'&&id!=='pistol'&&id!==save.equipped.gun&&!Object.values(save.copies[id]||{}).some(Boolean));
+ const selected=[];
+ for(const limit of [3,4])p.append(button(limit+'성 이하 모두 선택',()=>selected.forEach(([id,input])=>input.checked=grade(id)<=limit)));
+ for(const id of entries){
+  const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';selected.push([id,input]);
+  label.style.display='block';label.append(input,grade(id)+'성 '+gear[id].name+' +'+level(id));p.append(label);
+ }
+ paragraph(p,'장착 중이거나 복제본이 남은 무기는 보호돼.');
+ p.append(button('선택 무기 분해',()=>{
+  const ids=selected.filter(([,input])=>input.checked).map(([id])=>id);
+  if(!ids.length)return;
+  const warning=ids.some(id=>grade(id)>=5||level(id)>0||transcendLevel(id)>0)?'강화·초월 또는 5성 이상 장비 포함! ':'';
+  if(!window.confirm(warning+ids.length+'개 무기를 분해할까?'))return;
+  for(const id of ids)dismantle(id,grade(id),false);renderMenu();
+ }));
+}
 function renderSalvage(parent,id){
  const section=disclosure(parent,'장비 분해');
  const ranks=Object.keys(save.copies[id]||{}).map(Number).filter(rank=>save.copies[id][rank]>0);
@@ -1340,7 +1473,7 @@ function renderSalvage(parent,id){
   const label=rank+'성 '+(copy?'복제본 1개':'본체');
   const reward=rewardText(salvageReward(rank));
   section.append(button(label+' 분해 · '+reward,()=>{
-   if(!window.confirm(gear[id].name+' '+label+'를 분해할까? '+(copy?'':'강화와 초월 기록도 사라져. ')+reward))return;
+   if(!window.confirm((rank>=5?'5성 이상 장비! ':'')+(!copy&&level(id)>0?'강화 장비! ':'')+gear[id].name+' '+label+'를 분해할까? '+(copy?'':'강화와 초월 기록도 사라져. ')+reward))return;
    if(!dismantle(id,rank,copy))return;
    if(!copy)itemView=null;
    notice=gear[id].name+' 분해 · '+reward;renderMenu();
@@ -1378,7 +1511,7 @@ function renderTranscendence(parent,id){
  const stored=Object.entries(save.copies[id]||{}).filter(([stars,count])=>Number(stars)!==rank&&count>0);
  if(stored.length)paragraph(section,'다른 등급 복제본 · '+stored.map(([stars,count])=>stars+'성 '+count+'개').join(' · '));
  if(!testMode&&rank===6&&save.cleared>=20&&stage<transcendCap){
-  const orderPrice={credits:350,parts:3,cores:3};
+  const orderPrice={credits:350,parts:3,...(isGun?{core6:3}:{cores:3})};
   paragraph(section,'6성 복제본 제작 · '+priceText(orderPrice));
   section.append(button('이 장비의 6성 복제본 제작',()=>{
    if(grade(id)!==6||!available(orderPrice))return;
@@ -1397,7 +1530,7 @@ function renderSets(){
   const card=document.createElement('article');card.className='item';details.append(card);
   const equipped=bonuses.counts[id]||0;
   paragraph(card,theme.name+' · '+equipped+'/6','section-label');
-  paragraph(card,'3세트 '+theme.text[0]+(equipped>=3?' · 적용 중':''));
+  paragraph(card,'3세트 '+theme.text[0]+(equipped>=3&&equipped<6?' · 적용 중':''));
   paragraph(card,'6세트 '+theme.text[1]+(equipped>=6?' · 적용 중':''));
   if(save.cleared>=19&&!save.milestoneTheme){
    card.append(button(theme.name+' 세트 수령',()=>{
@@ -1471,6 +1604,8 @@ function releaseStick(){
 const skillReady=()=>game&&!game.paused&&!game.over&&game.p.cd<=0;
 function stageDevices(index,walls){
  const devices=[
+  {kind:'mag',x:110,y:390,r:24},
+  {kind:'ward',x:760,y:150,r:24},
   {kind:'vent',x:155,y:130+(index%3)*96,r:34},
   {kind:'vent',x:749,y:414-(index%3)*74,r:34},
   {kind:'drum',x:357,y:210+(index%2)*125,r:18},
@@ -1480,7 +1615,8 @@ function stageDevices(index,walls){
  devices.forEach(o=>{o.x*=W/900;o.y*=H/580;});
  return devices.filter(o=>!walls.some(w=>Math.hypot(o.x-clamp(o.x,w.x,w.x+w.w),o.y-clamp(o.y,w.y,w.y+w.h))<o.r+8));
 }
-function start(index,contract,bossHunt=false,band=0){
+function start(index,contract,bossHunt=false,band=0,special=''){
+ if(special&&!testMode&&save.cleared<=index)return;
  if(index>=stages.length||(!testMode&&index>=0&&(bossHunt?index>=save.cleared:index>save.cleared)))return;
  if(testMode&&index>=0){save.testSupplyStage=index;supplyPreviewStage=null;persist();}
  const c=index<0?contracts[contract]:null;
@@ -1493,17 +1629,18 @@ function start(index,contract,bossHunt=false,band=0){
  if(campaign){mode='assault';n=3;}
  const bonuses=setBonuses(save.equipped);
  const stat={...gear[gunId]};
+ if(hasTrainingPerk('magPouch'))stat.mag++;
  const operator=operators[selectedOperator()];
- const projectileFactor=trainingFactor('projectile')*(hasTrainingPerk('velocity')?1.10:1)*(hasTrainingPerk('projectileMaster')?1.08:1)*(1+bonuses.projectile)*(operator.projectile||1);
- stat.interval/=.92*trainingFactor('fire')*(hasTrainingPerk('rapid')?1.06:1)*(hasTrainingPerk('fireMaster')?1.04:1)*(1+bonuses.fire);
- stat.reload/=trainingFactor('reload')*(hasTrainingPerk('quickLoad')?1.08:1)*(hasTrainingPerk('reloadMaster')?1.06:1)*(1+bonuses.reload)*(operator.reload||1);
- stat.speed*=projectileFactor;
+ const projectileFactor=(hasTrainingPerk('velocity')?1.10:1)*(hasTrainingPerk('projectileMaster')?1.08:1)*(hasTrainingPerk('lightRounds')?1.03:1)*(1+bonuses.projectile)*(operator.projectile||1);
+ stat.interval/=.92*(hasTrainingPerk('rapid')?1.06:1)*(hasTrainingPerk('fireMaster')?1.04:1)*(1+bonuses.fire);
+ stat.reload/=(hasTrainingPerk('quickLoad')?1.08:1)*(hasTrainingPerk('reloadMaster')?1.06:1)*(1+bonuses.reload)*(operator.reload||1);
+ stat.speed*=.86*projectileFactor;
  stat.travelTimeScale=1/projectileFactor;
  if(gearFamily(gunId)==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
  if(gearFamily(gunId)==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
  const lab=index>=10||Boolean(c&&contract>1);
  const shift=(Math.max(index,0)%5)*24;
- const walls=mode==='range'?[]:[{x:260+shift,y:148,w:55,h:125},{x:580-shift,y:307,w:65,h:118}];
+ const walls=mode==='range'?[]:[{x:260+shift,y:148,w:55,h:125},{x:580-shift,y:289,w:65,h:118}];
  if(index===5)walls.push({x:380,y:48,w:140,h:64},{x:380,y:468,w:140,h:64});
  if(campaign||bossHunt){
   // Two staggered cover lanes and an open central crossing.
@@ -1524,7 +1661,7 @@ function start(index,contract,bossHunt=false,band=0){
  const maxHp=characterMaxHp();
 
  const transcendStats=Object.fromEntries(Object.keys(slots).map(slot=>[slot,transcendPower(save.equipped[slot])]));
- game={operator,fragmentQueue:[],transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:(operator.move||1)*trainingFactor('move')*(hasTrainingPerk('stride')?1.05:1)*(hasTrainingPerk('moveMaster')?1.04:1)*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.0029),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+ game={special,rushStart:index,rushEnd:index+9,linkAt:6,element:(index<0?contract:index)%5,secondary:secondarySkill(),secondaryCd:0,operator,transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:(skillLevel(equippedSkill())-1)*.7,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:(operator.move||1)*(hasTrainingPerk('stride')?1.05:1)*(hasTrainingPerk('moveMaster')?1.04:1)*(hasTrainingPerk('footwork')?1.02:1)*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.0029),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
   p:{recovery:(operator.recovery||1)*(hasTrainingPerk('recovery')?1.20:1),leechCredit:3,regenAt:0,x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
@@ -1546,12 +1683,13 @@ function start(index,contract,bossHunt=false,band=0){
  }
  updateHud();measureArenaInsets();draw();
 }
-const modOf=id=>save.mods[id]||0;
+const intrinsicGunMod={pistol:0,revolver:0,rifle:1,shotgun:0,sniper:0,smg:0,rail:0};
+const modOf=id=>gear[id]?.slot==='gun'?intrinsicGunMod[gearFamily(id)]:save.mods[id]||0;
 function spawn(type,x,y,scale=1){
  const d=enemyTypes[type]||enemyTypes.crawler;
  if(x===undefined){const edge=game.spawned%4;const t=Math.random();x=edge===0?35:edge===1?W-35:55+t*(W-110);y=edge<2?55+t*(H-110):edge===2?32:H-32;}
  const hp=Math.round(d.hp*scale*(game.dungeon?contractScale(game.dungeonLevel).hp:type==='boss'?1:1+Math.max(0,game.index)*.023));
- game.enemies.push({type,...d,x,y,hp,max:hp,art:mobArtByType[type],artReady:game.t+3+(game.spawned%4)*.75,clock:type==='boss'?1.9:1.2,wind:0,rush:0,stun:0,dir:Math.PI,mark:0});
+ game.enemies.push({type,...d,v:d.v*.87,x,y,hp,max:hp,art:mobArtByType[type],artReady:game.t+3+(game.spawned%4)*.75,clock:type==='boss'?1.9:1.2,wind:0,rush:0,stun:0,dir:Math.PI,mark:0});
 }
 function blocked(x,y,r){return game.walls.some(w=>Math.hypot(x-clamp(x,w.x,w.x+w.w),y-clamp(y,w.y,w.y+w.h))<r);}
 function move(body,dx,dy){
@@ -1560,6 +1698,16 @@ function move(body,dx,dy){
  if(!blocked(x,body.y,body.r))body.x=x;else hit=true;
  if(!blocked(body.x,y,body.r))body.y=y;else hit=true;
  return hit;
+}
+function triggerSkill(slot){
+ const g=game;if(!g||g.paused||g.over)return;
+ const p=g.p;
+ if(!slot){if(p.cd>0)return;activateSkill();g.primaryDuration=p.cd;return;}
+ if(g.secondaryCd>0)return;
+ const [primary,extra,cd]=[g.skill,g.skillExtra,p.cd];
+ g.skill=g.secondary;g.skillExtra=(skillLevel(g.skill)-1)*.7;p.cd=0;
+ activateSkill();g.secondaryDuration=g.secondaryCd=p.cd;
+ g.skill=primary;g.skillExtra=extra;p.cd=cd;
 }
 function activateSkill(){
  if(!skillReady())return;
@@ -1570,7 +1718,16 @@ function activateSkill(){
   const skill=skills[g.skill];
   p.cd=skill.cooldown*recovery;
   playEffect('dash');
-  const radius=128+extra*3;
+  const radius=150+extra*3;
+  const power=1+extra*.02;
+  if(g.skill==='volley'){
+   const near=g.enemies.filter(e=>e.hp>0&&dist(e,p)<420&&clearShot(p,e)).sort((a,b)=>dist(a,p)-dist(b,p));
+   for(const e of near.slice(0,3)){e.hp-=55*power;g.effects.push({x:e.x,y:e.y,r:26,color:skill.color,life:.3,ring:true});}
+  }
+  if(g.skill==='charge'){p.reload=0;p.ammo=p.stat.mag;p.chargedShot=1.35*power;}
+  if(g.skill==='heal')p.hp=Math.min(p.max,p.hp+p.max*.18*power);
+  if(g.skill==='storm')for(const e of g.enemies)if(dist(e,p)<240){e.hp-=100*power;e.stun=Math.max(e.stun,.7);}
+
   g.effects.push({x:p.x,y:p.y,r:g.skill==='pulse'?radius:42,color:skill.color,life:.35,ring:true});
   if(g.skill==='shield')p.shield=1.4+extra*.06;
   if(g.skill==='overdrive')p.overdrive=3+extra*.15;
@@ -1578,7 +1735,7 @@ function activateSkill(){
    g.bolts=g.bolts.filter(b=>dist(b,p)>radius);
    for(const e of g.enemies){
     if(dist(e,p)>radius+e.r)continue;
-    e.hp-=(e.type==='boss'?50:65)+extra*4;
+    e.hp-=(e.type==='boss'?70:85)+extra*4;
     if(e.bossCast||e.type==='boss'&&e.wind>0){e.bossCast=null;e.clock=Math.max(e.clock,2.8);}
     e.wind=0;e.rush=0;e.stun=Math.max(e.stun,.7);
    }
@@ -1589,9 +1746,9 @@ function activateSkill(){
  const input=movement();
  p.dashDir=Math.hypot(input.x,input.y)>.1?Math.atan2(input.y,input.x):p.dir;
  playEffect('dash');p.dash=.145+extra*.012+(family==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
- p.cd=.24+((family==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots))*recovery;
+ p.cd=2.15+((family==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots))*recovery;
  if(hasTrainingPerk('dashCycle'))p.cd*=.90;
- p.inv=p.dash+.1;p.afterDash=1.1;
+ p.inv=p.dash+.1+(hasTrainingPerk('dashGuard')?.18:0);p.afterDash=1.1;
 }
 function movement(){
  const x=walk.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0);
@@ -1606,6 +1763,7 @@ function reload(){
  p.reload=p.stat.reload*(gearFamily(gloves)==='quick'&&p.afterDash>0?.63-effectLevel(gloves)*.045:1);
  if(gloves&&level(gloves)>=5&&modOf(gloves)===0)p.reload*=.8;
  p.reload*=(1-.028*gradeBonus(gloves))/(1+advancedLevel(gloves)*.005);
+ if(p.hp<=p.max*.35&&hasTrainingPerk('combatReload'))p.reload/=1.15;
  if(p.ammo===0)p.reload/=1+game.transcendStats.gloves*.01;
 }
 function shotLifetime(id,mod){
@@ -1623,7 +1781,7 @@ function clearShot(from,to,radius=3){
 }
 function firingTarget(p){
  const targets=game.mode==='destroy'?[...game.enemies,...game.objects]:game.enemies;
- const mod=level(p.gunId)>=5?modOf(p.gunId):-1;
+ const mod=modOf(p.gunId);
  const maxRange=shotLifetime(gearFamily(p.gunId),mod)*p.stat.travelTimeScale*p.stat.speed+18;
  let nearest=null,range=maxRange;
  for(const target of targets){
@@ -1641,7 +1799,7 @@ function firingTarget(p){
  return nearest;
 }
 function shoot(){
- const p=game.p,g=p.stat,equipped=p.gunId,id=gearFamily(equipped),l=level(equipped),mod=l>=5?modOf(equipped):-1;
+ const p=game.p,g=p.stat,equipped=p.gunId,id=gearFamily(equipped),l=level(equipped),mod=modOf(equipped);
  if(p.cool>0||p.reload>0)return;
  if(!p.ammo){reload();return;}
  p.ammo--;game.shotsFired++;playGunshot(id);
@@ -1652,10 +1810,12 @@ function shoot(){
  const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.23):0)*(stable?.65-effectLevel(gloves)*.04:1)*(precise?.84:1);
  const boost=p.afterDash>0?(gearFamily(charm)==='rift'?.19+effectLevel(charm)*.06+gradeBonus(charm)*.025+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l>=10?.3:0):0;
  if(boost)p.afterDash=0;
- const firstRound=p.firstRound?1.18:1;
+ const firstRound=p.firstRound?(hasTrainingPerk('firstRound')?1.18:1)*(hasTrainingPerk('returnFire')?1.10:1):1;
  p.firstRound=false;
  const volleyBonus=game.shotsFired%5===0?1+game.transcendStats.gun*.015:1;
- const damage=g.damage*firstRound*volleyBonus*(gearPower(equipped)+boost)*(1+.038*gradeBonus(equipped))*(1+game.bonuses.damage)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
+ const critical=Math.random()<.04+trainingLevel('reload')*.01?1.45+trainingLevel('projectile')*.04:1;
+ const damage=critical*trainingFactor('fire')*(p.chargedShot||1)*g.damage*(id==='rail'&&mod===1?1.15:1)*firstRound*volleyBonus*(gearPower(equipped)+boost)*(1+.038*gradeBonus(equipped))*(1+game.bonuses.damage)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
+ p.chargedShot=0;
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
   game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod)*g.travelTimeScale,damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0)});
@@ -1663,8 +1823,10 @@ function shoot(){
  game.effects.push({x:p.x+Math.cos(p.dir)*21,y:p.y+Math.sin(p.dir)*21,r:12,color:'#ffda8d',life:.08});
  if(!p.ammo)reload();
 }
+function recoveryDelay(operator){return (operator.recoveryDelay||6)-(hasTrainingPerk('safeBreathing')?1.2:0);}
 function hurt(damage,origin,electric=false){
  const p=game.p;if(p.inv>0||p.shield>0)return;
+ if(save.equipped.armor&&itemElement(save.equipped.armor)===game.element)damage*=.8;
  const {transcendStats}=game;
  if(transcendStats.head&&game.t>=game.nextHeadGuard){
   damage*=1-transcendStats.head*.01;
@@ -1686,15 +1848,22 @@ function hurt(damage,origin,electric=false){
  damage*=(1-.015*(gradeBonus(head)+gradeBonus(armor)))*(1-.0029*(advancedLevel(head)+advancedLevel(armor)));
  const scale=game.bossHunt||game.bossEntered?Math.min(1.15,game.damageScale):game.damageScale;
  const loss=Math.round(damage*(1-game.bonuses.defense)*(1-(game.operator.defense||0))*scale);
- if(loss>0)p.regenAt=game.t+(game.operator.recoveryDelay||6);
+ if(loss>0){p.regenAt=game.t+recoveryDelay(game.operator);p.medicBoostUntil=game.operator===operators.medic?p.regenAt+2:0;}
+ const previousHp=p.hp;
  p.hp-=loss;game.hits++;playEffect('hurt');p.inv=.52;
+ if(!p.secondWindUsed&&previousHp>=p.max*.25&&p.hp>0&&p.hp<p.max*.25&&hasTrainingPerk('secondWind')){
+  p.hp+=p.max*.12;p.secondWindUsed=true;
+  game.effects.push({x:p.x,y:p.y,r:42,color:'#8afc92',life:.4,ring:true});
+ }
  const charm=save.equipped.charm;
  if(p.hp>0&&p.hp/p.max<=.32&&gearFamily(charm)==='battery'&&!game.usedBattery){
   p.inv=2+effectLevel(charm)*.43+gradeBonus(charm)*.14+(level(charm)>=5&&modOf(charm)===0?.8:0);game.usedBattery=true;
  }
 }
 function damageEnemy(e,b){
- let d=b.damage*(e.type==='boss'?(game.operator.boss||1)*(hasTrainingPerk('bossAim')?1.08:1):(game.operator.damage||1));
+ let d=b.damage*(itemElement(game.p.gunId)===game.element?1.08:1)*(hasTrainingPerk('steadyTrigger')?1.03:1)*(e.type==='boss'?(game.operator.boss||1)*(hasTrainingPerk('bossAim')?1.08:1):(game.operator.damage||1));
+ if(e.type==='boss'&&e.stun>0&&hasTrainingPerk('counterfire'))d*=1.12;
+ if(e.hp<=e.max*.25&&hasTrainingPerk('finisher'))d*=1.08;
  if(e.type==='armor'&&e.stun<=0&&Math.cos(e.dir-Math.atan2(-b.vy,-b.vx))>.25)d*=b.id==='sniper'&&b.mod===0?.76:b.id==='rifle'&&b.mod===1?.58:.16;
  if(e.type==='boss'&&e.stun<=0&&!(b.id==='sniper'&&b.mod===0))d*=e.pattern?.82:.63;
  if(b.id==='smg'&&b.mod===1){d*=1+Math.min(5,e.mark)*.13;e.mark++;}
@@ -1705,18 +1874,8 @@ function damageEnemy(e,b){
   p.hp+=healed;p.leechCredit-=healed;
  }
  e.hp-=d;e.lastHit=game.t;
+ if(game.operator===operators.tech&&game.t>=(e.paralyzeAt||0)){e.stun=Math.max(e.stun,.3);e.paralyzeAt=game.t+2;}
  if(b.id==='shotgun'&&b.mod===0)move(e,b.vx*.039,b.vy*.039);
- if(b.id==='rail'&&b.mod===1&&!b.split){
-  b.split=true;
-  const targets=game.enemies.filter(other=>other!==e&&other.hp>0&&!b.seen?.has(other)&&dist(e,other)<180&&clearShot(e,other))
-   .sort((a,b)=>dist(e,a)-dist(e,b)).slice(0,4);
-  for(const target of targets){
-   const direction=angle(e,target);
-   const speed=680;
-   game.fragmentQueue.push({x:e.x,y:e.y,vx:Math.cos(direction)*speed,vy:Math.sin(direction)*speed,
-    life:.36,damage:b.damage*.43,id:'fragment',seen:new Set([e]),pierce:0});
-  }
- }
  if(b.id==='smg'&&b.mod===0){
   const next=game.enemies.filter(other=>other!==e&&other.hp>0&&dist(e,other)<78&&clearShot(e,other))
    .sort((a,b)=>dist(e,a)-dist(e,b))[0];
@@ -1832,7 +1991,7 @@ function useMobArt(e,p,dt){
   if(cast.left>0)return true;
   e.cast=null;
   if(e.art==='fan'){
-   for(const offset of fanAngles)game.bolts.push({x:e.x,y:e.y,a:cast.dir+offset,life:spec.range/285,hit:Math.round(e.hit*.72),steers:false});
+   for(const offset of fanAngles)game.bolts.push({x:e.x,y:e.y,a:cast.dir+offset,life:spec.range/245,hit:Math.round(e.hit*.72),steers:false});
   }else if(e.art==='ring'){
    const d=dist(e,p);
    if(d>=56-p.r&&d<=spec.range+p.r&&clearShot(e,p))hurt(e.hit,e);
@@ -1965,7 +2124,7 @@ function squadSpawn(g,tier,x,y){
  spawn(unit.type,x,y);
  const e=g.enemies.at(-1);
  e.hp=e.max=Math.round(([40,61,86][tier]+enemyTypes[e.type].hp*.23)*(1+g.index*.032));
- e.hit=Math.round(([10,14,19][tier]+e.hit*.22)*(1+g.index*.007));
+ e.hit=Math.round(([10,14,19][tier]+e.hit*.22)*(1+g.index*.007)*(g.special==='alpha'?1.20:g.index===19?1.07:.95));
  e.v*=1.08+tier*.035;
  e.trait=squad.trait;e.tier=tier;e.name=unit.name;e.phase=g.spawned*.73;
  e.color=['#93dcbb','#ffbf69','#ee8bd7'][tier];
@@ -1983,7 +2142,7 @@ function campaignTick(g){
    spawn('boss',g.p.x>W/2?95:W-95,H/2);
    const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
    Object.assign(e,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
-   e.hp=e.max=campaignBossHp[g.index];
+   e.hp=e.max=Math.round(campaignBossHp[g.index]*(g.special==='alpha'?1.38:g.index===19?1.08:.96));
    return;
   }
   g.sector++;g.roundSpawn=0;g.nextSpawn=g.t;
@@ -2063,6 +2222,8 @@ function updateDevices(g,dt){
    continue;
   }
   if(dist(o,p)>o.r+p.r)continue;
+  if(o.kind==='mag'){p.ammo=p.stat.mag;p.reload=0;o.spent=true;}
+  if(o.kind==='ward'){p.shield=Math.max(p.shield,2);o.spent=true;}
   if(o.kind==='vent')p.vent=1.15;
   if(o.kind==='med'&&p.hp<=p.max-15){
    p.hp+=15;o.spent=true;
@@ -2072,23 +2233,23 @@ function updateDevices(g,dt){
 }
 function recoverHealth(p,time,dt){
  if(p.hp<=0||p.hp>=p.max||time<=p.regenAt)return;
- p.hp=Math.min(p.max,p.hp+p.max*.005*(p.recovery||1)*Math.min(dt,time-p.regenAt));
+ p.hp=Math.min(p.max,p.hp+p.max*.005*(p.recovery||1)*(time<=p.medicBoostUntil?1.25:1)*Math.min(dt,time-p.regenAt));
 }
 function step(dt,refreshHud=true){
  const g=game,p=g.p;
- g.t+=dt;
+ g.t+=dt;g.secondaryCd=Math.max(0,g.secondaryCd-dt);
  if(g.operator.leech)p.leechCredit=Math.min(3,p.leechCredit+3*dt);
  recoverHealth(p,g.t,dt);
  for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent','skillStride'])p[key]=Math.max(0,p[key]-dt);
- if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;p.firstRound=hasTrainingPerk('firstRound');}}
+ if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;p.firstRound=hasTrainingPerk('firstRound')||hasTrainingPerk('returnFire');}}
  hazards();
  const input=movement();
  updateDevices(g,dt);
- const speed=p.vent>0?280:g.wet&&gearFamily(save.equipped.boots)!=='grip'?142:212;
+ const speed=p.vent>0?242:g.wet&&gearFamily(save.equipped.boots)!=='grip'?125:183;
  const previousX=p.x,previousY=p.y;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*360*dt,Math.sin(p.dashDir)*360*dt);
  else {
-  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1)*(p.skillStride>0?1+g.transcendStats.boots*.006:1);
+  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1)*(p.skillStride>0?1+g.transcendStats.boots*.006:1)*(p.reload>0&&hasTrainingPerk('reloadStride')?1.12:1);
   move(p,input.x*movementSpeed*dt,input.y*movementSpeed*dt);
  }
  trackMovement(g,p.x-previousX,p.y-previousY,dt);
@@ -2099,6 +2260,17 @@ function step(dt,refreshHud=true){
  else if(Math.hypot(input.x,input.y)>.01)p.dir=Math.atan2(input.y,input.x);
 
  pressureStrike(g);
+ if(g.index>=10&&g.t>=g.linkAt){
+  g.linkAt=g.t+7;
+  const pair=g.enemies.filter(e=>e.type!=='boss'&&e.hp>0).slice(0,2);
+  if(pair.length===2&&dist(pair[0],pair[1])<330&&clearShot(pair[0],pair[1])){
+   const [a,b]=pair;g.link={a,b,until:g.t+1.1};
+  }
+ }
+ if(g.link&&g.t>=g.link.until){
+  const {a,b}=g.link;g.link=null;
+  if(a.hp>0&&b.hp>0&&dist(a,b)<360&&clearShot(a,b)){shootEnemy(a,p);shootEnemy(b,p);}
+ }
  if(g.dungeon)dungeonTick(g);
  else if(g.bossHunt){
   if(g.t>=g.nextSpawn&&liveAdds(g)<bossAddCap){
@@ -2139,11 +2311,10 @@ function step(dt,refreshHud=true){
    if(b.pierce--<=0){b.life=0;break;}
   }
  }
- if(g.fragmentQueue.length){g.shots.push(...g.fragmentQueue);g.fragmentQueue.length=0;}
  for(const b of g.bolts){
   if(b.delay>0){b.delay-=dt;continue;}
   steerBolt(b,g,dt);
-  b.x+=Math.cos(b.a)*285*dt;b.y+=Math.sin(b.a)*285*dt;b.life-=dt;
+  b.x+=Math.cos(b.a)*245*dt;b.y+=Math.sin(b.a)*245*dt;b.life-=dt;
   if(blocked(b.x,b.y,4))b.life=0;
   if(b.life>0&&dist(b,p)<p.r+5){hurt(b.hit,b);b.life=0;}
   if(b.life>0&&g.mode==='defend'&&dist(b,g.objects[0])<30){g.objects[0].hp-=b.hit*.55;b.life=0;}
@@ -2172,8 +2343,15 @@ function step(dt,refreshHud=true){
   (['switch','escape'].includes(g.mode)&&all&&dist(p,g.exit)<36)||
   (['survive','defend'].includes(g.mode)&&g.t>=g.n);
  if(p.hp<=0||(g.mode==='defend'&&g.objects[0].hp<=0))finish(false,'임무 중 쓰러졌어.');
- else if(won)finish(true,'');
- else if(g.t>=(g.dungeon?150:g.mode==='range'?75:300))finish(false,'제한 시간이 끝났어.');
+ else if(won&&g.special==='rush'&&g.index<g.rushEnd){
+  g.index++;g.element=g.index%5;g.enemies=[];g.warnings=[];g.bolts=[];g.shots=[];g.link=null;
+  g.p.hp=Math.min(g.p.max,g.p.hp+18);
+  spawn('boss',g.p.x>W/2?95:W-95,H/2);const boss=g.enemies.at(-1);
+  const [name,pattern,intensity,tempo]=stageBosses[g.index];g.name=name;
+  Object.assign(boss,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
+  boss.hp=boss.max=625+g.index*40;
+ }else if(won)finish(true,'');
+ else if(g.t>=(g.special==='rush'?600:g.dungeon?150:g.mode==='range'?75:300))finish(false,'제한 시간이 끝났어.');
  if(refreshHud)updateHud();
 }
 function updateHud(){
@@ -2182,7 +2360,7 @@ function updateHud(){
  if(g.dungeon){
   const boss=g.enemies.find(e=>e.type==='boss');
   progress='Lv. '+g.dungeonLevel+' · '+(g.bossEntered?g.dungeon.boss+' '+(boss?Math.ceil(100*boss.hp/boss.max):0)+'%':g.kills+'/'+g.n+' 처치');
- }else if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/campaignBossHp[g.index])+'%':(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index,g.sector)+' 처치';
+ }else if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/(g.enemies.find(e=>e.type==='boss')?.max||1))+'%':(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index,g.sector)+' 처치';
  else if(g.mode==='defend')progress=Math.ceil(Math.max(0,g.n-g.t))+'초 · 시설 '+Math.max(0,Math.ceil(g.objects[0].hp));
  else if(g.mode==='survive')progress=Math.ceil(Math.max(0,g.n-g.t))+'초';
  else if(g.mode==='escape')progress='녹색 출구';
@@ -2199,11 +2377,39 @@ function updateHud(){
  meter.setAttribute('aria-valuemax',p.max);
  const recovering=p.hp>0&&p.hp<p.max&&g.t>p.regenAt;
  meter.lastElementChild.textContent='HP '+hp+' / '+p.max+(recovering?' · 회복 중':'');meter.setAttribute('aria-valuenow',hp);
- $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초';
+ $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.special==='rush'?600:g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초';
  const skillButton=$('dash'),skillName=skills[g.skill].name;
+ const reserve=$('reserveSkill');reserve.disabled=g.secondaryCd>0||g.paused||g.over;
+ reserve.textContent=g.secondaryCd>0?g.secondaryCd.toFixed(1)+'초':skills[g.secondary].name;
+ for(const [node,cd,total] of [[reserve,g.secondaryCd,g.secondaryDuration],[skillButton,p.cd,g.primaryDuration]]){
+  node.style.background='conic-gradient(#344860 '+Math.min(360,360*cd/(total||5))+'deg,#ffd189 0)';
+ }
  skillButton.disabled=!skillReady();
  skillButton.setAttribute('aria-label',skillName);
  skillButton.textContent=p.cd>0?p.cd.toFixed(1)+'초':skillName;
+}
+function grantRewardGun(id,rank,lv){
+ if(own(id)&&grade(id)>=rank){save.copies[id]??={};save.copies[id][rank]=(save.copies[id][rank]||0)+1;}
+ unlock(id);save.ranks[id]=Math.max(grade(id),rank);save.levels[id]=Math.max(level(id),lv);
+}
+function grantWeaponBundle(index){
+ save.weaponBundles??={};if(save.weaponBundles[index])return '';save.weaponBundles[index]=true;
+ const final=index%10===9,rank=index<10?4:5,count=final?4:2,lv=final?10:5;
+ const pool=Object.keys(gear).filter(id=>gear[id].theme&&gear[id].slot==='gun');
+ for(let i=0;i<count;i++)grantRewardGun(pool[Math.floor(Math.random()*pool.length)],rank,lv);
+ save.gunTickets??=[];for(let i=0;i<(final?2:1);i++)save.gunTickets.push({rank,lv:lv+5});
+ return ' · '+rank+'성 +'+lv+' 총기 '+count+'개와 무기 선택권 획득';
+}
+function ticketPanel(){
+ save.weaponBundles??={};
+ for(const index of [5,9,15,19])if(save.stars[index]&&!save.weaponBundles[index]){
+  grantWeaponBundle(index);persist();
+ }
+ if(!save.gunTickets?.length)return;
+ const t=save.gunTickets[0],section=panel(t.rank+'성 +'+t.lv+' 무기 선택권 · '+save.gunTickets.length+'장');
+ const select=document.createElement('select');section.append(select);
+ for(const [id,item] of Object.entries(gear))if(item.theme&&item.slot==='gun'){const opt=document.createElement('option');opt.value=id;opt.textContent=item.name;select.append(opt);}
+ section.append(button('선택한 무기 수령',()=>{if(save.gunTickets[0]!==t||!gear[select.value])return;grantRewardGun(select.value,t.rank,t.lv);save.gunTickets.shift();persist();renderMenu();}));
 }
 function finish(won,reason){
  playEffect(won?'win':'lose');
@@ -2212,9 +2418,14 @@ function finish(won,reason){
  const row=$('resultActions');row.replaceChildren();
  let result=reason;
  if(won){
-  const stars=g.hits<=2?3:g.hits<=5?2:1;
+  const stars=g.hits<=4?3:g.hits<=9?2:1;
   let reward={credits:85,alloy:3};let extra='';
-  if(g.bossHunt){
+  if(g.special==='alpha'||g.special==='rush'){
+   save.challengeStars??={};const key=g.special+g.index;
+   save.challengeStars[key]=Math.max(save.challengeStars[key]||0,stars);
+   reward={credits:g.special==='rush'?650:165,parts:g.special==='rush'?6:2};
+   extra=g.special==='rush'?' · 챕터 보스 연전 완료':' · 알파 클리어';
+  }else if(g.bossHunt){
    const name=stageBosses[g.index][0];
    save.bossMaterials[g.index]=(save.bossMaterials[g.index]||0)+1;
    reward=bossHuntReward(g.index);
@@ -2223,7 +2434,7 @@ function finish(won,reason){
   }else if(g.index>=0){
    const prior=save.stars[g.index]||0;
    reward=clearReward(g.index,!prior,Math.max(0,stars-prior));
-   if(!prior){reward.xp=100;if(g.index===18)extra=' · 5성 +20 장비 세트 선택권';}
+   if(!prior){if([5,9,15,19].includes(g.index))extra+=grantWeaponBundle(g.index);reward.xp=100;if(g.index===18)extra=' · 5성 +20 장비 세트 선택권';}
    save.stars[g.index]=Math.max(prior,stars);
    save.cleared=Math.max(save.cleared,g.index+1);
    extra+=unlock(unlocks[g.index]);
@@ -2232,11 +2443,13 @@ function finish(won,reason){
    reward=contractReward(g.dungeon,g.band);
    extra=unlock(g.dungeon.unlock);
   }
+  if(g.index>=0)reward['core'+coreRank(g.index)]=1;
+  if(stars>1){const bonus=(stars-1)*5;reward.credits=(reward.credits||0)+bonus;extra+=' · 별 보너스 '+bonus+' 크레딧 포함';}
   if(reward.xp)reward.xp=Math.min(reward.xp,(maxCharacterLevel-1)*100-save.xp);
   addFunds(reward);persist();
   result='★'.repeat(stars)+' · '+rewardText(reward)+extra;
   row.append(button('장비 강화',()=>openPage('gear')));
- }else row.append(button('다시 도전',()=>start(g.index,g.contract,g.bossHunt,g.band),false,'primary'));
+ }else row.append(button('다시 도전',()=>start(g.special==='rush'?g.rushStart:g.index,g.contract,g.bossHunt,g.band,g.special),false,'primary'));
  if(won&&g.index<0)row.append(button('다시 출격',()=>start(g.index,g.contract,false,g.band)));
  row.append(button(g.bossHunt?'보스 상세':g.index<0?'던전 목록':'전투 홈',()=>renderMenu(g.bossHunt?'stages':g.index<0?'contracts':'campaign')));
  $('resultText').textContent=result;$('result').hidden=false;
@@ -2554,7 +2767,7 @@ function draw(){
    ctx.beginPath();ctx.arc(o.x,o.y,108,0,TAU);ctx.lineWidth=2;ctx.stroke();
   }
   ctx.beginPath();ctx.arc(o.x,o.y,o.r-3,g.t*.8,g.t*.8+5.2);ctx.stroke();
-  ctx.save();ctx.translate(o.x,o.y);if(portrait)ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillStyle='#fff4d2';ctx.fillText(vent?'»':med?'+':'!',0,7);ctx.restore();
+  ctx.save();ctx.translate(o.x,o.y);if(portrait)ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillStyle='#fff4d2';ctx.fillText(vent?'»':med?'+':o.kind==='mag'?'▥':o.kind==='ward'?'◇':'!',0,7);ctx.restore();
  }
  if(['switch','escape'].includes(g.mode)){
   const ready=g.objects.every(o=>o.done);disc(g.exit.x,g.exit.y,28,ready?'#69d9a5':'#666d62');
@@ -2575,6 +2788,7 @@ function draw(){
   ctx.fillStyle='#25413b';ctx.fillRect(o.x-11,o.y-10,22,10);
   if(['destroy','defend'].includes(g.mode))bar(o.x,o.y-28,o.hp,o.max,42);
  }
+ if(g.link&&g.link.a.hp>0&&g.link.b.hp>0){ctx.strokeStyle='#cf91ff';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(g.link.a.x,g.link.a.y);ctx.lineTo(g.link.b.x,g.link.b.y);ctx.stroke();}
  for(const e of g.enemies){
   if(e.cast)drawCast(e);
   if(e.bossCast){
@@ -2596,8 +2810,7 @@ function draw(){
   if(e.type==='armor'||e.type==='boss'||e.hp<e.max)bar(e.x,e.y-e.r-9,e.hp,e.max,e.r*2);
  }
  for(const b of g.shots){
-  const speed=Math.hypot(b.vx,b.vy),length=b.id==='rail'?68:b.id==='fragment'?29:49;
-  if(b.id==='fragment'){drawBolt(b,b.vx/speed*length,b.vy/speed*length,4,'#85c7ff','#e7fbff');continue;}
+  const speed=Math.hypot(b.vx,b.vy),length=b.id==='rail'?68:49;
   drawBolt(b,b.vx/speed*length,b.vy/speed*length,b.id==='rail'?6:4,'#ffce28','#fff5a1');
  }
  for(const b of g.bolts)if(!(b.delay>0))drawBolt(b,Math.cos(b.a)*25,Math.sin(b.a)*25,5,'#ff4d72','#fff0e9');
@@ -2633,12 +2846,14 @@ function pause(){
  $('result').hidden=!game.paused;updateHud();
 }
 $('pause').onclick=pause;
-$('dash').onpointerdown=e=>{e.preventDefault();activateSkill();};
-$('dash').onclick=e=>{if(e.detail===0)activateSkill();};
+$('reserveSkill').onpointerdown=e=>{e.preventDefault();triggerSkill(1);};
+$('reserveSkill').onclick=e=>{if(e.detail===0)triggerSkill(1);};
+$('dash').onpointerdown=e=>{e.preventDefault();triggerSkill(0);};
+$('dash').onclick=e=>{if(e.detail===0)triggerSkill(0);};
 document.addEventListener('keydown',e=>{
  if($('combat').hidden||!game||game.over)return;
  const k=e.key.toLowerCase();if(k===' '||k.startsWith('arrow'))e.preventDefault();
- keys.add(k);if(e.repeat)return;if(k===' ')activateSkill();if(k==='r')reload();if(k==='escape')pause();
+ keys.add(k);if(e.repeat)return;if(k===' ')triggerSkill(0);if(k==='e')triggerSkill(1);if(k==='r')reload();if(k==='escape')pause();
 });
 document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 document.addEventListener('pointerup',()=>{
@@ -2810,10 +3025,11 @@ body:not(.fighting){--surface:#203a61;--line:#385981;--muted:#c0d3ee;--teal:#70e
 .operator-card .section-label{margin-top:0;color:var(--operator-color)}
 .operator-card button{margin-top:auto;width:100%}
 
-.training-map{position:relative;width:min(100%,620px);aspect-ratio:440/920;margin:auto;background:radial-gradient(ellipse at center,#263b59,#142238 72%)}
+.training-map{position:relative;width:min(100%,620px);aspect-ratio:440/1120;margin:auto;background:radial-gradient(ellipse at center,#263b59,#142238 72%)}
 .tree-core,.tree-node{position:absolute;transform:translate(-50%,-50%);z-index:1;display:grid;place-items:center}
 .tree-core{width:15%;aspect-ratio:1;border-radius:50%;background:#163b50;border:2px solid #97f1dc;color:#e9ffff;font-weight:800;font-size:clamp(10px,3vw,16px)}
 #menu .tree-node{width:clamp(37px,11%,56px);min-height:0;padding:0;aspect-ratio:1;border:2px solid var(--tree-color);border-radius:50%;background:#243856;color:var(--tree-color);font-size:clamp(13px,3.7vw,19px);font-weight:800}
+#menu .tree-node.side-perk{box-shadow:0 0 10px #ffce8255}
 #menu .tree-node.has-perk{border-style:double;border-width:4px}
 #menu .tree-node.locked{border-color:#677897;color:#c1cce0;background:#1b2840}
 #menu .tree-node.learned{background:var(--tree-color);color:#152637}
@@ -2831,6 +3047,8 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 .tree-paths{position:absolute;inset:0;width:100%;height:100%;max-height:none;aspect-ratio:auto;pointer-events:none}
 .tree-legend{margin-top:10px}
 #menu .tree-detail{margin-top:10px}
+.daily-stock{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#menu .daily-stock button{font-size:13px;padding:8px 3px;min-height:56px}
+#reserveSkill{position:absolute;z-index:2;right:calc(92px + env(safe-area-inset-right));bottom:calc(22px + env(safe-area-inset-bottom));width:62px;height:62px;border-radius:50%;color:#102535;font-weight:800;padding:2px}
 </style>
 </body></html>
 
