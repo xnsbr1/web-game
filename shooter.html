@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.9.0">
+<meta name="game-build" content="1.9.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -331,12 +331,19 @@ const themes={
  specter:{name:'유령 정찰',color:'#cba8f1',items:['sealedHelmet','sniper','plate','stable','light','rift'],three:{fire:.08},six:{damage:.12},text:['공격 속도 +8%','공격 피해 +12%']},
  arc:{name:'과전압 연구',color:'#ff9a86',items:['sealedHelmet','rail','insulated','quick','thrust','rift'],three:{projectile:.10},six:{cooldown:.16,damage:.06},text:['탄환 속도 +10%','스킬 재사용 시간 16% 감소 · 공격 피해 +6%']}
 };
+const gunFamilies=Object.keys(gear).filter(id=>gear[id].slot==='gun');
 for(const [themeId,theme] of Object.entries(themes)){
- theme.ids=theme.items.map((base,index)=>{
+ const createItem=(base,rank)=>{
   const id=themeId+'_'+base,item=gear[base];
   gear[id]={...item,base,theme:themeId,name:theme.name+' '+item.name};
-  baseRanks[id]=2+index%3;
+  baseRanks[id]=rank;
   return id;
+ };
+ theme.ids=theme.items.map((base,index)=>createItem(base,2+index%3));
+ theme.dropPool=theme.ids.flatMap((id,index)=>{
+  // Every equipment slot keeps the same odds; the gun slot has seven outcomes.
+  if(gear[id].slot!=='gun')return Array(gunFamilies.length).fill(id);
+  return gunFamilies.map(base=>base===gear[id].base?id:createItem(base,2+index%3));
  });
 }
 const gearFamily=id=>gear[id]?.base||id;
@@ -456,7 +463,7 @@ const supplyTiers=[
  {rank:4,unlockAt:6,initial:700,perStage:50,themes:['sentinel','tide','specter']},
  {rank:5,unlockAt:12,initial:180,perStage:38,themes:['tide','specter','arc']},
  {rank:6,unlockAt:17,initial:20,perStage:15,themes:['specter','arc']}
-].map(tier=>({...tier,items:tier.themes.flatMap(id=>themes[id].ids)}));
+].map(tier=>({...tier,items:tier.themes.flatMap(id=>themes[id].dropPool)}));
 const supplyStage=()=>testMode&&Number.isInteger(save.testSupplyStage)?clamp(save.testSupplyStage,0,stages.length-1):Math.min(save.cleared,stages.length-1);
 const supplyPrice=(stage=supplyStage())=>220+8*stage;
 function supplyOdds(stage){
@@ -541,11 +548,28 @@ const transcendAbilities={
  boots:power=>['기동 추진','스킬 사용 후 2초간 이동 속도 +'+Number((power*.6).toFixed(1))+'%'],
  charm:power=>['전술 회수','처치 시 스킬 재사용 시간 '+Number((power*.04).toFixed(2))+'초 감소 · 1초에 한 번']
 };
+function transcendMaterials(id,rank){
+ const sameItem=[id];
+ if(gear[id].slot==='gun'){
+  sameItem.push(...Object.keys(save.copies).filter(other=>other!==id&&gear[other]?.slot==='gun'));
+ }
+ return sameItem.map(source=>({source,count:save.copies[source]?.[rank]||0})).filter(entry=>entry.count>0);
+}
 function transcend(id){
  if(!own(id))return false;
  const stage=transcendLevel(id),rank=grade(id),required=stage+1;
- if(stage>=transcendCap||spareCopies(id,rank)<required)return false;
- if(!testMode)save.copies[id][rank]-=required;
+ if(stage>=transcendCap)return false;
+ if(!testMode){
+  const materials=transcendMaterials(id,rank);
+  if(materials.reduce((sum,entry)=>sum+entry.count,0)<required)return false;
+  let remaining=required;
+  for(const {source,count} of materials){
+   const used=Math.min(remaining,count);
+   save.copies[source][rank]-=used;
+   remaining-=used;
+   if(!remaining)break;
+  }
+ }
  save.ascension[id]=required;persist();
  return true;
 }
@@ -742,7 +766,7 @@ function renderSupply(){
  });
  odds.append(rows);
  renderSupplyOdds(rows,preview);
- paragraph(odds,'같은 등급 안에서 등장 테마와 장비 부위는 각각 같은 확률이야.');
+ paragraph(odds,'같은 등급 안에서 등장 테마와 장비 부위는 각각 같은 확률이야. 총기가 나오면 해당 테마의 총 7종 중 하나가 같은 확률로 나와.');
  paragraph(odds,'보유 장비보다 높은 등급을 뽑으면 등급이 올라가고 강화는 유지돼. 같은 등급이나 낮은 등급을 뽑으면 해당 등급 복제본과 정밀 부품 1개를 얻어.');
 }
 function renderSupplyOdds(parent,stage){
@@ -1209,7 +1233,9 @@ function renderSalvage(parent,id){
 }
 function renderTranscendence(parent,id){
  const rank=grade(id),stage=transcendLevel(id),needed=stage+1;
- const current=spareCopies(id,rank);
+ const materials=transcendMaterials(id,rank);
+ const current=testMode?Number.MAX_SAFE_INTEGER:materials.reduce((sum,entry)=>sum+entry.count,0);
+ const isGun=gear[id].slot==='gun';
  const section=document.createElement('section');section.className='transcend-panel';
  parent.append(section);
  const ability=transcendAbilities[gear[id].slot];
@@ -1218,7 +1244,15 @@ function renderTranscendence(parent,id){
  paragraph(section,name+(stage?' · '+effect:' · 초월 1단계에서 해금'),'');
  if(stage<transcendCap){
   paragraph(section,'다음 초월 · '+ability(transcendPower(id,needed))[1]);
-  paragraph(section,'같은 '+rank+'성 '+gear[id].name+' 복제본 '+resourceLabel(current)+' / '+needed);
+  const requirement=isGun?'총기 복제본':gear[id].name+' 복제본';
+  paragraph(section,rank+'성 '+requirement+' '+resourceLabel(current)+' / '+needed);
+  if(isGun){
+   paragraph(section,'같은 성이면 모든 총기 복제본을 쓸 수 있어. 같은 장비의 복제본부터 사용해.');
+   if(materials.length){
+    const details=disclosure(section,'사용 가능한 복제본');
+    for(const {source,count} of materials)paragraph(details,gear[source].name+' '+count+'개');
+   }
+  }
   section.append(button('초월 '+needed+'단계',()=>{if(transcend(id))renderMenu();},current<needed,'primary'));
  }
  const stored=Object.entries(save.copies[id]||{}).filter(([stars,count])=>Number(stars)!==rank&&count>0);
