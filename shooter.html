@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.6">
+<meta name="game-build" content="1.4.7">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -396,13 +396,19 @@ const trainingCap=5;
 const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
 const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
 const supplyTiers=[
- {rank:2,chance:52,themes:['vanguard','sentinel']},
- {rank:3,chance:29,themes:['vanguard','sentinel','tide']},
- {rank:4,chance:14,themes:['sentinel','tide','specter']},
- {rank:5,chance:4.5,themes:['tide','specter','arc']},
- {rank:6,chance:.5,themes:['specter','arc']}
+ {rank:2,unlockAt:0,themes:['vanguard','sentinel']},
+ {rank:3,unlockAt:2,initial:1800,perStage:65,themes:['vanguard','sentinel','tide']},
+ {rank:4,unlockAt:6,initial:700,perStage:50,themes:['sentinel','tide','specter']},
+ {rank:5,unlockAt:12,initial:180,perStage:38,themes:['tide','specter','arc']},
+ {rank:6,unlockAt:17,initial:20,perStage:15,themes:['specter','arc']}
 ].map(tier=>({...tier,items:tier.themes.flatMap(id=>themes[id].ids)}));
-const supplyPrice=()=>220+35*Math.floor(save.cleared/5);
+const supplyStage=()=>Math.min(save.cleared,stages.length-1);
+const supplyPrice=(stage=supplyStage())=>220+8*stage;
+function supplyOdds(stage){
+ const tiers=supplyTiers.map(tier=>({...tier,tickets:tier.rank>2&&stage>=tier.unlockAt?tier.initial+(stage-tier.unlockAt)*tier.perStage:0}));
+ tiers[0].tickets=10000-tiers.reduce((total,tier)=>total+tier.tickets,0);
+ return tiers;
+}
 const maxSkillLevel=10;
 let keepSkillPanelOpen=false;
 const skillLevel=id=>save.skillLevels[id]||1;
@@ -418,7 +424,7 @@ function upgradeSkill(id){
  pay(price);save.skillLevels[id]=skillLevel(id)+1;persist();
  return true;
 }
-let lastSupply=null,pendingSupply=null,supplyOddsOpen=false;
+let lastSupply=null,pendingSupply=null,supplyOddsOpen=false,supplyPreviewStage=null;
 const save={copies:{},ascension:{},skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 Object.assign(save,testSnapshot||readSave(key));
 if(testMode){
@@ -520,7 +526,7 @@ function promote(id){
 function costs(id){const next=level(id)+1;return {credits:18+next*8,alloy:1+Math.floor(next/5),parts:next>=10?1+Math.floor((next-10)/6):0,cores:next%5===0&&next>=25?1:0};}
 let page='campaign';
 let notice='';
-let chapterView=0, stageView=null, slotView=null, itemView=null;
+let chapterView=0, stageView=null, itemView=null;
 function clearReward(index,first,stars=0){
  return {credits:first?145+index*9:32+index*3,alloy:first?4+Math.floor(index/8):1,parts:stars,cores:first&&stages[index][1]==='boss'?1:0};
 }
@@ -549,9 +555,9 @@ function disclosure(parent,title){
  return details;
 }
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
-function rollSupply(random){
- let ticket=random()*100;
- const tier=supplyTiers.find(group=>(ticket-=group.chance)<0)||supplyTiers.at(-1);
+function rollSupply(random,tiers){
+ let ticket=Math.floor(random()*10000);
+ const tier=tiers.find(group=>(ticket-=group.tickets)<0);
  const id=tier.items[Math.floor(random()*tier.items.length)];
  const previousRank=own(id)?grade(id):0;
  const outcome=previousRank===0?'new':tier.rank>previousRank?'promoted':'duplicate';
@@ -567,10 +573,11 @@ function rollSupply(random){
  return {id,rank:tier.rank,previousRank,outcome};
 }
 function drawSupplies(count,random=Math.random){
- const price=supplyPrice()*count;
+ const stage=supplyStage(),price=supplyPrice(stage)*count;
  if((count!==1&&count!==10)||save.credits<price)return null;
  save.credits-=price;
- const cards=Array.from({length:count},()=>rollSupply(random));
+ const tiers=supplyOdds(stage);
+ const cards=Array.from({length:count},()=>rollSupply(random,tiers));
  persist();
  return {cards,highest:Math.max(...cards.map(card=>card.rank)),skipped:false};
 }
@@ -619,7 +626,7 @@ function renderSupplyCard(parent,result){
 function renderSupply(){
  const supply=panel('장비 뽑기');
  const price=supplyPrice();
- paragraph(supply,'클리어한 스테이지가 5개 늘 때마다 상자당 +35 크레딧');
+ paragraph(supply,'현재 '+stageId(supplyStage())+' 상자 · 다음 스테이지로 진입할 때마다 1회 가격 +8 크레딧');
  const reveal=document.createElement('div');
  reveal.className='supply-reveal'+(pendingSupply?' crate-opening':lastSupply&&!lastSupply.skipped?' crate-revealed':'');
  reveal.setAttribute('role','status');
@@ -651,9 +658,24 @@ function renderSupply(){
   actions.append(button('1회 열기 · '+price+' 크레딧',()=>openSupply(1),save.credits<price));
   actions.append(button('10연뽑 · '+price*10+' 크레딧',()=>openSupply(10),save.credits<price*10,'primary'));
  }
- const odds=disclosure(supply,'등급별 확률과 등장 테마');
+ const odds=disclosure(supply,'스테이지별 상자 확률');
  odds.open=supplyOddsOpen;
  odds.ontoggle=()=>{supplyOddsOpen=odds.open;};
+ const stageOptions=Object.fromEntries(stages.map((_,i)=>[String(i),stageId(i)+' 상자'+(i===supplyStage()?' · 현재':'')]));
+ const controls=document.createElement('div');controls.className='inventory-controls';odds.append(controls);
+ const preview=supplyPreviewStage??supplyStage();
+ const rows=document.createElement('div');
+ inventorySelect(controls,'확률표 미리보기',stageOptions,String(preview),value=>{
+  supplyPreviewStage=Number(value);renderSupplyOdds(rows,supplyPreviewStage);
+ });
+ odds.append(rows);
+ renderSupplyOdds(rows,preview);
+ paragraph(odds,'같은 등급 안에서 등장 테마와 장비 부위는 각각 같은 확률이야.');
+ paragraph(odds,'보유 장비보다 높은 등급을 뽑으면 등급이 올라가고 강화는 유지돼. 같은 등급이나 낮은 등급을 뽑으면 해당 등급 복제본과 정밀 부품 1개를 얻어.');
+}
+function renderSupplyOdds(parent,stage){
+ parent.replaceChildren();
+ paragraph(parent,stageId(stage)+' 상자 · 1회 '+supplyPrice(stage)+' 크레딧'+(stage!==supplyStage()?' · 미리보기':''));
  const table=document.createElement('table');
  table.className='supply-odds';
  const head=table.createTHead().insertRow();
@@ -661,16 +683,14 @@ function renderSupply(){
   const cell=document.createElement('th');cell.scope='col';cell.textContent=title;head.append(cell);
  }
  const body=table.createTBody();
- for(const tier of supplyTiers){
+ for(const tier of supplyOdds(stage)){
   const row=body.insertRow();
   row.insertCell().textContent=tier.rank+'성';
   row.cells[0].style.color=rankColors[tier.rank-1];
-  row.insertCell().textContent=tier.chance+'%';
-  row.insertCell().textContent=tier.themes.map(id=>themes[id].name).join(' · ');
+  row.insertCell().textContent=(tier.tickets/100)+'%';
+  row.insertCell().textContent=tier.tickets?tier.themes.map(id=>themes[id].name).join(' · '):stageId(tier.unlockAt)+'부터 등장';
  }
- odds.append(table);
- paragraph(odds,'같은 등급 안에서 등장 테마와 장비 부위는 각각 같은 확률이야.');
- paragraph(odds,'보유 장비보다 높은 등급을 뽑으면 등급이 올라가고 강화는 유지돼. 같은 등급이나 낮은 등급을 뽑으면 해당 등급 복제본과 정밀 부품 1개를 얻어.');
+ parent.append(table);
 }
 function renderGrowth(){
  const growth=panel('플레이어 강화');
@@ -811,22 +831,17 @@ function renderMenu(next=page){
   }
   return;
  }
- if(slotView===null){
+ if(itemView===null){
   renderEquipmentBoard();
   renderSets();
-  renderInventory(panel('보유 장비'));
+  const inventory=panel('보유 장비');inventory.id='owned-inventory';
+  renderInventory(inventory);
   renderGrowth();
-  return;
- }
- if(itemView===null){
-  const p=panel(slots[slotView]);
-  p.prepend(button('‹ 장비 화면',()=>{slotView=null;renderMenu();}));
-  renderInventory(p,slotView);
   return;
  }
  const id=itemView,item=gear[id],slot=item.slot;
  const card=panel(item.name);
- card.prepend(button('‹ '+slots[slot],()=>{itemView=null;renderMenu();}));
+ card.prepend(button('‹ 장비 화면',()=>openPage('gear')));
  card.append(equipmentPortrait(slot,id,'detail-portrait'));
    const rankLabel=document.createElement('p');rankLabel.className='equipment-rank';
    rankLabel.style.color=rankColors[grade(id)-1];rankLabel.textContent='★'.repeat(grade(id))+' · '+grade(id)+'성';
@@ -842,7 +857,7 @@ function renderMenu(next=page){
     paragraph(card,'+5 이후 강화 1당 '+advancedLabel[slot]+' '+advancedPerLevel[slot]+'% · 현재 '+percent+'%');
    }
    const row=document.createElement('div');row.className='big-actions';card.append(row);
-   row.append(button('장착',()=>{save.equipped[slot]=id;persist();renderMenu();},equipped));
+   row.append(button(equipped?'장착 중':'장착',()=>equipItem(id),equipped));
    if(level(id)<max){
     const price=costs(id);
     paragraph(card,Object.entries(price).filter(([,v])=>v).map(([k,v])=>currencies[k]+' '+v).join(' · '));
@@ -1006,26 +1021,24 @@ function inventorySelect(parent,title,choices,value,onChange){
  select.value=value;select.onchange=()=>onChange(select.value);
  label.append(select);parent.append(label);
 }
-function renderInventory(parent,slot=null){
+function renderInventory(parent){
  const mode=Object.hasOwn(inventorySorts,save.inventorySort)?save.inventorySort:'slot';
- const filter=slot||(Object.hasOwn(slots,save.inventoryFilter)?save.inventoryFilter:'');
+ const filter=Object.hasOwn(slots,save.inventoryFilter)?save.inventoryFilter:'';
  const controls=document.createElement('div');controls.className='inventory-controls';parent.append(controls);
  inventorySelect(controls,'정렬',inventorySorts,mode,value=>{save.inventorySort=value;persist();renderMenu();});
- if(!slot)inventorySelect(controls,'장비 종류',{'':'전체 장비',...slots},filter,value=>{save.inventoryFilter=value;persist();renderMenu();});
+ inventorySelect(controls,'장비 종류',{'':'전체 장비',...slots},filter,value=>{save.inventoryFilter=value;persist();renderMenu();});
  if(mode==='level')paragraph(parent,'부위와 등급이 같은 묶음을 최고 강화 레벨순으로 표시해. 묶음 안에서는 초월순, 강화순이야.');
  const groups=inventoryGroups(mode,filter);
  if(!groups.length){paragraph(parent,'보유한 장비가 없어.');return;}
  let lastSlot=null,list=null;
  for(const group of groups){
-  if(!list||(!slot&&mode==='slot'&&lastSlot!==group.slot)){
-   if(!slot&&mode==='slot')paragraph(parent,slots[group.slot],'section-label');
-   list=document.createElement('div');list.className=slot?'slot-inventory':'inventory-grid';parent.append(list);
+  if(!list||(mode==='slot'&&lastSlot!==group.slot)){
+   if(mode==='slot')paragraph(parent,slots[group.slot],'section-label');
+   list=document.createElement('div');list.className='inventory-grid';parent.append(list);
    lastSlot=group.slot;
   }
   for(const id of group.ids){
-   const tile=equipmentTile(group.slot,id,()=>showEquipment(group.slot,id));
-   if(slot)tile.classList.add('equipment-option');
-   list.append(tile);
+   list.append(equipmentTile(group.slot,id,()=>showEquipment(id)));
   }
  }
 }
@@ -1047,8 +1060,21 @@ function equipmentTile(slot,id,action){
  b.append(badge);
  return b;
 }
-function showEquipment(slot,id=null){
- slotView=slot;itemView=id;window.scrollTo(0,0);renderMenu();
+function showEquipment(id){
+ if(!Object.hasOwn(gear,id)||!own(id))return;
+ itemView=id;window.scrollTo(0,0);renderMenu('gear');
+}
+function equipItem(id){
+ if(!Object.hasOwn(gear,id)||!own(id))return;
+ save.equipped[gear[id].slot]=id;persist();
+ showEquipment(id);
+}
+function openEquipmentSlot(slot){
+ const id=save.equipped[slot];
+ if(gear[id]?.slot===slot&&own(id)){showEquipment(id);return;}
+ save.inventoryFilter=slot;persist();
+ itemView=null;renderMenu('gear');
+ $('owned-inventory')?.scrollIntoView?.({block:'start'});
 }
 function renderTranscendence(parent,id){
  const rank=grade(id),stage=transcendLevel(id),needed=stage+1;
@@ -1098,7 +1124,7 @@ function renderEquipmentBoard(){
  }
  board.append(wires,operativePortrait());
  for(const [slot,x,y] of mountPoints){
-  const tile=equipmentTile(slot,save.equipped[slot],()=>showEquipment(slot));
+  const tile=equipmentTile(slot,save.equipped[slot],()=>openEquipmentSlot(slot));
   tile.classList.add('mount-slot');tile.style.left=x+'%';tile.style.top=y+'%';
   const type=document.createElement('small');type.textContent=slots[slot];tile.prepend(type);
   board.append(tile);
@@ -1106,7 +1132,8 @@ function renderEquipmentBoard(){
  shell.append(board);
 }
 function openPage(next){
- if(next==='gear'){slotView=null;itemView=null;}
+ if(next==='gear')itemView=null;
+ if(next==='supply')supplyPreviewStage=null;
  if(next==='stages')stageView=null;
  window.scrollTo(0,0);renderMenu(next);
 }
@@ -2043,8 +2070,6 @@ header{gap:12px;align-items:flex-start}
 .equipment-tile strong{max-width:100%;font-size:clamp(12px,3.5vw,16px);line-height:1.15;overflow-wrap:anywhere}
 .equipment-tile span,.mount-slot small{font-size:11px;color:var(--teal);line-height:1.2}.mount-slot small{font-weight:800;color:var(--amber)}
 .inventory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:8px}
-#menu .equipment-option{width:100%;margin-top:8px;flex-direction:row;justify-content:flex-start;gap:10px;padding:7px 12px;text-align:left}
-.equipment-option .equipment-art{width:60px;flex:none}
 #menu .detail-portrait{width:112px;max-width:none;margin:8px 0}
 @media(min-width:650px){.mount-slot .equipment-art{width:67px}.inventory-grid{grid-template-columns:repeat(auto-fit,minmax(102px,1fr))}}
 </style>
@@ -2052,9 +2077,9 @@ header{gap:12px;align-items:flex-start}
 .ranked-portrait{border:2px solid var(--rank-color);box-shadow:inset 0 0 12px var(--rank-color);background:radial-gradient(circle at center,#38505a,#1b2932 80%)}
 .equipment-rank{font-weight:800;letter-spacing:.035em;white-space:nowrap}
 #menu .equipment-tile .equipment-rank{font-size:11px;line-height:1.2}
-#menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
