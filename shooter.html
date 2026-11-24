@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.8.0">
+<meta name="game-build" content="1.8.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -2043,6 +2043,157 @@ function drawCast(e){
  ctx.arc(0,0,e.r+7,-Math.PI/2,-Math.PI/2+TAU*(1-e.cast.left/spec.windup));ctx.stroke();
  ctx.restore();
 }
+const bossLooks=[
+ // Body plates face right. Coordinates use the same local scale as the other enemies.
+ ['#c69361','#52334b','#ffdb8f',[[2,-17],[18,-12],[22,-4],[12,1],[22,7],[12,15],[-10,18],[-19,7],[-17,-10]]],
+ ['#55789a','#243550','#ffae61',[[21,-13],[21,13],[10,17],[-17,17],[-22,11],[-22,-11],[-17,-17],[10,-17]]],
+ ['#b570a9','#49315e','#ffe9aa',[[6,-20],[17,-14],[23,-3],[17,9],[8,13],[-10,10],[-17,0],[-12,-12]]],
+ ['#747ca5','#2d344f','#aee7ff',[[19,0],[12,16],[0,21],[-15,13],[-19,0],[-15,-13],[0,-21],[12,-16]]],
+ ['#c37d63','#57283d','#fff29d',[[19,-7],[17,8],[7,13],[-17,12],[-23,5],[-20,-9],[-7,-16],[8,-14]]],
+ ['#8c9ce1','#362b63','#ffc1fd',[[22,0],[12,6],[-5,9],[-13,20],[-22,19],[-14,4],[-14,-4],[-22,-19],[-13,-20],[-5,-9],[12,-6]]],
+ ['#9b877a','#3b3347','#ffc481',[[15,-7],[20,4],[8,19],[-11,23],[-21,11],[-23,-6],[-14,-17],[3,-19]]],
+ ['#d66862','#60293f','#fff09a',[[21,-3],[12,7],[14,17],[1,13],[-9,21],[-17,10],[-23,-1],[-16,-14],[-3,-20],[13,-14]]],
+ ['#618ba3','#283b58','#acefff',[[19,-10],[22,10],[10,18],[-9,18],[-21,10],[-21,-10],[-9,-18],[10,-18]]],
+ ['#a082ce','#402c62','#fff48d',[[21,0],[11,16],[-1,12],[-9,20],[-22,4],[-18,-9],[-8,-18],[7,-13]]],
+ ['#58aca5','#234763','#fff0a4',[[25,0],[13,9],[3,10],[-4,19],[-13,12],[-10,4],[-23,0],[-10,-4],[-13,-12],[-4,-19],[3,-10],[13,-9]]],
+ ['#7bb389','#30435a','#9bfbe6',[[20,-9],[22,5],[12,15],[-3,17],[-14,9],[-18,-3],[-8,-15],[5,-20]]],
+ ['#dba75f','#493748','#bcfbff',[[17,0],[10,8],[5,18],[-5,14],[-15,22],[-19,5],[-13,-4],[-18,-19],[-4,-16],[2,-7],[9,-15]]],
+ ['#77c8b3','#235666','#eaff9f',[[19,2],[13,15],[-2,20],[-17,13],[-20,1],[-15,-13],[-2,-21],[13,-15]]],
+ ['#aac1d2','#344766','#ffda8c',[[23,0],[10,18],[-11,20],[-20,6],[-20,-6],[-11,-20],[10,-18]]],
+ ['#a5aabc','#473456','#ff9fc0',[[20,-5],[19,10],[5,17],[-15,13],[-20,3],[-13,-12],[6,-17]]],
+ ['#56add2','#293a65','#ffecd3',[[26,0],[7,10],[1,22],[-11,17],[-10,5],[-24,0],[-10,-5],[-11,-17],[1,-22],[7,-10]]],
+ ['#cb8c5e','#503447','#f9e7a4',[[15,-15],[22,-5],[22,7],[9,16],[-12,16],[-21,9],[-21,-10],[-11,-17]]],
+ ['#664b9b','#271e50','#d4a5ff',[[23,0],[10,9],[1,11],[-11,23],[-22,18],[-13,5],[-22,0],[-13,-5],[-22,-18],[-11,-23],[1,-11],[10,-9]]],
+ ['#67aee9','#273d71','#cbfaff',[[22,-4],[18,7],[6,7],[-3,-2],[-12,-4],[-19,3],[-24,9],[-21,0],[-15,-11],[-6,-12],[5,-6],[14,-9]]]
+];
+function drawBoss(e,g){
+ const [metal,shadow,light,body]=bossLooks[e.signature]||['#b5789d','#43274d','#ffdfa0',[[19,0],[8,16],[-11,16],[-20,0],[-11,-16],[8,-16]]];
+ const index=e.signature;
+ const kind=e.bossCast?.kind||bossSignatures[index]?.[1];
+ const active=Boolean(e.bossCast||e.wind>0||e.rush>0);
+ const accent=e.stun>0?'#ffdda0':light;
+ const plate=(fill,points)=>polygon(ctx,fill,points);
+ const box=(x,y,w,h,fill)=>{ctx.fillStyle=fill;ctx.fillRect(x,y,w,h);};
+ const arc=(x,y,r,start,end,fill,width=2)=>{
+  ctx.strokeStyle=fill;ctx.lineWidth=width;ctx.beginPath();ctx.arc(x,y,r,start,end);ctx.stroke();
+ };
+ const leg=(x,y,endX,endY)=>{
+  ctx.lineWidth=4;ctx.strokeStyle=shadow;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(endX-4,endY);ctx.lineTo(endX,endY);ctx.stroke();
+  disc(endX,endY,2,metal);
+ };
+ ctx.save();ctx.shadowColor='#080b19';ctx.shadowBlur=4;
+ plate(shadow,body);ctx.shadowBlur=0;
+ if(index===0||index===3||index===4||index===7||index===14){
+  for(const side of [-1,1])for(const x of [-12,-4,5])leg(x,6*side,x-4,(20+Math.sin(g.t*7+x)*2)*side);
+ }
+ plate(metal,body);
+ switch(index){
+  case 0: // Pickaxe mandibles with separate teeth.
+   for(const side of [-1,1])plate(accent,[[6,side*4],[24,side*11],[20,side*12],[13,side*10],[16,side*19],[10,side*19]]);
+   disc(-4,0,7,shadow);box(-9,-2,11,4,'#9a623e');disc(4,0,2,accent);
+   break;
+  case 1: // Rail engine, treads and a sweeping searchlight.
+   for(const y of [-16,12]){ box(-19,y,35,5,shadow);for(let x=-16;x<16;x+=6)box(x,y+1,2,3,'#80adc8'); }
+   box(-12,-8,18,16,shadow);box(-8,-5,9,10,'#739db4');disc(16,0,5,accent);
+   break;
+  case 2: // Five separate spore sacs on a mushroom canopy.
+   for(let i=0;i<5;i++){const a=(i-2)*.49;disc(4+13*Math.cos(a),17*Math.sin(a),5,'#632f62');disc(5+13*Math.cos(a),17*Math.sin(a),2.6,accent);}
+   box(-20,-4,16,8,'#dbc8ad');arc(-5,0,11,1.2,5.1,shadow,3);
+   break;
+  case 3:
+   for(let i=0;i<6;i++){const a=i*TAU/6;disc(Math.cos(a)*13,Math.sin(a)*13,4,shadow);}
+   arc(0,0,10,0,TAU,accent,2.5);disc(0,0,4,'#26344d');
+   break;
+  case 4:
+   plate('#642e3a',[[23,-10],[12,-13],[7,-5],[9,4],[20,11],[23,5],[12,1]]);
+   for(const y of [-10,8])box(13,y,9,3,accent);
+   box(-16,-7,12,14,'#8c4947');disc(7,-6,2,accent);disc(7,6,2,accent);
+   break;
+  case 5:
+   for(const side of [-1,1]){plate('#5182af',[[-16,side*17],[-4,side*5],[8,side*4],[-7,side*12]]);disc(-6,side*8,3,accent);}
+   plate(accent,[[17,0],[3,-4],[-3,0],[3,4]]);
+   break;
+  case 6:
+   plate('#63535b',[[-20,-6],[-8,-15],[-3,-1],[-11,8],[-19,6]]);
+   plate('#d1b4a0',[[2,-14],[17,-6],[6,3],[-3,-1]]);
+   plate('#725659',[[6,4],[18,6],[7,18],[-3,12]]);
+   for(const [x,y] of [[10,-6],[9,8],[-9,0]])disc(x,y,2.6,accent);
+   break;
+  case 7:
+   plate('#7c3546',[[-15,-10],[4,-9],[14,0],[4,10],[-15,11],[-20,0]]);
+   for(const [x,y] of [[8,-9],[8,9],[-8,-12],[-8,12]])disc(x,y,3.1,accent);
+   plate('#ffac66',[[12,0],[0,-6],[-3,0],[0,6]]);
+   break;
+  case 8:
+   box(-12,-12,24,24,shadow);box(-3,-16,6,32,metal);box(-16,-3,32,6,metal);
+   for(const [x,y] of [[0,-10],[0,10],[-10,0],[10,0]])disc(x,y,2.6,accent);
+   disc(0,0,4,'#212c43');
+   break;
+  case 9:
+   for(const [x,y,r] of [[5,0,13],[-9,3,10]]){
+    plate('#7258aa',[[x+r,y],[x,y-r],[x-r*.65,y],[x,y+r]]);
+    plate(accent,[[x+4,y],[x,y-r*.7],[x-2,y],[x,y+r*.6]]);
+   }
+   break;
+  case 10:
+   plate('#347183',[[-17,0],[4,-6],[21,0],[4,6]]);
+   arc(7,0,7,-1.4,1.4,accent,3);disc(17,-4,2,accent);disc(17,4,2,accent);
+   break;
+  case 11:
+   for(const side of [-1,1])for(let i=0;i<3;i++)leg(-5-i*5,side*6,-14-i*3,side*(11+i*4));
+   arc(1,0,10,-.9,3.8,'#325a62',4);box(5,-5,12,10,'#376958');
+   for(const y of [-5,0,5])disc(13,y,2,accent);
+   break;
+  case 12:
+   for(const side of [-1,1]){
+    plate('#f1c05e',[[-17,side*16],[-4,side*9],[3,side*4],[-6,side*5]]);
+    plate(accent,[[-11,side*13],[-3,side*8],[5,side*9],[11,side*1],[0,side*5]]);
+   }
+   disc(4,0,4,'#4b385d');disc(7,0,2,accent);
+   break;
+  case 13:
+   disc(-1,0,15,'#56a69b');disc(-5,-4,7,'#9ee3bb');disc(7,3,6,'#355f72');
+   for(let i=0;i<7;i++){const a=(i-3)*.39;disc(15*Math.cos(a),15*Math.sin(a),2,accent);}
+   break;
+  case 14:
+   for(let i=-1;i<=1;i++){const y=i*9;plate('#6c88a0',[[15,y],[7,y-4],[-12,y-3],[-16,y+2],[6,y+4]]);}
+   arc(3,0,9,-1.1,1.1,accent,3);arc(-2,0,13,1.4,4.8,'#dcecf9',2);
+   break;
+  case 15:
+   for(const y of [-12,5]){box(-18,y,26,7,shadow);box(-18,y+2,6,3,accent);}
+   box(-7,-8,22,15,'#6d708e');box(8,-2,13,4,accent);box(-7,-1,10,2,'#edc1b6');
+   break;
+  case 16:
+   for(const side of [-1,1]){plate('#4579b4',[[-10,side*15],[4,side*16],[13,side*5],[-3,side*6]]);disc(10,side*4,2,accent);}
+   plate(accent,[[22,0],[7,-3],[-6,0],[7,3]]);
+   break;
+  case 17:
+   for(const y of [-11,0,11]){box(-19,y-3,15,6,shadow);disc(-16,y,2,accent);}
+   disc(6,0,11,'#6c4c51');arc(6,0,7,0,TAU,'#ffd597',2);box(5,-6,2,12,accent);
+   break;
+  case 18:
+   for(const side of [-1,1])for(let i=0;i<3;i++)plate('#a075c4',[[-18+i*6,side*16],[-10+i*6,side*10],[-8+i*6,side*12]]);
+   disc(7,0,7,shadow);disc(9,0,4,accent);disc(11,0,2,'#3a205b');
+   break;
+  case 19:
+   for(const [x,y] of [[-13,-8],[-5,-9],[3,-4],[11,-5]])arc(x,y,4,-.9,1.4,accent,2);
+   disc(16,-2,2.4,'#f2efff');disc(20,2,2,'#2d3775');
+   break;
+  default:
+   plate(shadow,[[14,0],[4,-11],[-9,-10],[-14,0],[-9,10],[4,11]]);disc(5,0,5,accent);
+ }
+ if(active){
+  const pulse=.65+.35*Math.sin(g.t*24);
+  ctx.save();ctx.globalAlpha=pulse;ctx.shadowBlur=8;ctx.shadowColor=accent;
+  if(kind==='charge')plate(accent,[[23,0],[13,-4],[15,0],[13,4]]);
+  if(kind==='line'){box(10,-9,12,2,accent);box(10,7,12,2,accent);}
+  if(kind==='fan')for(const y of [-8,0,8])disc(16,y,2.7,accent);
+  if(kind==='ring')arc(0,0,20+2*pulse,0,TAU,accent);
+  if(kind==='strike')for(const a of [0,2.1,4.2])disc(13*Math.cos(a),13*Math.sin(a),3,accent);
+  ctx.restore();
+ }
+ ctx.restore();
+}
 function drawEnemy(e,g){
  const color=e.stun>0?'#ffe5a1':e.color;
  const stride=Math.sin(g.t*12+e.x*.021);
@@ -2082,13 +2233,8 @@ function drawEnemy(e,g){
   disc(0,0,14,color);disc(0,0,9,'#533043');
   polygon(ctx,'#ffeb9d',[[0,-8],[8,0],[0,8],[-8,0]]);
   disc(0,0,3+stride,'#fff7dd');ctx.fillStyle='#533043';ctx.fillRect(-19,-3,8,6);
- }else{
-  disc(0,0,16,color);
-  const fins=4+(g.index+20)%5;
-  for(let j=0;j<fins;j++){
-   ctx.rotate(TAU/fins);polygon(ctx,color,[[10,-3],[22,0],[10,4]]);
-  }
-  disc(9,0,4,'#5e3431');
+ }else if(e.type==='boss'){
+  drawBoss(e,g);
  }
  ctx.restore();
  if(e.tier===2){
