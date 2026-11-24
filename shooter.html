@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.3">
+<meta name="game-build" content="1.4.4">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -71,6 +71,9 @@ details .item{margin-bottom:8px}
  @media(prefers-reduced-motion:reduce){.crate-opening .supply-crate,.crate-revealed{animation:none}}
 .transcend-panel{border:1px solid #9f80ad;border-radius:10px;background:#27243a;padding:12px;margin-top:12px}
 .transcend-panel .section-label{margin-top:0;color:#e2bbff}
+.inventory-controls{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.inventory-controls label{display:grid;gap:3px;min-width:0;flex:1 1 120px;font-size:13px;color:var(--muted)}
+.inventory-controls select{width:100%;min-height:44px}
 </style>
 </head>
 <body><main>
@@ -746,25 +749,14 @@ function renderMenu(next=page){
  if(slotView===null){
   renderEquipmentBoard();
   renderSets();
-  const inventory=panel('보유 장비');
-  const list=document.createElement('div');list.className='inventory-grid';
-  for(const [id,item] of Object.entries(gear))if(own(id)){
-   list.append(equipmentTile(item.slot,id,()=>showEquipment(item.slot,id)));
-  }
-  inventory.append(list);
+  renderInventory(panel('보유 장비'));
   renderGrowth();
   return;
  }
  if(itemView===null){
   const p=panel(slots[slotView]);
   p.prepend(button('‹ 장비 화면',()=>{slotView=null;renderMenu();}));
-  const owned=Object.entries(gear).filter(([id,item])=>item.slot===slotView&&own(id));
-  if(!owned.length)paragraph(p,'스테이지와 던전을 클리어해 장비를 획득해.');
-  for(const [id,item] of owned){
-   const option=equipmentTile(slotView,id,()=>showEquipment(slotView,id));
-   option.classList.add('equipment-option');
-   p.append(option);
-  }
+  renderInventory(p,slotView);
   return;
  }
  const id=itemView,item=gear[id],slot=item.slot;
@@ -915,6 +907,62 @@ function operativePortrait(){
  shape(dark,[[47,47],[75,39],[104,44],[101,59],[77,67],[51,60]]);
  shape(trim,[[53,49],[75,44],[98,47],[96,52],[75,51],[55,55]]);
  return c;
+}
+const inventorySorts={slot:'종류별 보기',rarity:'희귀도순 보기',level:'장비 레벨순 보기'};
+const slotOrder=Object.keys(slots);
+function inventoryGroups(mode,filter){
+ const groups=new Map();
+ for(const [id,item] of Object.entries(gear)){
+  if(!own(id)||(filter&&item.slot!==filter))continue;
+  const rank=grade(id),key=item.slot+':'+rank;
+  if(!groups.has(key))groups.set(key,{slot:item.slot,rank,maxLevel:0,ids:[]});
+  const group=groups.get(key);
+  group.ids.push(id);
+  group.maxLevel=Math.max(group.maxLevel,level(id));
+ }
+ const bySlot=(a,b)=>slotOrder.indexOf(a.slot)-slotOrder.indexOf(b.slot);
+ const byRank=(a,b)=>b.rank-a.rank;
+ const sorted=[...groups.values()].sort((a,b)=>{
+  if(mode==='level')return b.maxLevel-a.maxLevel||byRank(a,b)||bySlot(a,b);
+  if(mode==='rarity')return byRank(a,b)||bySlot(a,b);
+  return bySlot(a,b)||byRank(a,b);
+ });
+ for(const group of sorted){
+  group.ids.sort((a,b)=>transcendLevel(b)-transcendLevel(a)||level(b)-level(a)||gear[a].name.localeCompare(gear[b].name,'ko'));
+ }
+ return sorted;
+}
+function inventorySelect(parent,title,choices,value,onChange){
+ const label=document.createElement('label'),select=document.createElement('select');
+ label.textContent=title;
+ for(const [id,name] of Object.entries(choices)){
+  const option=document.createElement('option');option.value=id;option.textContent=name;select.append(option);
+ }
+ select.value=value;select.onchange=()=>onChange(select.value);
+ label.append(select);parent.append(label);
+}
+function renderInventory(parent,slot=null){
+ const mode=Object.hasOwn(inventorySorts,save.inventorySort)?save.inventorySort:'slot';
+ const filter=slot||(Object.hasOwn(slots,save.inventoryFilter)?save.inventoryFilter:'');
+ const controls=document.createElement('div');controls.className='inventory-controls';parent.append(controls);
+ inventorySelect(controls,'정렬',inventorySorts,mode,value=>{save.inventorySort=value;persist();renderMenu();});
+ if(!slot)inventorySelect(controls,'장비 종류',{'':'전체 장비',...slots},filter,value=>{save.inventoryFilter=value;persist();renderMenu();});
+ if(mode==='level')paragraph(parent,'부위와 등급이 같은 묶음을 최고 강화 레벨순으로 표시해. 묶음 안에서는 초월순, 강화순이야.');
+ const groups=inventoryGroups(mode,filter);
+ if(!groups.length){paragraph(parent,'보유한 장비가 없어.');return;}
+ let lastSlot=null,list=null;
+ for(const group of groups){
+  if(!list||(!slot&&mode==='slot'&&lastSlot!==group.slot)){
+   if(!slot&&mode==='slot')paragraph(parent,slots[group.slot],'section-label');
+   list=document.createElement('div');list.className=slot?'slot-inventory':'inventory-grid';parent.append(list);
+   lastSlot=group.slot;
+  }
+  for(const id of group.ids){
+   const tile=equipmentTile(group.slot,id,()=>showEquipment(group.slot,id));
+   if(slot)tile.classList.add('equipment-option');
+   list.append(tile);
+  }
+ }
 }
 function equipmentTile(slot,id,action){
  const item=id?gear[id]:null;
