@@ -90,6 +90,8 @@ const gear={
 };
 const unlocks={1:'scoutHelmet',11:'sealedHelmet',3:'plate',4:'shotgun',6:'thrust',8:'quick',9:'smg',12:'insulated',16:'grip',17:'battery',19:'rail'};
 const slots={head:'헬멧',gun:'총기',armor:'갑옷',gloves:'장갑',boots:'신발',charm:'장신구'};
+const rankColors=['#b1bec6','#8de2a5','#8bc5ff','#caa6ff','#ffc36d','#ff8491'];
+const baseRanks={pistol:1,shotgun:2,smg:3,rail:4,scoutHelmet:1,sealedHelmet:3,plate:2,insulated:3,thrust:2,grip:3,light:2,quick:2,stable:2,rift:4,battery:3};
 const currencies={credits:'크레딧',alloy:'합금',parts:'정밀 부품',cores:'보스 코어'};
 const contracts=[
  {name:'회수 의뢰',mode:'recover',n:3,desc:'몬스터 사이로 이동해 상자 3개 회수 · 합금'},
@@ -98,7 +100,7 @@ const contracts=[
  {name:'철턱 재도전',mode:'boss',n:1,desc:'3회 격파마다 보스 코어 · 첫 피격 2회 이하 승리에 장신구'}
 ];
 const key='deep-rounds-save-v1';
-const save={credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{}};
+const save={credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 try{const stored=JSON.parse(localStorage.getItem(key));if(stored&&typeof stored==='object')Object.assign(save,stored);}catch{}
 function persist(){try{localStorage.setItem(key,JSON.stringify(save));}catch{}}
 const own=id=>Object.hasOwn(save.levels,id);
@@ -110,6 +112,22 @@ if(save.cleared>=12 && !own('sealedHelmet')){unlock('sealedHelmet');persist();}
 function stageId(index){return (Math.floor(index/10)+1)+'-'+(index%10+1);}
 function addFunds(reward){for(const [name,amount] of Object.entries(reward))save[name]+=amount;}
 function rewardText(reward){return Object.entries(reward).filter(([,v])=>v).map(([k,v])=>currencies[k]+' +'+v).join(' · ');}
+function grade(id){
+ if(!id)return 1;
+ const saved=save.ranks[id];
+ return Number.isInteger(saved)?clamp(saved,baseRanks[id],6):baseRanks[id];
+}
+function gradeBonus(id){return grade(id)-1;}
+function promotionCost(id){
+ const current=grade(id);
+ return {credits:80+current*75,alloy:current+2,parts:current>=3?current-2:0,cores:current===5?1:0};
+}
+function promote(id){
+ const current=grade(id),price=promotionCost(id);
+ if(!own(id)||current>=6||level(id)<current||Object.entries(price).some(([k,v])=>save[k]<v))return;
+ for(const [k,v] of Object.entries(price))save[k]-=v;
+ save.ranks[id]=current+1;persist();renderMenu();
+}
 function costs(id){const next=level(id)+1;return {credits:45+next*32,alloy:2+next,parts:next>=6?next-5:0,cores:next===10?1:0};}
 let page='campaign';
 let notice='';
@@ -229,9 +247,12 @@ function renderMenu(next=page){
  const card=panel(item.name);
  card.prepend(button('‹ '+slots[slot],()=>{itemView=null;renderMenu();}));
  card.append(equipmentPortrait(slot,id,'detail-portrait'));
+   const rankLabel=document.createElement('p');rankLabel.className='equipment-rank';
+   rankLabel.style.color=rankColors[grade(id)-1];rankLabel.textContent='★'.repeat(grade(id))+' · '+grade(id)+'성';
+   card.append(rankLabel);
    const equipped=save.equipped[slot]===id;const max=slot==='gun'?10:5;
    paragraph(card,item.name+' +'+level(id)+(equipped?' · 장착 중':''),'');
-   paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*(1+level(id)*.11)):''));
+   paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*(1+level(id)*.11)*(1+.05*gradeBonus(id))):''));
    const row=document.createElement('div');row.className='big-actions';card.append(row);
    row.append(button('장착',()=>{save.equipped[slot]=id;persist();renderMenu();},equipped));
    if(level(id)<max){
@@ -242,6 +263,13 @@ function renderMenu(next=page){
      for(const [k,v] of Object.entries(price))save[k]-=v;
      save.levels[id]++;persist();renderMenu();
     },Object.entries(price).some(([k,v])=>save[k]<v)));
+   }
+   const currentRank=grade(id);
+   if(currentRank<6){
+    const price=promotionCost(id);
+    const enough=Object.entries(price).every(([k,v])=>save[k]>=v);
+    paragraph(card,'승급 조건 · 강화 +'+currentRank+' · '+Object.entries(price).filter(([,v])=>v).map(([k,v])=>currencies[k]+' '+v).join(' · '));
+    row.append(button((currentRank+1)+'성 승급',()=>promote(id),level(id)<currentRank||!enough));
    }
    if(level(id)>=5){
     const mods=item.mods||(slot==='boots'?['긴 대시','빠른 회복']:slot==='gloves'?['재장전 가속','정밀 조준']:['효과 증폭','비상 보호막']);
@@ -267,6 +295,10 @@ function equipmentPortrait(slot,id,extra=''){
  const canvas=document.createElement('canvas');
  canvas.width=96;canvas.height=96;canvas.className='equipment-art '+extra;
  canvas.setAttribute('aria-hidden','true');
+ if(id){
+  canvas.classList.add('ranked-portrait');
+  canvas.style.setProperty('--rank-color',rankColors[grade(id)-1]);
+ }
  const g=canvas.getContext('2d');
  const light=hues[id]||'#73868e',dark='#233947',mid='#506979',glow='#9af9eb';
  function shape(color,points){polygon(g,color,points);}
@@ -347,11 +379,17 @@ function equipmentTile(slot,id,action){
  const current=item&&save.equipped[slot]===id;
  const title=item?item.name:'미장착';
  const b=button('',action,false,'equipment-tile');
- b.setAttribute('aria-label',slots[slot]+' · '+title+(current?' · 장착 중':''));
+ b.setAttribute('aria-label',slots[slot]+' · '+title+(item?' · '+grade(id)+'성':'')+(current?' · 장착 중':''));
  b.append(equipmentPortrait(slot,id));
  const name=document.createElement('strong');name.textContent=title;
+ if(item){
+  const stars=document.createElement('span');stars.className='equipment-rank';
+  stars.style.color=rankColors[grade(id)-1];stars.textContent='★'.repeat(grade(id));
+  stars.setAttribute('aria-label',grade(id)+'성');
+  b.append(name,stars);
+ }else b.append(name);
  const badge=document.createElement('span');badge.textContent=item?'+'+level(id)+(current?' · 장착':''):'';
- b.append(name,badge);
+ b.append(badge);
  return b;
 }
 function showEquipment(slot,id=null){
@@ -469,7 +507,7 @@ function dash(){
  const input=movement();
  p.dashDir=Math.hypot(input.x,input.y)>.1?Math.atan2(input.y,input.x):p.dir;
  p.dash=.145+(boots==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
- p.cd=(boots==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0);
+ p.cd=((boots==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots));
  p.inv=p.dash+.1;p.afterDash=1.1;
 }
 function movement(){
@@ -484,6 +522,7 @@ function reload(){
  const gloves=save.equipped.gloves;
  p.reload=p.stat.reload*(gloves==='quick'&&p.afterDash>0?.63-level(gloves)*.045:1);
  if(gloves&&level(gloves)>=5&&modOf(gloves)===0)p.reload*=.8;
+ p.reload*=1-.028*gradeBonus(gloves);
 }
 function shoot(){
  const p=game.p,g=p.stat,id=p.gunId,l=level(id),mod=l>=5?modOf(id):-1;
@@ -495,9 +534,9 @@ function shoot(){
  const stable=gloves==='stable'&&Math.hypot(movement().x,movement().y)<.1;
  const precise=gloves&&level(gloves)>=5&&modOf(gloves)===1;
  const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.23):0)*(stable?.65-level(gloves)*.04:1)*(precise?.84:1);
- const boost=p.afterDash>0?(charm==='rift'?.19+level(charm)*.06+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l===10?.3:0):0;
+ const boost=p.afterDash>0?(charm==='rift'?.19+level(charm)*.06+gradeBonus(charm)*.025+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l===10?.3:0):0;
  if(boost)p.afterDash=0;
- const damage=g.damage*(1+l*.11+boost)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
+ const damage=g.damage*(1+l*.11+boost)*(1+.05*gradeBonus(id))*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
   game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:id==='shotgun'?.48:1.4,damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):0});
@@ -518,9 +557,10 @@ function hurt(damage,origin,electric=false){
  if(armor==='plate'&&origin&&Math.cos(p.dir-angle(p,origin))>.25)damage*=.72-level(armor)*.047;
  if(armor&&level(armor)>=5&&modOf(armor)===0)damage*=.85;
  if(armor&&level(armor)>=5&&modOf(armor)===1&&p.hp<35)damage*=.72;
+ damage*=1-.015*(gradeBonus(head)+gradeBonus(armor));
  p.hp-=Math.round(damage);game.hits++;p.inv=.52;
  if(p.hp>0&&p.hp<=32&&save.equipped.charm==='battery'&&!game.usedBattery){
-  p.inv=2+level('battery')*.43+(level('battery')>=5&&modOf('battery')===0?.8:0);game.usedBattery=true;
+  p.inv=2+level('battery')*.43+gradeBonus('battery')*.14+(level('battery')>=5&&modOf('battery')===0?.8:0);game.usedBattery=true;
  }
 }
 function damageEnemy(e,b){
@@ -979,5 +1019,11 @@ header{gap:12px;align-items:flex-start}
 .equipment-option .equipment-art{width:60px;flex:none}
 #menu .detail-portrait{width:112px;max-width:none;margin:8px 0}
 @media(min-width:650px){.mount-slot .equipment-art{width:67px}.inventory-grid{grid-template-columns:repeat(auto-fit,minmax(102px,1fr))}}
+</style>
+<style>
+.ranked-portrait{border:2px solid var(--rank-color);box-shadow:inset 0 0 12px var(--rank-color);background:radial-gradient(circle at center,#38505a,#1b2932 80%)}
+.equipment-rank{font-weight:800;letter-spacing:.035em;white-space:nowrap}
+#menu .equipment-tile .equipment-rank{font-size:11px;line-height:1.2}
+#menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
