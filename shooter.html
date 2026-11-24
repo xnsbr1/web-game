@@ -43,7 +43,7 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
   <button type="button" data-page="contracts"><i class="dock-icon missions" aria-hidden="true"></i><span>의뢰</span></button>
 </nav>
 <section id="combat" hidden aria-label="전투">
-<div class="hud"><strong id="objective"></strong><span id="combatStats"></span><button id="pause">일시정지</button></div>
+<div class="hud"><strong id="objective"></strong><span id="combatStats"></span><div class="life-track" id="lifeTrack" role="meter" aria-label="내 체력" aria-valuemin="0" aria-valuemax="100"><i></i><b></b></div><button id="pause">일시정지</button></div>
 <div class="arena" id="arena"><canvas id="screen" width="900" height="580" aria-label="전투 지도"></canvas>
 <div id="joystick" aria-hidden="true"><i></i></div>
 <div id="result" class="result" hidden><article><h2 id="resultTitle"></h2><p id="resultText"></p><div class="row" id="resultActions"></div></article></div></div>
@@ -63,6 +63,7 @@ const stages=[
  ['격리 구역','destroy',3,'water'],['수중 관측교','escape',0,'tide'],['역류 펌프실','defend',75,'water'],
  ['정전 복도','switch',2,'dark'],['심해 수조 · 심전 장어','boss',1,'tide']
 ];
+// Campaign encounters retain their names, first-clear rewards and save indices.
 const stageBosses=[
  ['곡괭이턱','charge',1,.72],['선로 분쇄기','line',3,1.05],['포자 여왕','summon',2,1.23],['흑철 방패충','burst',3,.83],
  ['철턱','charge',2,1.36],['협곡 송곳니','charge',3,.92],['낙석 거인','strike',3,1.25],['잿불 어미','summon',4,.97],
@@ -175,7 +176,7 @@ function renderMenu(next=page){
   const hero=panel(stageId(current)+' '+name);
   hero.classList.add('deployment');
   hero.classList.toggle('flooded',current>=10);
-  paragraph(hero,complete?'모든 스테이지 완료':objectiveNames[mode]);
+  paragraph(hero,complete?'모든 스테이지 완료':'구역 돌파 · 보스 격파');
   if(!complete){
    paragraph(hero,'첫 클리어 보상','section-label');
    paragraph(hero,rewardPreview(current));
@@ -198,12 +199,13 @@ function renderMenu(next=page){
    stages.slice(chapterView*10,chapterView*10+10).forEach(([name,mode],i)=>{
     const index=chapterView*10+i;
     const status=index<save.cleared?'클리어 · 보스 파밍 가능':index===save.cleared?'출격 가능':'잠김';
-    p.append(largeEntry(stageId(index)+' '+name,objectiveNames[mode]+' · '+status,()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
+    p.append(largeEntry(stageId(index)+' '+name,'구역 돌파 · 보스 격파'+' · '+status,()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
    });
    return;
   }
   const index=stageView;
   const p=panel(stageId(index)+' '+stages[index][0]);
+  paragraph(p,'약 3분 · 세 구역 돌파 후 '+stageBosses[index][0]+' 출현. 청록 발판은 가속, 주황 통은 사격 시 폭발해.');
   p.prepend(button('‹ 스테이지 목록',()=>{stageView=null;renderMenu();}));
   paragraph(p,index<save.cleared?'첫 클리어 보상 · 수령 완료':'첫 클리어 보상','section-label');
   paragraph(p,rewardPreview(index));
@@ -257,7 +259,7 @@ function renderMenu(next=page){
    card.append(rankLabel);
    const equipped=save.equipped[slot]===id;const max=slot==='gun'?10:5;
    paragraph(card,item.name+' +'+level(id)+(equipped?' · 장착 중':''),'');
-   paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*(1+level(id)*.11)*(1+.05*gradeBonus(id))):''));
+   paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*(1+level(id)*.043)*(1+.026*gradeBonus(id))):''));
    const row=document.createElement('div');row.className='big-actions';card.append(row);
    row.append(button('장착',()=>{save.equipped[slot]=id;persist();renderMenu();},equipped));
    if(level(id)<max){
@@ -434,6 +436,8 @@ const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angle=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
 const points=[[145,140],[445,120],[750,140],[140,440],[455,445],[745,445]];
 const enemyTypes={
+ flanker:{hp:39,v:145,r:13,color:'#62dbdd',hit:14},
+ mortar:{hp:56,v:62,r:18,color:'#b7a0ff',hit:16},
  crawler:{hp:35,v:100,r:15,color:'#a8c474',hit:12},
  runner:{hp:23,v:157,r:12,color:'#ecc471',hit:10},
  armor:{hp:82,v:76,r:23,color:'#ef9c59',hit:19},
@@ -456,8 +460,10 @@ const dashReady=()=>game&&!game.paused&&!game.over&&game.p.cd<=0;
 function start(index,contract,bossHunt=false){
  if(bossHunt && (index<0||index>=save.cleared))return;
  const c=contracts[contract];
- const [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,c.mode,c.n,contract===3?'rock':'']:stages[index];
+ let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,c.mode,c.n,contract===3?'rock':'']:stages[index];
+ const campaign=index>=0&&!bossHunt;
  const gunId=save.equipped.gun||'pistol';
+ if(campaign){mode='assault';n=3;}
  const stat={...gear[gunId]};
  if(gunId==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
  if(gunId==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
@@ -465,13 +471,23 @@ function start(index,contract,bossHunt=false){
  const shift=(Math.max(index,0)%5)*24;
  const walls=mode==='range'?[]:[{x:260+shift,y:148,w:55,h:125},{x:580-shift,y:307,w:65,h:118}];
  if(index===5)walls.push({x:380,y:48,w:140,h:64},{x:380,y:468,w:140,h:64});
+ if(campaign||bossHunt){
+  // Two staggered cover lanes and an open central crossing.
+  walls.length=0;
+  for(let i=0;i<4;i++){
+   const k=(index*7+i*3)%11;
+   walls.push({x:200+(i%2)*320+k*7,y:(i<2?76:359)+k*4,w:52+(k%4)*21,h:46+(k%3)*22});
+  }
+  if(index%3===1)walls.push({x:405,y:251,w:72,h:57});
+ }
  const objects=[];
  for(let i=0;i<n&&['destroy','switch','recover'].includes(mode);i++){
   const [x,y]=points[i*2];objects.push({x,y,r:23,hp:96,max:96,done:false});
  }
  if(mode==='defend')objects.push({x:450,y:295,r:26,hp:145,max:145,done:false});
  const charm=save.equipped.charm;
- game={index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+ const terrain=campaign?[{kind:'vent',x:165,y:175+(index%3)*80,r:32},{kind:'vent',x:714,y:383-(index%3)*75,r:32},{kind:'drum',x:378,y:207+(index%2)*120,r:18},{kind:'drum',x:632,y:279,r:18}]:[];
+ game={terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
   p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
@@ -486,7 +502,7 @@ function start(index,contract,bossHunt=false){
   boss.color=['#eb8b6f','#f0bd66','#8ccce9','#b9a7f0'][variant];
   if(bossHunt){
    const [,pattern,intensity,tempo]=stageBosses[index];
-   Object.assign(boss,{pattern,intensity,tempo,color:bossColors[pattern]});
+   Object.assign(boss,{pattern,intensity,tempo,signature:index,color:bossColors[pattern]});
    boss.hp=boss.max=Math.round(230+index*18);
   }
  }
@@ -565,7 +581,7 @@ function shoot(){
  const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.23):0)*(stable?.65-level(gloves)*.04:1)*(precise?.84:1);
  const boost=p.afterDash>0?(charm==='rift'?.19+level(charm)*.06+gradeBonus(charm)*.025+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l===10?.3:0):0;
  if(boost)p.afterDash=0;
- const damage=g.damage*(1+l*.11+boost)*(1+.05*gradeBonus(id))*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
+ const damage=g.damage*(1+l*.043+boost)*(1+.026*gradeBonus(id))*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
   game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod),damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0)});
@@ -612,6 +628,18 @@ function shootEnemy(e,target){
  }
 }
 function huntAttack(e,p){
+ if(Number.isInteger(e.signature)&&e.hp<e.max*.65){
+  // Pair the primary move with a stage-specific secondary formation.
+  const family=e.signature%4,count=1+Math.floor(e.signature/4);
+  for(let i=0;i<count;i++){
+   const a=e.dir+(i-(count-1)/2)*.48;
+   if(family===0)game.bolts.push({x:e.x,y:e.y,a,life:2,hit:10});
+   if(family===1)game.warnings.push({x:p.x,y:clamp(p.y+(i-1)*85,30,H-30),r:24,cart:true,time:1+i*.23,active:.18});
+   if(family===2)game.warnings.push({x:clamp(p.x+65*i*Math.cos(a),30,W-30),y:clamp(p.y+65*i*Math.sin(a),30,H-30),r:34,time:1+i*.22,active:.2});
+   if(family===3&&game.enemies.length<4&&!blocked(e.x,e.y,14))spawn('flanker',e.x,e.y,.65);
+  }
+ }
+
  switch(e.pattern){
   case 'charge':
    e.wind=.65; e.chain=e.intensity; break;
@@ -659,8 +687,10 @@ function updateEnemy(e,dt){
    e.wind=.58;e.clock=e.type==='boss'&&e.hp<e.max/2?1.25:2.4;
   }else if((e.type==='spitter'||e.type==='boss')&&e.clock<=0){
    shootEnemy(e,target);e.clock=1.32;
+  }else if(e.type==='mortar'&&e.clock<=0&&d<380){
+   game.warnings.push({x:p.x,y:p.y,r:47,time:1.12,active:.22});e.clock=3.4;
   }else if(e.type!=='spitter'||d>185){
-   const dir=e.dir+(e.type==='sample'&&d<260?Math.PI:0);
+   const dir=e.dir+(e.type==='flanker'?.83*Math.sin(game.t*2.5+e.max):0)+(e.type==='sample'&&d<260?Math.PI:0);
    if(move(e,Math.cos(dir)*e.v*dt,Math.sin(dir)*e.v*dt)){
     move(e,Math.cos(dir+1.03)*e.v*dt,Math.sin(dir+1.03)*e.v*dt);
    }
@@ -689,6 +719,30 @@ function updateWarnings(dt){
  }
  game.warnings=game.warnings.filter(a=>a.time>-a.active);
 }
+const packs=['crawler','runner','crawler','spitter','flanker','blast','mortar','armor'];
+function campaignTick(g){
+ if(g.bossEntered)return;
+ const quota=12+Math.min(4,Math.floor(g.index/4));
+ if(g.sectorKills>=quota){
+  g.sector++;g.sectorKills=0;g.nextSpawn=g.t;
+  g.p.hp=Math.min(g.p.max,g.p.hp+12);
+  if(g.sector===3){
+   g.bossEntered=true;
+   const x=g.p.x>450?95:805;
+   spawn('boss',x,290);
+   const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
+   Object.assign(e,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
+   e.hp=e.max=740+g.index*16;
+   return;
+  }
+ }
+ if(g.t<g.nextSpawn||g.enemies.length>=5)return;
+ const type=packs[(g.spawned+g.index+g.sector*2)%packs.length];
+ spawn(type);g.spawned++;
+ const e=g.enemies.at(-1);
+ if(dist(e,g.p)<145)e.x=g.p.x>450?35:865;
+ g.nextSpawn=g.t+4.35*12/quota;
+}
 function step(dt){
  const g=game,p=g.p;
  g.t+=dt;
@@ -696,7 +750,8 @@ function step(dt){
  if(p.reload>0){p.reload-=dt;if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;}}
  hazards();
  const input=movement();
- const speed=g.wet&&save.equipped.boots!=='grip'?142:212;
+ const boosted=g.terrain.some(o=>o.kind==="vent"&&dist(o,p)<o.r+p.r);
+ const speed=boosted?280:g.wet&&save.equipped.boots!=='grip'?142:212;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*720*dt,Math.sin(p.dashDir)*720*dt);
  else move(p,input.x*speed*dt,input.y*speed*dt);
 
@@ -705,7 +760,8 @@ function step(dt){
  else if(p.dash>0)p.dir=p.dashDir;
  else if(Math.hypot(input.x,input.y)>.01)p.dir=Math.atan2(input.y,input.x);
 
- if(g.t>=g.nextSpawn){
+ if(g.campaign)campaignTick(g);
+ else if(g.t>=g.nextSpawn){
   g.nextSpawn=g.t+(g.mode==='range'?.65:g.mode==='clear'?1.45:3.25);
   if(g.mode==='range'&&g.enemies.length<4){
    const [x,y]=points[g.spawned%points.length];spawn('sample',x,y);const e=g.enemies.at(-1);e.v=0;e.hp=e.max=1;g.spawned++;
@@ -719,6 +775,13 @@ function step(dt){
  for(const b of g.shots){
   b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
   if(blocked(b.x,b.y,3)||b.x<0||b.x>W||b.y<0||b.y>H)b.life=0;
+  if(b.life<=0)continue;
+  for(const o of g.terrain){
+   if(o.kind!=='drum'||o.spent||dist(o,b)>o.r+4)continue;
+   o.spent=true;b.life=0;g.effects.push({x:o.x,y:o.y,color:'#ffab4d',r:108,life:.32});
+   for(const e of g.enemies)if(dist(o,e)<108+e.r){e.hp-=110;e.stun=.9;}
+   break;
+  }
   if(b.life<=0)continue;
   for(const e of g.enemies){
    if(e.hp<=0||b.seen.has(e)||dist(b,e)>=e.r+4)continue;
@@ -741,7 +804,7 @@ function step(dt){
  g.shots=g.shots.filter(b=>b.life>0);g.bolts=g.bolts.filter(b=>b.life>0);
  for(const e of g.enemies){
   if(e.hp>0)continue;
-  g.kills++;
+  g.kills++;if(g.campaign&&!g.bossEntered)g.sectorKills++;
   g.effects.push({x:e.x,y:e.y,r:e.type==='blast'?90:22,color:e.color,life:.24});
   if(e.type==='blast'){
    if(dist(e,p)<90)hurt(16,e);
@@ -753,7 +816,7 @@ function step(dt){
  updateWarnings(dt);
  g.effects=g.effects.filter(e=>(e.life-=dt)>0);
  const all=g.objects.every(o=>o.done);
- const won=(g.bossHunt?!g.enemies.some(e=>e.type==='boss'):['clear','armor','samples','boss','elite','range'].includes(g.mode)&&g.kills>=g.n)||
+ const won=(g.campaign&&g.bossEntered&&!g.enemies.some(e=>e.type==='boss'))||(g.bossHunt?!g.enemies.some(e=>e.type==='boss'):['clear','armor','samples','boss','elite','range'].includes(g.mode)&&g.kills>=g.n)||
   ((g.mode==='destroy'||g.mode==='recover')&&all)||
   (['switch','escape'].includes(g.mode)&&all&&dist(p,g.exit)<36)||
   (['survive','defend'].includes(g.mode)&&g.t>=g.n);
@@ -765,7 +828,8 @@ function step(dt){
 function updateHud(){
  const g=game,p=g.p;
  let progress;
- if(g.mode==='defend')progress=Math.ceil(Math.max(0,g.n-g.t))+'초 · 시설 '+Math.max(0,Math.ceil(g.objects[0].hp));
+ if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/(740+g.index*16))+'%':(g.sector+1)+'/3구역 · '+g.sectorKills+'/'+(12+Math.min(4,Math.floor(g.index/4)))+' 처치';
+ else if(g.mode==='defend')progress=Math.ceil(Math.max(0,g.n-g.t))+'초 · 시설 '+Math.max(0,Math.ceil(g.objects[0].hp));
  else if(g.mode==='survive')progress=Math.ceil(Math.max(0,g.n-g.t))+'초';
  else if(g.mode==='escape')progress='녹색 출구';
  else if(g.mode==='switch'||g.mode==='destroy'||g.mode==='recover'){
@@ -773,8 +837,11 @@ function updateHud(){
   progress=g.mode==='switch'&&count===g.n?'녹색 출구로 이동':count+'/'+g.n;
  }else if(g.bossHunt){const boss=g.enemies.find(e=>e.type==='boss');progress=boss?Math.ceil(100*boss.hp/boss.max)+'%':'완료';}
  else progress=g.kills+'/'+g.n;
- $('objective').textContent=(g.index<0?g.name:stageId(g.index)+' '+g.name)+' · '+objectiveNames[g.mode]+' '+progress;
- $('combatStats').textContent='체력 '+Math.max(0,Math.ceil(p.hp))+' · '+(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.mode==='range'?75:300)-g.t))+'초';
+ $('objective').textContent=(g.index<0?g.name:stageId(g.index)+' '+g.name)+' · '+(g.campaign?'':objectiveNames[g.mode])+' '+progress;
+ const meter=$('lifeTrack'),hp=Math.max(0,Math.ceil(p.hp));
+ meter.firstElementChild.style.width=hp+'%';meter.firstElementChild.style.background=hp<=30?'#ee606f':'#29bf94';
+ meter.lastElementChild.textContent='HP '+hp+' / '+p.max;meter.setAttribute('aria-valuenow',hp);
+ $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.mode==='range'?75:300)-g.t))+'초';
  $('dash').disabled=!dashReady();$('dash').textContent=p.cd>0?p.cd.toFixed(1)+'초':'대시';
 }
 function finish(won,reason){
@@ -832,7 +899,7 @@ function draw(){
  const realWidth=Math.round(width*pixelRatio),realHeight=Math.round(height*pixelRatio);
  if(canvas.width!==realWidth||canvas.height!==realHeight){canvas.width=realWidth;canvas.height=realHeight;}
  const portrait=portraitField();
- const topSpace=72,bottomSpace=78;
+ const topSpace=90,bottomSpace=78;
  const fieldHeight=Math.max(1,height-topSpace-bottomSpace);
  const sceneWidth=portrait?H:W,sceneHeight=portrait?W:H;
  const scale=Math.min(width/sceneWidth,fieldHeight/sceneHeight);
@@ -855,10 +922,25 @@ function draw(){
   ctx.fillStyle='#5f4f3b';ctx.fillRect(0,260,W,60);
   ctx.fillStyle='#b89b65';ctx.fillRect(0,270,W,4);ctx.fillRect(0,305,W,4);
  }
+ for(let i=0;i<32;i++){
+  const x=(i*157+g.index*13+900)%W,y=(i*89+37)%H;
+  const pulse=2+Math.sin(g.t*1.7+i);
+  disc(x,y,pulse+3,g.lab?'#39bfd322':'#ffbc4c22');disc(x,y,pulse,g.lab?'#5bacbd':'#a98247');
+ }
  for(const w of g.walls){
   ctx.fillStyle='#121b1f';ctx.fillRect(w.x+6,w.y+8,w.w,w.h);
   ctx.fillStyle=g.lab?'#55747e':'#77624b';ctx.fillRect(w.x,w.y,w.w,w.h);
   ctx.fillStyle=g.lab?'#6b929d':'#ad8a61';ctx.fillRect(w.x,w.y,w.w,5);
+  ctx.strokeStyle=g.lab?'#99c8d1':'#cfac78';ctx.lineWidth=2;ctx.strokeRect(w.x+5,w.y+6,w.w-10,w.h-12);
+  for(let i=10;i<w.w-8;i+=16){ctx.fillStyle=g.lab?'#6df5dd':'#e6ac55';ctx.fillRect(w.x+i,w.y+w.h-10,8,3);}
+ 
+ }
+ for(const o of g.terrain){
+  if(o.spent)continue;
+  const vent=o.kind==='vent';disc(o.x,o.y,o.r,vent?'#316665':'#613f32');
+  ctx.strokeStyle=vent?'#68dfc8':'#ffbd60';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(o.x,o.y,o.r-3,g.t*.8,g.t*.8+5.2);ctx.stroke();
+  ctx.save();ctx.translate(o.x,o.y);if(portrait)ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillStyle='#fff4d2';ctx.fillText(vent?'»':'!',0,7);ctx.restore();
  }
  if(['switch','escape'].includes(g.mode)){
   const ready=g.objects.every(o=>o.done);disc(g.exit.x,g.exit.y,28,ready?'#69d9a5':'#666d62');
@@ -880,10 +962,14 @@ function draw(){
    ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(e.dir)*250,e.y+Math.sin(e.dir)*250);ctx.lineWidth=13;ctx.strokeStyle='#ff956568';ctx.stroke();
   }
   disc(e.x+3,e.y+5,e.r,'#10181aaa');disc(e.x,e.y,e.r,e.stun>0?'#ffe5a1':e.color);
+  ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.dir);
+  const fins=e.type==='boss'?4+(g.index+20)%5:e.type==='mortar'?6:e.type==='flanker'?3:4;
+  for(let j=0;j<fins;j++){ctx.rotate(TAU/fins);ctx.fillStyle=e.color;ctx.beginPath();ctx.moveTo(e.r*.6,-5);ctx.lineTo(e.r*(e.type==='boss'?1.36:1.18),0);ctx.lineTo(e.r*.6,6);ctx.fill();}
+  ctx.restore();
   disc(e.x+Math.cos(e.dir)*e.r*.59,e.y+Math.sin(e.dir)*e.r*.59,e.r*.24,'#5e3431');
   if(e.type==='armor'||e.type==='boss'||e.hp<e.max)bar(e.x,e.y-e.r-9,e.hp,e.max,e.r*2);
  }
- for(const b of g.shots)disc(b.x,b.y,b.id==='rail'?5:3,'#ffe3a5');
+ for(const b of g.shots){ctx.beginPath();ctx.moveTo(b.x-b.vx*.023,b.y-b.vy*.023);ctx.lineTo(b.x,b.y);ctx.strokeStyle='#ffba5888';ctx.lineWidth=4;ctx.stroke();disc(b.x,b.y,b.id==='rail'?5:3,'#fff0bd');}
  for(const b of g.bolts)disc(b.x,b.y,6,'#ff828a');
  for(const effect of g.effects)disc(effect.x,effect.y,effect.r,effect.color+'77');
  if(g.hazard==='dark'){
@@ -962,7 +1048,8 @@ renderMenu();requestAnimationFrame(frame);
  .stage{padding:9px 8px;min-height:51px}.stage strong{font-size:13px}
  body.fighting main{padding:4px 4px max(10px,env(safe-area-inset-bottom))}
  .hud{display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 7px;padding:3px 5px}
- #objective{grid-column:1/-1;font-size:13px}#pause{padding:6px 9px}
+ .life-track{grid-column:1/-1;position:relative;height:16px;background:#352a39;border:1px solid #82939c;border-radius:5px;overflow:hidden}.life-track i{display:block;height:100%;transition:width .12s}.life-track b{position:absolute;inset:0;text-align:center;color:white;font:bold 12px/16px system-ui;text-shadow:0 1px 3px #000}
+#objective{grid-column:1/-1;font-size:13px}#pause{padding:6px 9px}
  
  
  #dash{font-size:13px;padding:8px 4px;min-height:54px;border-radius:25px}
@@ -975,6 +1062,7 @@ body.fighting{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;to
 #combat .arena{position:absolute;inset:0;border:0;border-radius:0}
 #screen{width:100%;height:100%;max-height:none;aspect-ratio:auto;object-fit:fill}
 #combat .hud{position:absolute;z-index:2;top:calc(8px + env(safe-area-inset-top));left:calc(8px + env(safe-area-inset-left));right:calc(8px + env(safe-area-inset-right));display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 9px;background:#11191eea;border:1px solid #52636c;border-radius:8px;pointer-events:none}
+.life-track{grid-column:1/-1;position:relative;height:16px;background:#352a39;border:1px solid #82939c;border-radius:5px;overflow:hidden}.life-track i{display:block;height:100%;transition:width .12s}.life-track b{position:absolute;inset:0;text-align:center;color:white;font:bold 12px/16px system-ui;text-shadow:0 1px 3px #000}
 #objective{grid-column:1;grid-row:1;font-size:13px}
 #combatStats{grid-column:1;grid-row:2}
 #pause{grid-column:2;grid-row:1/3;pointer-events:auto}
@@ -1053,3 +1141,4 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
