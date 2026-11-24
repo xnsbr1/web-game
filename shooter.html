@@ -76,6 +76,8 @@ const gear={
  shotgun:{name:'산탄총',slot:'gun',damage:14,interval:.64,mag:5,reload:1.1,speed:580,mods:['충격탄','집속탄'],desc:'근거리에서 산탄 5발 발사'},
  smg:{name:'기관단총',slot:'gun',damage:11,interval:.115,mag:23,reload:1,speed:690,mods:['연쇄탄','표식탄'],desc:'연사로 빠른 적을 제압'},
  rail:{name:'충전포',slot:'gun',damage:74,interval:1.05,mag:3,reload:1.3,speed:900,mods:['관통광선','분열탄'],desc:'느리지만 강한 관통 사격'},
+ scoutHelmet:{name:'정찰 헬멧',slot:'head',desc:'모든 피격 피해를 조금 줄여 줘.'},
+ sealedHelmet:{name:'밀폐 헬멧',slot:'head',desc:'감전 피해를 줄여 줘.'},
  plate:{name:'철판 갑옷',slot:'armor',desc:'정면에서 받는 피해 감소'},
  insulated:{name:'절연 조끼',slot:'armor',desc:'전기 피해 감소'},
  thrust:{name:'추진 부츠',slot:'boots',desc:'대시 거리 증가'},
@@ -86,8 +88,8 @@ const gear={
  rift:{name:'균열 코어',slot:'charm',desc:'대시 직후 첫 발 피해 증가'},
  battery:{name:'비상 배터리',slot:'charm',desc:'낮은 체력에서 전투당 한 번 보호막'}
 };
-const unlocks={3:'plate',4:'shotgun',6:'thrust',8:'quick',9:'smg',12:'insulated',16:'grip',17:'battery',19:'rail'};
-const slots={gun:'총기',armor:'갑옷',boots:'신발',gloves:'장갑',charm:'장신구'};
+const unlocks={1:'scoutHelmet',11:'sealedHelmet',3:'plate',4:'shotgun',6:'thrust',8:'quick',9:'smg',12:'insulated',16:'grip',17:'battery',19:'rail'};
+const slots={head:'헬멧',gun:'총기',armor:'갑옷',gloves:'장갑',boots:'신발',charm:'장신구'};
 const currencies={credits:'크레딧',alloy:'합금',parts:'정밀 부품',cores:'보스 코어'};
 const contracts=[
  {name:'회수 의뢰',mode:'recover',n:3,desc:'몬스터 사이로 이동해 상자 3개 회수 · 합금'},
@@ -102,6 +104,9 @@ function persist(){try{localStorage.setItem(key,JSON.stringify(save));}catch{}}
 const own=id=>Object.hasOwn(save.levels,id);
 const level=id=>save.levels[id]||0;
 function unlock(id){if(!id||own(id))return '';save.levels[id]=0;return ' · '+gear[id].name+' 획득';}
+// Grant earlier first-clear loot to existing saves that already cleared these missions.
+if(save.cleared>=2 && !own('scoutHelmet')){unlock('scoutHelmet');persist();}
+if(save.cleared>=12 && !own('sealedHelmet')){unlock('sealedHelmet');persist();}
 function stageId(index){return (Math.floor(index/10)+1)+'-'+(index%10+1);}
 function addFunds(reward){for(const [name,amount] of Object.entries(reward))save[name]+=amount;}
 function rewardText(reward){return Object.entries(reward).filter(([,v])=>v).map(([k,v])=>currencies[k]+' +'+v).join(' · ');}
@@ -199,26 +204,31 @@ function renderMenu(next=page){
   });return;
  }
  if(slotView===null){
-  const p=panel('장비');
-  for(const [slot,title] of Object.entries(slots)){
-   const id=save.equipped[slot];
-   p.append(largeEntry(title,id?gear[id].name+' +'+level(id):'장착한 장비 없음',()=>{slotView=slot;window.scrollTo(0,0);renderMenu();}));
+  renderEquipmentBoard();
+  const inventory=panel('보유 장비');
+  const list=document.createElement('div');list.className='inventory-grid';
+  for(const [id,item] of Object.entries(gear))if(own(id)){
+   list.append(equipmentTile(item.slot,id,()=>showEquipment(item.slot,id)));
   }
+  inventory.append(list);
   return;
  }
  if(itemView===null){
   const p=panel(slots[slotView]);
-  p.prepend(button('‹ 장비 부위',()=>{slotView=null;renderMenu();}));
+  p.prepend(button('‹ 장비 화면',()=>{slotView=null;renderMenu();}));
   const owned=Object.entries(gear).filter(([id,item])=>item.slot===slotView&&own(id));
   if(!owned.length)paragraph(p,'스테이지와 의뢰를 클리어해 장비를 획득해.');
   for(const [id,item] of owned){
-   p.append(largeEntry(item.name+' +'+level(id),save.equipped[slotView]===id?'장착 중':item.desc,()=>{itemView=id;window.scrollTo(0,0);renderMenu();}));
+   const option=equipmentTile(slotView,id,()=>showEquipment(slotView,id));
+   option.classList.add('equipment-option');
+   p.append(option);
   }
   return;
  }
  const id=itemView,item=gear[id],slot=item.slot;
  const card=panel(item.name);
  card.prepend(button('‹ '+slots[slot],()=>{itemView=null;renderMenu();}));
+ card.append(equipmentPortrait(slot,id,'detail-portrait'));
    const equipped=save.equipped[slot]===id;const max=slot==='gun'?10:5;
    paragraph(card,item.name+' +'+level(id)+(equipped?' · 장착 중':''),'');
    paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*(1+level(id)*.11)):''));
@@ -238,6 +248,132 @@ function renderMenu(next=page){
     mods.forEach((mod,i)=>row.append(button(mod,()=>{save.mods[id]=i;persist();renderMenu();},(save.mods[id]||0)===i)));
    }
    if(slot==='gun'&&level(id)===10)paragraph(card,'특수 효과 · 대시 후 첫 사격 피해 증가');
+}
+const mountPoints=[
+ ['head',19,22],['gun',81,22],
+ ['armor',19,50],['gloves',81,50],
+ ['boots',19,78],['charm',81,78]
+];
+const hues={
+ pistol:'#9ec4e8',shotgun:'#e5a66b',smg:'#89dbad',rail:'#beabfd',
+ scoutHelmet:'#9edbb9',sealedHelmet:'#89ceea',plate:'#bfccd3',insulated:'#f5c572',
+ thrust:'#f6a881',grip:'#83cbdc',light:'#b5db8c',quick:'#f3c382',stable:'#acb8fb',rift:'#cb96ff',battery:'#83e7cb'
+};
+function polygon(g,fill,points){
+ g.fillStyle=fill;g.beginPath();
+ points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.fill();
+}
+function equipmentPortrait(slot,id,extra=''){
+ const canvas=document.createElement('canvas');
+ canvas.width=96;canvas.height=96;canvas.className='equipment-art '+extra;
+ canvas.setAttribute('aria-hidden','true');
+ const g=canvas.getContext('2d');
+ const light=hues[id]||'#73868e',dark='#233947',mid='#506979',glow='#9af9eb';
+ function shape(color,points){polygon(g,color,points);}
+ function rect(color,x,y,w,h){g.fillStyle=color;g.fillRect(x,y,w,h);}
+ g.globalAlpha=id?1:.52;
+ shape('#0d171e',[[13,73],[45,82],[84,68],[53,61]]);
+ switch(slot){
+  case 'head':
+   shape(mid,[[20,43],[31,22],[60,15],[75,27],[82,58],[64,75],[28,71],[18,60]]);
+   shape(light,[[20,43],[31,22],[60,15],[69,25],[56,45],[24,49]]);
+   shape(dark,[[23,48],[57,42],[76,41],[80,55],[58,61],[24,63]]);
+   shape(glow,[[28,53],[59,47],[70,47],[70,51],[56,55],[28,57]]);
+   rect(light,57,62,12,8);break;
+  case 'gun': {
+   const long=id==='rail'||id==='shotgun';
+   g.save();g.translate(45,47);g.rotate(-.44);g.translate(-45,-47);
+   shape(mid,[[11,38],[24,33],[66,33],[66,52],[29,56],[12,52]]);
+   rect(light,24,34,long?53:42,10);
+   rect(dark,long?77:65,36,long?15:12,10);
+   shape(dark,[[29,51],[47,51],[41,73],[29,74],[25,69]]);
+   rect(light,30,62,9,5);rect(glow,37,39,14,3);
+   if(id==='smg')shape(mid,[[43,50],[55,50],[58,67],[47,67]]);
+   if(id==='rail'){rect(glow,65,33,13,3);rect(glow,65,46,13,3);}
+   g.restore();break;
+  }
+  case 'armor':
+   shape(dark,[[13,40],[20,22],[35,18],[48,26],[61,18],[77,22],[83,40],[69,51],[65,79],[30,79],[26,51]]);
+   shape(light,[[20,25],[34,20],[42,35],[35,52],[18,43]]);
+   shape(light,[[76,25],[62,20],[54,35],[61,52],[78,43]]);
+   shape(mid,[[40,33],[48,29],[56,33],[65,52],[59,71],[36,71],[31,52]]);
+   rect(glow,43,48,10,6);rect(light,36,66,23,5);break;
+  case 'boots':
+   for(const [x,y,scale] of [[43,11,.85],[10,22,1]]){
+    g.save();g.translate(x,y);g.scale(scale,scale);
+    shape(light,[[12,0],[36,2],[34,30],[43,42],[47,50],[44,61],[0,61],[0,47],[13,40]]);
+    shape(mid,[[13,5],[23,6],[20,33],[10,46],[2,49],[2,57],[36,57],[41,52],[34,40],[27,33]]);
+    rect(dark,0,56,46,6);rect(glow,15,16,14,4);g.restore();
+   }break;
+  case 'gloves':
+   shape(mid,[[19,48],[13,40],[17,32],[24,33],[33,41],[34,20],[41,16],[48,21],[50,13],[57,14],[60,24],[65,19],[72,22],[73,34],[80,33],[83,41],[75,63],[64,76],[32,73]]);
+   shape(light,[[28,46],[42,37],[64,32],[73,39],[65,57],[49,63],[34,55]]);
+   rect(glow,42,44,23,5);rect(dark,33,65,31,10);break;
+  case 'charm':
+   shape(dark,[[48,12],[78,27],[83,51],[70,77],[43,84],[20,68],[13,40],[24,23]]);
+   shape(mid,[[48,17],[73,28],[77,53],[59,76],[34,72],[19,49],[27,26]]);
+   shape(light,[[48,25],[67,41],[62,60],[48,69],[33,60],[28,41]]);
+   shape(glow,[[48,31],[57,45],[48,60],[38,45]]);break;
+ }
+ return canvas;
+}
+function operativePortrait(){
+ const c=document.createElement('canvas');c.width=150;c.height=280;c.className='operative-art';c.setAttribute('aria-hidden','true');
+ const g=c.getContext('2d');
+ const shape=(color,points)=>polygon(g,color,points);
+ const metal='#496779',light='#87acb4',dark='#203742',trim='#69e7cb';
+ shape('#132027',[[30,259],[75,244],[121,259],[76,273]]);
+ shape(dark,[[51,143],[101,143],[108,202],[104,246],[118,258],[113,264],[86,264],[78,244],[73,192],[67,243],[58,264],[32,264],[28,256],[43,244],[42,199]]);
+ shape(metal,[[51,159],[70,172],[64,216],[49,225],[46,204]]);
+ shape(metal,[[80,172],[100,159],[105,201],[101,218],[88,215]]);
+ shape(light,[[48,211],[61,205],[58,232],[45,235]]);
+ shape(light,[[91,209],[102,212],[101,235],[88,231]]);
+ shape(dark,[[40,74],[74,65],[111,76],[122,96],[128,148],[117,170],[99,161],[100,134],[93,159],[56,159],[49,133],[50,161],[34,170],[22,153],[30,99]]);
+ shape(metal,[[45,78],[74,70],[105,79],[104,111],[95,143],[55,143],[45,112]]);
+ shape(light,[[35,82],[54,77],[60,89],[51,111],[32,108],[27,99]]);
+ shape(light,[[96,82],[115,84],[124,99],[114,110],[99,106]]);
+ shape(dark,[[55,93],[75,85],[96,94],[91,123],[76,133],[59,122]]);
+ shape(trim,[[62,102],[88,102],[85,108],[65,108]]);
+ shape(metal,[[31,116],[47,118],[43,146],[29,152],[25,143]]);
+ shape(metal,[[106,118],[120,114],[126,143],[120,151],[105,145]]);
+ shape(light,[[53,31],[73,18],[95,26],[109,47],[103,69],[49,69],[42,50]]);
+ shape(metal,[[51,31],[71,22],[75,41],[59,55],[47,54],[44,45]]);
+ shape(dark,[[47,47],[75,39],[104,44],[101,59],[77,67],[51,60]]);
+ shape(trim,[[53,49],[75,44],[98,47],[96,52],[75,51],[55,55]]);
+ return c;
+}
+function equipmentTile(slot,id,action){
+ const item=id?gear[id]:null;
+ const current=item&&save.equipped[slot]===id;
+ const title=item?item.name:'미장착';
+ const b=button('',action,false,'equipment-tile');
+ b.setAttribute('aria-label',slots[slot]+' · '+title+(current?' · 장착 중':''));
+ b.append(equipmentPortrait(slot,id));
+ const name=document.createElement('strong');name.textContent=title;
+ const badge=document.createElement('span');badge.textContent=item?'+'+level(id)+(current?' · 장착':''):'';
+ b.append(name,badge);
+ return b;
+}
+function showEquipment(slot,id=null){
+ slotView=slot;itemView=id;window.scrollTo(0,0);renderMenu();
+}
+function renderEquipmentBoard(){
+ const shell=panel('장착 장비');shell.classList.add('loadout-panel');
+ const board=document.createElement('div');board.className='loadout-board';
+ const wires=document.createElement('canvas');wires.width=600;wires.height=600;wires.className='loadout-wires';wires.setAttribute('aria-hidden','true');
+ const g=wires.getContext('2d');
+ g.lineWidth=2;g.strokeStyle='#5aa99e';g.fillStyle='#88ead8';
+ for(const [,x,y] of mountPoints){
+  g.beginPath();g.moveTo(300,300);g.lineTo(x*6,y*6);g.stroke();
+ }
+ board.append(wires,operativePortrait());
+ for(const [slot,x,y] of mountPoints){
+  const tile=equipmentTile(slot,save.equipped[slot],()=>showEquipment(slot));
+  tile.classList.add('mount-slot');tile.style.left=x+'%';tile.style.top=y+'%';
+  const type=document.createElement('small');type.textContent=slots[slot];tile.prepend(type);
+  board.append(tile);
+ }
+ shell.append(board);
 }
 function openPage(next){
  if(next==='gear'){slotView=null;itemView=null;}
@@ -371,6 +507,12 @@ function shoot(){
 }
 function hurt(damage,origin,electric=false){
  const p=game.p;if(p.inv>0)return;
+ const head=save.equipped.head;
+ if(head==='scoutHelmet'||(head==='sealedHelmet'&&electric))damage*=1-(head==='scoutHelmet'?.11:.24)-level(head)*.022;
+ if(head&&level(head)>=5){
+  if(modOf(head)===0)damage*=.9;
+  else if(p.hp<35)damage*=.69;
+ }
  const armor=save.equipped.armor;
  if(electric&&armor==='insulated')damage*=.56-level(armor)*.05;
  if(armor==='plate'&&origin&&Math.cos(p.dir-angle(p,origin))>.25)damage*=.72-level(armor)*.047;
@@ -818,5 +960,24 @@ header{gap:12px;align-items:flex-start}
 #menu section>button:first-child{margin:0 0 12px}
 #dock button{height:66px;font-size:15px}
 .dock-icon.stages{border:2px solid;border-radius:4px;transform:rotate(-8deg) scale(.8);box-shadow:4px 3px 0 -1px #10181a,5px 4px currentColor}
+</style>
+<style>
+#menu .loadout-panel{padding:14px 8px 8px}
+#menu .loadout-panel h2{margin-left:10px}
+.loadout-board{position:relative;height:clamp(355px,58svh,520px);overflow:hidden;background:radial-gradient(ellipse at center,#274249,#18292f 47%,#131e24 78%);border:1px solid #344e55;border-radius:12px}
+.loadout-wires{position:absolute;inset:0;width:100%;height:100%;max-height:none;aspect-ratio:auto;object-fit:fill;pointer-events:none}
+.operative-art{position:absolute;left:50%;top:50%;width:26%;height:auto;max-height:78%;aspect-ratio:150/280;object-fit:contain;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 7px 12px #10181d)}
+#menu .equipment-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;padding:6px 4px;background:#203038;border-color:#527078;min-height:0}
+#menu .equipment-tile:active{background:#315056}
+.equipment-art{width:100%;max-width:72px;height:auto;max-height:none;aspect-ratio:1;object-fit:contain;background:radial-gradient(circle,#314952,#1b2932 78%);border-radius:8px}
+#menu .mount-slot{position:absolute;width:29%;max-width:139px;transform:translate(-50%,-50%);box-shadow:0 3px 9px #111a20}
+.mount-slot .equipment-art{width:min(100%,54px)}
+.equipment-tile strong{max-width:100%;font-size:clamp(12px,3.5vw,16px);line-height:1.15;overflow-wrap:anywhere}
+.equipment-tile span,.mount-slot small{font-size:11px;color:var(--teal);line-height:1.2}.mount-slot small{font-weight:800;color:var(--amber)}
+.inventory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:8px}
+#menu .equipment-option{width:100%;margin-top:8px;flex-direction:row;justify-content:flex-start;gap:10px;padding:7px 12px;text-align:left}
+.equipment-option .equipment-art{width:60px;flex:none}
+#menu .detail-portrait{width:112px;max-width:none;margin:8px 0}
+@media(min-width:650px){.mount-slot .equipment-art{width:67px}.inventory-grid{grid-template-columns:repeat(auto-fit,minmax(102px,1fr))}}
 </style>
 </body></html>
