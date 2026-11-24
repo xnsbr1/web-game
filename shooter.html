@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.2.0">
+<meta name="game-build" content="1.3.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -49,9 +49,10 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 <header><h1>심층 탄환</h1><div id="money"></div><button type="button" id="openSettings">설정</button></header>
 <section id="menu" aria-label="정비소"></section>
 <nav id="dock" aria-label="정비소 메뉴">
+  <button type="button" data-page="supply"><i class="dock-icon supply-icon" aria-hidden="true"></i><span>뽑기</span></button>
   <button type="button" data-page="gear"><i class="dock-icon equipment" aria-hidden="true"></i><span>장비</span></button>
-  <button type="button" data-page="stages"><i class="dock-icon stages" aria-hidden="true"></i><span>스테이지</span></button>
   <button type="button" data-page="campaign"><i class="dock-icon combat" aria-hidden="true"></i><span>전투</span></button>
+  <button type="button" data-page="stages"><i class="dock-icon stages" aria-hidden="true"></i><span>스테이지</span></button>
   <button type="button" data-page="contracts"><i class="dock-icon missions" aria-hidden="true"></i><span>의뢰</span></button>
 </nav>
 <section id="combat" hidden aria-label="전투">
@@ -226,13 +227,42 @@ const unlocks={1:'scoutHelmet',2:'revolver',7:'rifle',11:'sealedHelmet',15:'snip
 const slots={head:'헬멧',gun:'총기',armor:'갑옷',gloves:'장갑',boots:'신발',charm:'장신구'};
 const rankColors=['#b1bec6','#8de2a5','#8bc5ff','#caa6ff','#ffc36d','#ff8491'];
 const baseRanks={pistol:1,revolver:2,rifle:3,sniper:4,shotgun:2,smg:3,rail:4,scoutHelmet:1,sealedHelmet:3,plate:2,insulated:3,thrust:2,grip:3,light:2,quick:2,stable:2,rift:4,battery:3};
+const materialNames={
+ iron:'정제 철편',spring:'압축 용수철',fiber:'방탄 섬유',polymer:'절연 수지',
+ lens:'초점 렌즈',coil:'가속 코일',enzyme:'활성 효소',gel:'신경 겔'
+};
 const currencies={credits:'크레딧',alloy:'합금',parts:'정밀 부품',cores:'보스 코어'};
 const contracts=[
- {name:'회수 의뢰',mode:'recover',n:3,desc:'몬스터 사이로 이동해 상자 3개 회수 · 합금'},
- {name:'엘리트 의뢰',mode:'elite',n:2,desc:'중갑과 원거리 엘리트 격파 · 정밀 부품'},
- {name:'사격장 숙련',mode:'range',n:16,desc:'75초 안에 표적 16개 명중 · 장갑과 정밀 부품'},
- {name:'철턱 재도전',mode:'boss',n:1,desc:'3회 격파마다 보스 코어 · 첫 피격 2회 이하 승리에 장신구'}
+ {name:'폐선로 회수',boss:'철로 파쇄충',pattern:'charge',pack:['crawler','armor','runner','flanker'],materials:['iron','spring'],hazard:'cart',unlock:'light'},
+ {name:'격리창고 소탕',boss:'격리구역 감시체',pattern:'burst',pack:['armor','spitter','flanker','crawler'],materials:['fiber','polymer'],unlock:'stable'},
+ {name:'전력탑 탈환',boss:'과전압 증폭체',pattern:'line',pack:['mortar','spitter','flanker','runner'],materials:['lens','coil'],hazard:'shock'},
+ {name:'배양로 정화',boss:'배양체 군주',pattern:'summon',pack:['runner','blast','crawler','mortar'],materials:['enzyme','gel'],hazard:'water',unlock:'rift'}
 ];
+const contractBands=[{min:1,max:10},{min:11,max:20},{min:21,max:30}];
+const characterLevel=()=>Math.min(30,1+Math.floor(save.xp/100));
+let selectedBand=0;
+function contractLevel(band){
+ const range=contractBands[band];
+ return range&&characterLevel()>=range.min?Math.min(characterLevel(),range.max):null;
+}
+function contractReward(contract,band){
+ const [first,second]=contract.materials;
+ return {credits:95+band*25,[first]:3+band,[second]:3+band};
+}
+function contractScale(level){return {hp:1+(level-1)*.045,damage:1+(level-1)*.032};}
+function available(price){return Object.entries(price).every(([id,amount])=>balance(id)>=amount);}
+function pay(price){for(const [id,amount] of Object.entries(price))changeBalance(id,-amount);}
+function balance(id){return Object.hasOwn(materialNames,id)?save.materials[id]||0:save[id];}
+function changeBalance(id,amount){
+ if(Object.hasOwn(materialNames,id))save.materials[id]=balance(id)+amount;
+ else save[id]+=amount;
+}
+const materialPrice=(pair,credits,count)=>({credits,[pair[0]]:count,[pair[1]]:count});
+const gearMaterialPrice=id=>materialPrice(contracts[gear[id].slot==='gun'?0:1].materials,50+level(id)*28,2+level(id));
+const trainingMaterialPrice=id=>materialPrice(contracts[id==='fire'||id==='projectile'?2:3].materials,65+trainingLevel(id)*45,2+trainingLevel(id));
+function priceText(price){
+ return Object.entries(price).filter(([,n])=>n>0).map(([id,n])=>(currencies[id]||materialNames[id])+' '+n).join(' · ');
+}
 const key='deep-rounds-save-v1';
 const skills={
  dash:{name:'대시',description:'짧게 돌진하며 피해를 피함. 신발에 따라 재사용 시간 감소.'},
@@ -253,8 +283,9 @@ const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
 const supplyPool=Object.keys(gear).filter(id=>id!=='pistol');
 const supplyPrice=260;
 let lastSupply=null;
-const save={training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
+const save={xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 try{const stored=JSON.parse(localStorage.getItem(key));if(stored&&typeof stored==='object')Object.assign(save,stored);}catch{}
+if(!Number.isFinite(save.xp))save.xp=save.cleared*100;
 function persist(){try{localStorage.setItem(key,JSON.stringify(save));}catch{}}
 const own=id=>Object.hasOwn(save.levels,id);
 const level=id=>save.levels[id]||0;
@@ -263,8 +294,8 @@ function unlock(id){if(!id||own(id))return '';save.levels[id]=0;return ' · '+ge
 const previousRewards=Object.entries(unlocks).filter(([index,id])=>Number(index)<save.cleared&&!own(id));
 if(previousRewards.length){for(const [,id] of previousRewards)unlock(id);persist();}
 function stageId(index){return (Math.floor(index/10)+1)+'-'+(index%10+1);}
-function addFunds(reward){for(const [name,amount] of Object.entries(reward))save[name]+=amount;}
-function rewardText(reward){return Object.entries(reward).filter(([,v])=>v).map(([k,v])=>currencies[k]+' +'+v).join(' · ');}
+function addFunds(reward){for(const [name,amount] of Object.entries(reward))changeBalance(name,amount);}
+function rewardText(reward){return Object.entries(reward).filter(([,v])=>v).map(([k,v])=>(currencies[k]||materialNames[k])+' +'+v).join(' · ');}
 function grade(id){
  if(!id)return 1;
  const saved=save.ranks[id];
@@ -318,15 +349,16 @@ function drawSupply(random=Math.random){
  persist();
  return {id,duplicate};
 }
-function upgradeTraining(id){
- const current=trainingLevel(id),price=90+current*65;
- if(current>=trainingCap||save.credits<price||save.alloy<2+current)return false;
- save.credits-=price;save.alloy-=2+current;
+function upgradeTraining(id,contractMaterials=false){
+ const current=trainingLevel(id);
+ const price=contractMaterials?trainingMaterialPrice(id):{credits:90+current*65,alloy:2+current};
+ if(current>=trainingCap||!available(price))return false;
+ pay(price);
  save.training={...save.training,[id]:current+1};
  persist();
  return true;
 }
-function renderGrowth(){
+function renderSupply(){
  const supply=panel('장비 뽑기');
  paragraph(supply,'1회 260 크레딧 · 총기부터 장신구까지 '+supplyPool.length+'종, 장비별 동일 확률 · 중복은 정밀 부품 2개');
  supply.append(button('보급 상자 열기',()=>{
@@ -340,6 +372,8 @@ function renderGrowth(){
   result.textContent=grade(id)+'성 '+gear[id].name+(duplicate?' · 정밀 부품 +2':' 획득');
   supply.append(result);
  }
+}
+function renderGrowth(){
  const growth=panel('플레이어 강화');
  paragraph(growth,'모든 장비에 적용 · 항목별 최대 5단계');
  const list=grid(growth);
@@ -351,6 +385,11 @@ function renderGrowth(){
   card.append(button(current===trainingCap?'최대 강화':price+' 크레딧 · 합금 '+alloy,()=>{
    if(upgradeTraining(id))renderMenu();
   },current>=trainingCap||save.credits<price||save.alloy<alloy));
+  if(current<trainingCap){
+   const materials=trainingMaterialPrice(id);
+   paragraph(card,'의뢰 재료로 강화 · '+priceText(materials));
+   card.append(button('의뢰 재료 사용',()=>{if(upgradeTraining(id,true))renderMenu();},!available(materials)));
+  }
   list.append(card);
  }
 }
@@ -362,6 +401,7 @@ function renderMenu(next=page){
  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.page===page)));
  $('menu').replaceChildren();
  if(notice){const note=panel('보상');paragraph(note,notice);notice='';}
+ if(page==='supply'){renderSupply();return;}
  if(page==='campaign'){
   const current=Math.min(save.cleared,stages.length-1);
   const [name,mode]=stages[current];
@@ -390,6 +430,7 @@ function renderMenu(next=page){
    skillList.append(choice);
   }
   const progress=panel('작전 기록');
+  paragraph(progress,'캐릭터 Lv. '+characterLevel()+(characterLevel()<30?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
   paragraph(progress,save.cleared+' / '+stages.length+' 스테이지 클리어');
   paragraph(progress,Object.values(save.stars).reduce((sum,count)=>sum+count,0)+' / 60 ★ · 보스 추적 '+save.cleared+'종 해금');
   return;
@@ -425,12 +466,28 @@ function renderMenu(next=page){
   return;
  }
  if(page==='contracts'){
-  const p=panel('강화 재료 의뢰');const list=grid(p);
-  contracts.forEach((c,i)=>{
+  const p=panel('의뢰 던전');
+  paragraph(p,'캐릭터 Lv. '+characterLevel()+(characterLevel()<30?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
+  paragraph(p,'스테이지 첫 클리어 +100 XP · 의뢰 클리어 +50 XP');
+  const tabs=grid(p);
+  contractBands.forEach((band,i)=>{
+   const tab=button('Lv. '+band.min+'–'+band.max+(contractLevel(i)===null?' 🔒':''),()=>{selectedBand=i;renderMenu();});
+   tab.setAttribute('aria-pressed',String(i===selectedBand));
+   if(i===selectedBand)tab.classList.add('primary');
+   tabs.append(tab);
+  });
+  const difficulty=contractLevel(selectedBand);
+  const list=grid(p);
+  for(const [i,c] of contracts.entries()){
    const card=document.createElement('article');card.className='item';
-   paragraph(card,c.name,'');paragraph(card,c.desc);
-   card.append(button('출격',()=>start(-1,i),i===3&&save.cleared<5));list.append(card);
-  });return;
+   paragraph(card,c.name+' · '+c.boss,'');
+   paragraph(card,rewardText(contractReward(c,selectedBand)));
+   paragraph(card,c.materials.map(id=>materialNames[id]+' '+balance(id)).join(' · ')+' 보유');
+   card.append(button(difficulty===null?'Lv. '+contractBands[selectedBand].min+'에 해금':'Lv. '+difficulty+' 출격',()=>start(-1,i,false,selectedBand),difficulty===null));
+   list.append(card);
+  }
+  paragraph(p,'철편·용수철은 총기, 섬유·수지는 나머지 장비, 렌즈·코일은 공격·탄환 속도, 효소·겔은 이동·재장전 강화에 사용해.');
+  return;
  }
  if(slotView===null){
   renderEquipmentBoard();
@@ -475,6 +532,13 @@ function renderMenu(next=page){
      for(const [k,v] of Object.entries(price))save[k]-=v;
      save.levels[id]++;persist();renderMenu();
     },Object.entries(price).some(([k,v])=>save[k]<v)));
+    const materials=gearMaterialPrice(id);
+    if(price.cores)materials.cores=price.cores;
+    paragraph(card,'의뢰 재료로 강화 · '+priceText(materials));
+    row.append(button('의뢰 재료 사용',()=>{
+     if(level(id)>=max||!available(materials))return;
+     pay(materials);save.levels[id]++;persist();renderMenu();
+    },!available(materials)));
    }
    const currentRank=grade(id);
    if(currentRank<6){
@@ -662,11 +726,13 @@ function releaseStick(){
  if(pointer!==null&&arena.hasPointerCapture(pointer))arena.releasePointerCapture(pointer);
 }
 const skillReady=()=>game&&!game.paused&&!game.over&&game.p.cd<=0;
-function start(index,contract,bossHunt=false){
+function start(index,contract,bossHunt=false,band=0){
  if(bossHunt && (index<0||index>=save.cleared))return;
+ const c=index<0?contracts[contract]:null;
+ const dungeonLevel=c?contractLevel(band):null;
+ if(index<0&&dungeonLevel===null)return;
  enableAudio();beat=0;
- const c=contracts[contract];
- let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,c.mode,c.n,contract===3?'rock':'']:stages[index];
+ let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,'raid',12,c.hazard]:stages[index];
  const campaign=index>=0&&!bossHunt;
  const gunId=save.equipped.gun||'pistol';
  if(campaign){mode='assault';n=3;}
@@ -677,7 +743,7 @@ function start(index,contract,bossHunt=false){
  stat.travelTimeScale=1/trainingFactor('projectile');
  if(gunId==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
  if(gunId==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
- const lab=index>=10;
+ const lab=index>=10||Boolean(c&&contract>1);
  const shift=(Math.max(index,0)%5)*24;
  const walls=mode==='range'?[]:[{x:260+shift,y:148,w:55,h:125},{x:580-shift,y:307,w:65,h:118}];
  if(index===5)walls.push({x:380,y:48,w:140,h:64},{x:380,y:468,w:140,h:64});
@@ -697,7 +763,7 @@ function start(index,contract,bossHunt=false){
  if(mode==='defend')objects.push({x:450,y:295,r:26,hp:145,max:145,done:false});
  const charm=save.equipped.charm;
  const terrain=campaign?[{kind:'vent',x:165,y:175+(index%3)*80,r:32},{kind:'vent',x:714,y:383-(index%3)*75,r:32},{kind:'drum',x:378,y:207+(index%2)*120,r:18},{kind:'drum',x:632,y:279,r:18}]:[];
- game={skill:equippedSkill(),moveFactor:trainingFactor('move'),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+ game={dungeon:c,dungeonLevel,band,damageScale:c?contractScale(dungeonLevel).damage:1,skill:equippedSkill(),moveFactor:trainingFactor('move'),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
   p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
@@ -722,7 +788,7 @@ const modOf=id=>save.mods[id]||0;
 function spawn(type,x,y,scale=1){
  const d=enemyTypes[type]||enemyTypes.crawler;
  if(x===undefined){const edge=game.spawned%4;const q=54+Math.random()*460;x=edge===0?35:edge===1?865:140+q;y=edge<2?q:edge===2?32:548;}
- const hp=Math.round(d.hp*scale*(type==='boss'?1:1+Math.max(0,game.index)*.023));
+ const hp=Math.round(d.hp*scale*(game.dungeon?contractScale(game.dungeonLevel).hp:type==='boss'?1:1+Math.max(0,game.index)*.023));
  game.enemies.push({type,...d,x,y,hp,max:hp,clock:type==='boss'?1.9:1.2,wind:0,rush:0,stun:0,dir:Math.PI,mark:0});
 }
 function blocked(x,y,r){return game.walls.some(w=>Math.hypot(x-clamp(x,w.x,w.x+w.w),y-clamp(y,w.y,w.y+w.h))<r);}
@@ -831,7 +897,7 @@ function hurt(damage,origin,electric=false){
  if(armor&&level(armor)>=5&&modOf(armor)===0)damage*=.85;
  if(armor&&level(armor)>=5&&modOf(armor)===1&&p.hp<35)damage*=.72;
  damage*=1-.015*(gradeBonus(head)+gradeBonus(armor));
- p.hp-=Math.round(damage);game.hits++;playEffect('hurt');p.inv=.52;
+ p.hp-=Math.round(damage*game.damageScale);game.hits++;playEffect('hurt');p.inv=.52;
  if(p.hp>0&&p.hp<=32&&save.equipped.charm==='battery'&&!game.usedBattery){
   p.inv=2+level('battery')*.43+gradeBonus('battery')*.14+(level('battery')>=5&&modOf('battery')===0?.8:0);game.usedBattery=true;
  }
@@ -994,6 +1060,21 @@ function steerBolt(b,g,dt){
  b.a+=turn;
  b.turnUsed=Math.min(.14,b.turnUsed+Math.abs(turn));
 }
+function dungeonTick(g){
+ if(g.bossEntered)return;
+ if(g.spawned>=g.n){
+  if(g.enemies.length)return;
+  g.bossEntered=true;playEffect('boss');
+  spawn('boss',g.p.x>450?95:805,290,.9);
+  const boss=g.enemies.at(-1),pattern=g.dungeon.pattern;
+  Object.assign(boss,{pattern,tempo:1,intensity:g.contract===0?2:3,color:bossColors[pattern]});
+  return;
+ }
+ if(g.t<g.nextSpawn||g.enemies.length>=5)return;
+ spawn(g.dungeon.pack[g.spawned%g.dungeon.pack.length]);
+ g.spawned++;
+ g.nextSpawn=g.t+2.55;
+}
 function step(dt){
  const g=game,p=g.p;
  g.t+=dt;
@@ -1016,7 +1097,8 @@ function step(dt){
  else if(p.dash>0)p.dir=p.dashDir;
  else if(Math.hypot(input.x,input.y)>.01)p.dir=Math.atan2(input.y,input.x);
 
- if(g.campaign)campaignTick(g);
+ if(g.dungeon)dungeonTick(g);
+ else if(g.campaign)campaignTick(g);
  else if(g.t>=g.nextSpawn){
   g.nextSpawn=g.t+(g.mode==='range'?.65:g.mode==='clear'?1.45:3.25);
   if(g.mode==='range'&&g.enemies.length<4){
@@ -1073,19 +1155,22 @@ function step(dt){
  updateWarnings(dt);
  g.effects=g.effects.filter(e=>(e.life-=dt)>0);
  const all=g.objects.every(o=>o.done);
- const won=(g.campaign&&g.bossEntered&&!g.enemies.some(e=>e.type==='boss'))||(g.bossHunt?!g.enemies.some(e=>e.type==='boss'):['clear','armor','samples','boss','elite','range'].includes(g.mode)&&g.kills>=g.n)||
+ const won=((g.campaign||g.dungeon)&&g.bossEntered&&!g.enemies.some(e=>e.type==='boss'))||(g.bossHunt?!g.enemies.some(e=>e.type==='boss'):['clear','armor','samples','boss','elite','range'].includes(g.mode)&&g.kills>=g.n)||
   ((g.mode==='destroy'||g.mode==='recover')&&all)||
   (['switch','escape'].includes(g.mode)&&all&&dist(p,g.exit)<36)||
   (['survive','defend'].includes(g.mode)&&g.t>=g.n);
  if(p.hp<=0||(g.mode==='defend'&&g.objects[0].hp<=0))finish(false,'임무 중 쓰러졌어.');
  else if(won)finish(true,'');
- else if(g.t>=(g.mode==='range'?75:300))finish(false,'제한 시간이 끝났어.');
+ else if(g.t>=(g.dungeon?150:g.mode==='range'?75:300))finish(false,'제한 시간이 끝났어.');
  updateHud();
 }
 function updateHud(){
  const g=game,p=g.p;
  let progress;
- if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/(740+g.index*16))+'%':(g.sector+1)+'/3구역 · '+g.sectorKills+'/'+(12+Math.min(4,Math.floor(g.index/4)))+' 처치';
+ if(g.dungeon){
+  const boss=g.enemies.find(e=>e.type==='boss');
+  progress='Lv. '+g.dungeonLevel+' · '+(g.bossEntered?g.dungeon.boss+' '+(boss?Math.ceil(100*boss.hp/boss.max):0)+'%':g.kills+'/'+g.n+' 처치');
+ }else if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/(740+g.index*16))+'%':(g.sector+1)+'/3구역 · '+g.sectorKills+'/'+(12+Math.min(4,Math.floor(g.index/4)))+' 처치';
  else if(g.mode==='defend')progress=Math.ceil(Math.max(0,g.n-g.t))+'초 · 시설 '+Math.max(0,Math.ceil(g.objects[0].hp));
  else if(g.mode==='survive')progress=Math.ceil(Math.max(0,g.n-g.t))+'초';
  else if(g.mode==='escape')progress='녹색 출구';
@@ -1094,11 +1179,11 @@ function updateHud(){
   progress=g.mode==='switch'&&count===g.n?'녹색 출구로 이동':count+'/'+g.n;
  }else if(g.bossHunt){const boss=g.enemies.find(e=>e.type==='boss');progress=boss?Math.ceil(100*boss.hp/boss.max)+'%':'완료';}
  else progress=g.kills+'/'+g.n;
- $('objective').textContent=(g.index<0?g.name:stageId(g.index)+' '+g.name)+' · '+(g.campaign?'':objectiveNames[g.mode])+' '+progress;
+ $('objective').textContent=(g.index<0?g.name:stageId(g.index)+' '+g.name)+' · '+(g.campaign||g.dungeon?'':objectiveNames[g.mode])+' '+progress;
  const meter=$('lifeTrack'),hp=Math.max(0,Math.ceil(p.hp));
  meter.firstElementChild.style.width=hp+'%';meter.firstElementChild.style.background=hp<=30?'#ee606f':'#29bf94';
  meter.lastElementChild.textContent='HP '+hp+' / '+p.max;meter.setAttribute('aria-valuenow',hp);
- $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.mode==='range'?75:300)-g.t))+'초';
+ $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초';
  const skillButton=$('dash'),skillName=skills[g.skill].name;
  skillButton.disabled=!skillReady();
  skillButton.setAttribute('aria-label',skillName);
@@ -1122,25 +1207,21 @@ function finish(won,reason){
   }else if(g.index>=0){
    const prior=save.stars[g.index]||0;
    reward=clearReward(g.index,!prior,Math.max(0,stars-prior));
+   if(!prior){save.xp+=100;extra=' · XP +100';}
    save.stars[g.index]=Math.max(prior,stars);
    save.cleared=Math.max(save.cleared,g.index+1);
-   extra=unlock(unlocks[g.index]);
+   extra+=unlock(unlocks[g.index]);
    if(g.index<stages.length-1)row.append(button('다음 스테이지',()=>start(g.index+1),false,'primary'));
-  }else if(g.contract===0){
-   reward.alloy=9;extra=unlock('light');
-  }else if(g.contract===1){
-   reward.parts=4;reward.credits=135;
-  }else if(g.contract===2){
-   reward.parts=save.claims.range?1:4;save.claims.range=true;extra=unlock('stable');
-  }else{
-   save.bossRuns++;reward.cores=save.bossRuns%3===0?1:0;
-   if(g.hits<=2)extra=unlock('rift');
+  }else if(g.dungeon){
+   reward=contractReward(g.dungeon,g.band);
+   save.xp+=50;
+   extra=' · XP +50'+unlock(g.dungeon.unlock);
   }
   addFunds(reward);persist();
   result='★'.repeat(stars)+' · '+rewardText(reward)+extra;
   row.append(button('장비 강화',()=>openPage('gear')));
- }else row.append(button('다시 도전',()=>start(g.index,g.contract,g.bossHunt),false,'primary'));
- if(won&&g.index<0)row.append(button('다시 출격',()=>start(g.index,g.contract)));
+ }else row.append(button('다시 도전',()=>start(g.index,g.contract,g.bossHunt,g.band),false,'primary'));
+ if(won&&g.index<0)row.append(button('다시 출격',()=>start(g.index,g.contract,false,g.band)));
  row.append(button(g.bossHunt?'보스 상세':g.index<0?'의뢰 목록':'전투 홈',()=>renderMenu(g.bossHunt?'stages':g.index<0?'contracts':'campaign')));
  $('resultText').textContent=result;$('result').hidden=false;
 }
@@ -1420,12 +1501,13 @@ body.fighting{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;to
 <style>
 :root{--dock-size:69px}
 body:not(.fighting) main{padding-bottom:calc(var(--dock-size) + env(safe-area-inset-bottom) + 22px)}
-#dock{position:fixed;z-index:4;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,610px);margin:0;display:grid;grid-template-columns:1fr 1fr 1.2fr 1fr;gap:5px;padding:5px max(8px,env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:#10181a;border:1px solid #44575d;border-radius:14px 14px 0 0}
+#dock{position:fixed;z-index:4;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,610px);margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(0,1.1fr) repeat(2,minmax(0,1fr));gap:5px;padding:5px max(8px,env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:#10181a;border:1px solid #44575d;border-radius:14px 14px 0 0}
 body.fighting #dock{display:none}
 #dock button{min-width:0;height:57px;display:grid;place-items:center;align-content:center;gap:2px;padding:3px;color:#b9cfd2;font-size:13px;font-weight:750;border:1px solid transparent;background:transparent}
 #dock button[aria-pressed=true]{color:var(--teal);background:#213b3e;border-color:#467976}
 #dock button[data-page=campaign][aria-pressed=true]{color:#142625;background:var(--teal)}
 .dock-icon{display:block;width:21px;height:21px;position:relative}
+.dock-icon.supply-icon{width:20px;height:17px;border:2px solid;border-radius:3px;margin-block:2px;background:linear-gradient(90deg,transparent 44%,currentColor 44% 56%,transparent 56%)}
 .dock-icon.equipment{height:17px;margin-block:2px;border:2px solid;border-radius:4px}
 .equipment::before{content:"";position:absolute;left:5px;right:5px;top:-5px;height:4px;border:2px solid;border-bottom:0;border-radius:2px}
 .equipment::after{content:"";position:absolute;top:5px;left:1px;right:1px;border-top:2px solid}
@@ -1486,6 +1568,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
