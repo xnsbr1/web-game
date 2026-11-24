@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.3.0">
+<meta name="game-build" content="1.4.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -43,6 +43,12 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 #settings button{min-height:44px}
 .version-panel{border-top:1px solid #53636d;margin:18px 0 14px;padding-top:14px}
 .selected-skill{border-color:var(--teal)}
+details{margin:12px 0}
+summary{cursor:pointer;min-height:44px;display:list-item;padding:10px 12px;border:1px solid var(--line);background:#20323b;border-radius:8px;font-weight:750}
+details[open]>summary{border-color:var(--teal);margin-bottom:8px}
+details .item{margin-bottom:8px}
+.dungeon-picker .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dungeon-picker button{padding:7px 4px;min-height:44px;font-size:12px}
 </style>
 </head>
 <body><main>
@@ -53,7 +59,7 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
   <button type="button" data-page="gear"><i class="dock-icon equipment" aria-hidden="true"></i><span>장비</span></button>
   <button type="button" data-page="campaign"><i class="dock-icon combat" aria-hidden="true"></i><span>전투</span></button>
   <button type="button" data-page="stages"><i class="dock-icon stages" aria-hidden="true"></i><span>스테이지</span></button>
-  <button type="button" data-page="contracts"><i class="dock-icon missions" aria-hidden="true"></i><span>의뢰</span></button>
+  <button type="button" data-page="contracts"><i class="dock-icon missions" aria-hidden="true"></i><span>던전</span></button>
 </nav>
 <section id="combat" hidden aria-label="전투">
 <div class="hud"><strong id="objective"></strong><span id="combatStats"></span><div class="life-track" id="lifeTrack" role="meter" aria-label="내 체력" aria-valuemin="0" aria-valuemax="100"><i></i><b></b></div><button id="pause">일시정지</button></div>
@@ -227,39 +233,79 @@ const unlocks={1:'scoutHelmet',2:'revolver',7:'rifle',11:'sealedHelmet',15:'snip
 const slots={head:'헬멧',gun:'총기',armor:'갑옷',gloves:'장갑',boots:'신발',charm:'장신구'};
 const rankColors=['#b1bec6','#8de2a5','#8bc5ff','#caa6ff','#ffc36d','#ff8491'];
 const baseRanks={pistol:1,revolver:2,rifle:3,sniper:4,shotgun:2,smg:3,rail:4,scoutHelmet:1,sealedHelmet:3,plate:2,insulated:3,thrust:2,grip:3,light:2,quick:2,stable:2,rift:4,battery:3};
+const themes={
+ vanguard:{name:'선봉대',color:'#edd281',items:['scoutHelmet','rifle','plate','stable','thrust','battery'],three:{damage:.05},six:{damage:.09},text:['공격 피해 +5%','공격 피해 추가 +9%']},
+ sentinel:{name:'철벽 수호',color:'#95c1eb',items:['scoutHelmet','shotgun','plate','quick','grip','battery'],three:{defense:.06},six:{defense:.12},text:['받는 피해 6% 감소','받는 피해 추가 12% 감소']},
+ tide:{name:'심해 탐사',color:'#65e2cf',items:['sealedHelmet','smg','insulated','quick','grip','battery'],three:{move:.05},six:{reload:.14},text:['이동 속도 +5%','재장전 속도 +14%']},
+ specter:{name:'유령 정찰',color:'#cba8f1',items:['sealedHelmet','sniper','plate','stable','light','rift'],three:{fire:.05},six:{damage:.10},text:['공격 속도 +5%','공격 피해 +10%']},
+ arc:{name:'과전압 연구',color:'#ff9a86',items:['sealedHelmet','rail','insulated','quick','thrust','rift'],three:{projectile:.07},six:{cooldown:.12},text:['탄환 속도 +7%','스킬 재사용 시간 12% 감소']}
+};
+for(const [themeId,theme] of Object.entries(themes)){
+ theme.ids=theme.items.map((base,index)=>{
+  const id=themeId+'_'+base,item=gear[base];
+  gear[id]={...item,base,theme:themeId,name:theme.name+' '+item.name};
+  baseRanks[id]=2+index%3;
+  return id;
+ });
+}
+const gearFamily=id=>gear[id]?.base||id;
+function setBonuses(equipped){
+ const counts={},bonuses={damage:0,defense:0,move:0,reload:0,fire:0,projectile:0,cooldown:0};
+ for(const id of Object.values(equipped)){
+  const theme=gear[id]?.theme;
+  if(theme)counts[theme]=(counts[theme]||0)+1;
+ }
+ for(const [id,count] of Object.entries(counts)){
+  if(count<3)continue;
+  for(const tier of count>=6?['three','six']:['three']){
+   for(const [stat,value] of Object.entries(themes[id][tier]))bonuses[stat]+=value;
+  }
+ }
+ return {counts,...bonuses};
+}
 const materialNames={
  iron:'정제 철편',spring:'압축 용수철',fiber:'방탄 섬유',polymer:'절연 수지',
- lens:'초점 렌즈',coil:'가속 코일',enzyme:'활성 효소',gel:'신경 겔'
+ lens:'초점 렌즈',coil:'가속 코일',enzyme:'활성 효소',gel:'신경 겔',skillData:'전술 데이터',xp:'경험치'
 };
 const currencies={credits:'크레딧',alloy:'합금',parts:'정밀 부품',cores:'보스 코어'};
 const contracts=[
- {name:'폐선로 회수',boss:'철로 파쇄충',pattern:'charge',pack:['crawler','armor','runner','flanker'],materials:['iron','spring'],hazard:'cart',unlock:'light'},
- {name:'격리창고 소탕',boss:'격리구역 감시체',pattern:'burst',pack:['armor','spitter','flanker','crawler'],materials:['fiber','polymer'],unlock:'stable'},
- {name:'전력탑 탈환',boss:'과전압 증폭체',pattern:'line',pack:['mortar','spitter','flanker','runner'],materials:['lens','coil'],hazard:'shock'},
- {name:'배양로 정화',boss:'배양체 군주',pattern:'summon',pack:['runner','blast','crawler','mortar'],materials:['enzyme','gel'],hazard:'water',unlock:'rift'}
+ {name:'폐선로 회수',boss:'철로 파쇄충',pattern:'charge',pack:['crawler','armor','runner','flanker'],materials:['iron','spring'],slots:['gun','charm'],hazard:'cart',unlock:'light'},
+ {name:'격리창고 소탕',boss:'격리구역 감시체',pattern:'burst',pack:['armor','spitter','flanker','crawler'],materials:['fiber','polymer'],slots:['head','armor'],unlock:'stable'},
+ {name:'전력탑 탈환',boss:'과전압 증폭체',pattern:'line',pack:['mortar','spitter','flanker','runner'],materials:['lens','coil'],slots:['gloves','boots'],hazard:'shock'},
+ {name:'배양로 경험치 훈련',boss:'배양체 군주',pattern:'summon',pack:['runner','blast','crawler','mortar'],reward:'xp',hazard:'water',unlock:'rift'},
+ {name:'전술 모의실',boss:'전술 검증기',pattern:'strike',pack:['flanker','mortar','spitter','armor'],reward:'skillData',hazard:'dark'}
 ];
-const contractBands=[{min:1,max:10},{min:11,max:20},{min:21,max:30}];
-const characterLevel=()=>Math.min(30,1+Math.floor(save.xp/100));
-let selectedBand=0;
+const contractBands=Array.from({length:10},(_,i)=>({min:1+i*10,max:10+i*10}));
+const maxCharacterLevel=100;
+const characterLevel=()=>Math.min(maxCharacterLevel,1+Math.floor(save.xp/100));
+const selectedBands=contracts.map(()=>0);
 function contractLevel(band){
  const range=contractBands[band];
  return range&&characterLevel()>=range.min?Math.min(characterLevel(),range.max):null;
 }
 function contractReward(contract,band){
- const [first,second]=contract.materials;
- return {credits:95+band*25,[first]:3+band,[second]:3+band};
+ if(contract.reward==='xp')return {xp:95+band*12};
+ if(contract.reward==='skillData')return {skillData:3+Math.floor(band/2)};
+ const [first,second]=contract.materials,quantity=3+Math.floor(band/2);
+ return {credits:32+band*5,[first]:quantity+1,[second]:quantity};
 }
-function contractScale(level){return {hp:1+(level-1)*.045,damage:1+(level-1)*.032};}
+function contractScale(level){return {hp:1+(level-1)*.013,damage:1+(level-1)*.007};}
 function available(price){return Object.entries(price).every(([id,amount])=>balance(id)>=amount);}
 function pay(price){for(const [id,amount] of Object.entries(price))changeBalance(id,-amount);}
-function balance(id){return Object.hasOwn(materialNames,id)?save.materials[id]||0:save[id];}
+function balance(id){return id!=='xp'&&Object.hasOwn(materialNames,id)?save.materials[id]||0:save[id];}
 function changeBalance(id,amount){
+ if(id==='xp'){save.xp=Math.min((maxCharacterLevel-1)*100,save.xp+amount);return;}
  if(Object.hasOwn(materialNames,id))save.materials[id]=balance(id)+amount;
  else save[id]+=amount;
 }
 const materialPrice=(pair,credits,count)=>({credits,[pair[0]]:count,[pair[1]]:count});
-const gearMaterialPrice=id=>materialPrice(contracts[gear[id].slot==='gun'?0:1].materials,50+level(id)*28,2+level(id));
-const trainingMaterialPrice=id=>materialPrice(contracts[id==='fire'||id==='projectile'?2:3].materials,65+trainingLevel(id)*45,2+trainingLevel(id));
+const gearMaterialPrice=id=>{
+ const {slot}=gear[id];
+ const dungeon=contracts.find(entry=>entry.slots?.includes(slot));
+ const material=dungeon.materials[dungeon.slots.indexOf(slot)],next=level(id)+1;
+ return {credits:12+next*5,[material]:1+Math.floor(next/7)+(next>20?next-20:0),cores:next%5===0&&next>=25?1:0};
+};
+const trainingMaterialPrice=id=>materialPrice(id==='fire'||id==='projectile'?['lens','coil']:['enzyme','gel'],65+trainingLevel(id)*45,2+trainingLevel(id));
 function priceText(price){
  return Object.entries(price).filter(([,n])=>n>0).map(([id,n])=>(currencies[id]||materialNames[id])+' '+n).join(' · ');
 }
@@ -280,15 +326,46 @@ const training={
 const trainingCap=5;
 const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
 const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
-const supplyPool=Object.keys(gear).filter(id=>id!=='pistol');
-const supplyPrice=260;
+const supplyTiers=[
+ {rank:2,chance:60},{rank:3,chance:30},{rank:4,chance:10}
+].map(tier=>({...tier,items:Object.values(themes).flatMap(theme=>theme.ids).filter(id=>baseRanks[id]===tier.rank)}));
+const supplyPrice=()=>220+35*Math.floor(save.cleared/5);
+const maxSkillLevel=10;
+let keepSkillPanelOpen=false;
+const skillLevel=id=>save.skillLevels[id]||1;
+const skillPrice=id=>({credits:20+skillLevel(id)*8,skillData:1+Math.ceil(skillLevel(id)*.7)});
+function skillUpgradeText(id,lv){
+ const extra=lv-1;
+ const effect={dash:'돌진 지속 +'+Math.round(extra*1.2)/100+'초',shield:'보호막 지속 +'+Math.round(extra*6)/100+'초',pulse:'범위 +'+extra*3+' · 피해 +'+extra*4,overdrive:'가속 지속 +'+Math.round(extra*15)/100+'초'};
+ return effect[id]+' · 재사용 시간 '+extra+'% 감소';
+}
+function upgradeSkill(id){
+ const price=skillPrice(id);
+ if(!Object.hasOwn(skills,id)||skillLevel(id)>=maxSkillLevel||!available(price))return false;
+ pay(price);save.skillLevels[id]=skillLevel(id)+1;persist();
+ return true;
+}
 let lastSupply=null;
-const save={xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
+const save={skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 try{const stored=JSON.parse(localStorage.getItem(key));if(stored&&typeof stored==='object')Object.assign(save,stored);}catch{}
 if(!Number.isFinite(save.xp))save.xp=save.cleared*100;
+save.xp=Math.max(0,Math.min((maxCharacterLevel-1)*100,save.xp));
 function persist(){try{localStorage.setItem(key,JSON.stringify(save));}catch{}}
 const own=id=>Object.hasOwn(save.levels,id);
 const level=id=>save.levels[id]||0;
+const maxGearLevel=id=>grade(id)*5;
+const gearPower=id=>1+Math.min(level(id),5)*.043+Math.max(0,level(id)-5)*.018;
+const effectLevel=id=>Math.min(5,level(id));
+const advancedLevel=id=>Math.max(0,level(id)-5);
+const promotionLevel=id=>Math.max(1,(grade(id)-1)*5);
+function claimMilestone(themeId){
+ if(save.cleared<19||save.milestoneTheme||!Object.hasOwn(themes,themeId))return false;
+ for(const id of themes[themeId].ids){
+  save.levels[id]=Math.max(level(id),20);
+  save.ranks[id]=Math.max(grade(id),5);
+ }
+ save.milestoneTheme=themeId;persist();return true;
+}
 function unlock(id){if(!id||own(id))return '';save.levels[id]=0;return ' · '+gear[id].name+' 획득';}
 // Grant earlier first-clear loot to existing saves that already cleared these missions.
 const previousRewards=Object.entries(unlocks).filter(([index,id])=>Number(index)<save.cleared&&!own(id));
@@ -304,20 +381,20 @@ function grade(id){
 function gradeBonus(id){return grade(id)-1;}
 function promotionCost(id){
  const current=grade(id);
- return {credits:80+current*75,alloy:current+2,parts:current>=3?current-2:0,cores:current===5?1:0};
+ return {credits:45+current*46,alloy:current+1,parts:current>=3?current-2:0,cores:current===5?2:0};
 }
 function promote(id){
  const current=grade(id),price=promotionCost(id);
- if(!own(id)||current>=6||level(id)<current||Object.entries(price).some(([k,v])=>save[k]<v))return;
+ if(!own(id)||current>=6||level(id)<promotionLevel(id)||Object.entries(price).some(([k,v])=>save[k]<v))return;
  for(const [k,v] of Object.entries(price))save[k]-=v;
  save.ranks[id]=current+1;persist();renderMenu();
 }
-function costs(id){const next=level(id)+1;return {credits:45+next*32,alloy:2+next,parts:next>=6?next-5:0,cores:next===10?1:0};}
+function costs(id){const next=level(id)+1;return {credits:18+next*8,alloy:1+Math.floor(next/5),parts:next>=10?1+Math.floor((next-10)/6):0,cores:next%5===0&&next>=25?1:0};}
 let page='campaign';
 let notice='';
 let chapterView=0, stageView=null, slotView=null, itemView=null;
 function clearReward(index,first,stars=0){
- return {credits:85+index*8+(first?85:0),alloy:first?5:3,parts:stars,cores:first&&stages[index][1]==='boss'?1:0};
+ return {credits:first?145+index*9:32+index*3,alloy:first?4+Math.floor(index/8):1,parts:stars,cores:first&&stages[index][1]==='boss'?1:0};
 }
 function largeEntry(title,detail,action,disabled=false){
  const b=button('',action,disabled,'large-entry');
@@ -327,24 +404,32 @@ function largeEntry(title,detail,action,disabled=false){
  return b;
 }
 function rewardPreview(index){
- return rewardText(clearReward(index,true))+' · 첫 평가 별 1~3개만큼 정밀 부품 추가'+(unlocks[index]?' · '+gear[unlocks[index]].name:'');
+ return rewardText(clearReward(index,true))+' · 첫 평가 별 1~3개만큼 정밀 부품 추가'+(unlocks[index]?' · '+gear[unlocks[index]].name:'')+(index===18?' · 5성 +20 세트 선택권':'');
 }
 function exchangeBossMaterial(index){
  if((save.bossMaterials[index]||0)<3)return;
  save.bossMaterials[index]-=3;
- save.cores++;save.parts+=2;
- persist();notice='보스 코어 +1 · 정밀 부품 +2';renderMenu();
+ save.cores++;save.parts+=1;
+ persist();notice='보스 코어 +1 · 정밀 부품 +1';renderMenu();
 }
 function button(text,action,disabled=false,style=''){const b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=disabled;b.className=style;b.onclick=action;return b;}
 function panel(title){const el=document.createElement('section');el.className='panel';const h=document.createElement('h2');h.textContent=title;el.append(h);$('menu').append(el);return el;}
 function paragraph(parent,value,cls='muted'){const p=document.createElement('p');p.textContent=value;p.className=cls;parent.append(p);}
+function disclosure(parent,title){
+ const details=document.createElement('details'),summary=document.createElement('summary');
+ summary.textContent=title;details.append(summary);parent.append(details);
+ return details;
+}
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
 function drawSupply(random=Math.random){
- if(save.credits<supplyPrice)return null;
- const id=supplyPool[Math.floor(random()*supplyPool.length)];
+ const price=supplyPrice();
+ if(save.credits<price)return null;
+ let ticket=random()*100;
+ const tier=supplyTiers.find(group=>(ticket-=group.chance)<0)||supplyTiers.at(-1);
+ const id=tier.items[Math.floor(random()*tier.items.length)];
  const duplicate=own(id);
- save.credits-=supplyPrice;
- if(duplicate)save.parts+=2;
+ save.credits-=price;
+ if(duplicate)save.parts+=1;
  else unlock(id);
  persist();
  return {id,duplicate};
@@ -360,17 +445,24 @@ function upgradeTraining(id,contractMaterials=false){
 }
 function renderSupply(){
  const supply=panel('장비 뽑기');
- paragraph(supply,'1회 260 크레딧 · 총기부터 장신구까지 '+supplyPool.length+'종, 장비별 동일 확률 · 중복은 정밀 부품 2개');
+ const price=supplyPrice();
+ paragraph(supply,'1회 '+price+' 크레딧 · 클리어한 스테이지가 5개 늘 때마다 +35 크레딧 · 중복은 정밀 부품 1개');
+
  supply.append(button('보급 상자 열기',()=>{
   const result=drawSupply();
   if(result){lastSupply=result;renderMenu();}
- },save.credits<supplyPrice,'primary'));
+ },save.credits<price,'primary'));
  if(lastSupply){
   const {id,duplicate}=lastSupply;
   const result=document.createElement('p');result.setAttribute('role','status');
   result.style.color=rankColors[grade(id)-1];
-  result.textContent=grade(id)+'성 '+gear[id].name+(duplicate?' · 정밀 부품 +2':' 획득');
+  result.textContent=grade(id)+'성 '+gear[id].name+(duplicate?' · 정밀 부품 +1':' 획득');
   supply.append(result);
+ }
+ const odds=disclosure(supply,'확률표 · 등장 장비 30종');
+ for(const tier of supplyTiers){
+  paragraph(odds,tier.rank+'성 '+tier.chance+'% · 개별 '+tier.chance/tier.items.length+'%','section-label');
+  paragraph(odds,tier.items.map(id=>gear[id].name).join(' · '));
  }
 }
 function renderGrowth(){
@@ -387,8 +479,8 @@ function renderGrowth(){
   },current>=trainingCap||save.credits<price||save.alloy<alloy));
   if(current<trainingCap){
    const materials=trainingMaterialPrice(id);
-   paragraph(card,'의뢰 재료로 강화 · '+priceText(materials));
-   card.append(button('의뢰 재료 사용',()=>{if(upgradeTraining(id,true))renderMenu();},!available(materials)));
+   paragraph(card,'던전 재료로 강화 · '+priceText(materials));
+   card.append(button('던전 재료 사용',()=>{if(upgradeTraining(id,true))renderMenu();},!available(materials)));
   }
   list.append(card);
  }
@@ -410,6 +502,8 @@ function renderMenu(next=page){
   hero.classList.add('deployment');
   hero.classList.toggle('flooded',current>=10);
   paragraph(hero,complete?'모든 스테이지 완료':'구역 돌파 · 보스 격파');
+  if(save.cleared>=19&&!save.milestoneTheme)hero.append(button('2-9 보상 · 장비 세트 고르기',()=>openPage('gear')));
+
   if(!complete){
    paragraph(hero,'첫 클리어 보상','section-label');
    paragraph(hero,rewardPreview(current));
@@ -422,15 +516,26 @@ function renderMenu(next=page){
   const skillList=grid(fieldSkill);
   for(const [id,skill] of Object.entries(skills)){
    const selected=id===equippedSkill();
-   const choice=largeEntry(skill.name+(selected?' · 장착 중':''),skill.description,()=>{
+   const choice=largeEntry(skill.name+' Lv. '+skillLevel(id)+(selected?' · 장착 중':''),skill.description,()=>{
     save.skill=id;persist();renderMenu();
    });
    choice.setAttribute('aria-pressed',String(selected));
    if(selected)choice.classList.add('selected-skill');
    skillList.append(choice);
   }
+  const upgrade=disclosure(fieldSkill,'스킬 강화 · 전술 데이터 '+balance('skillData'));
+  upgrade.open=keepSkillPanelOpen;
+  for(const [id,skill] of Object.entries(skills)){
+   const lv=skillLevel(id),price=skillPrice(id);
+   const card=document.createElement('article');card.className='item';upgrade.append(card);
+   paragraph(card,skill.name+' Lv. '+lv+' / '+maxSkillLevel,'');
+   paragraph(card,skillUpgradeText(id,lv));
+   card.append(button(lv>=maxSkillLevel?'최대 레벨':priceText(price),()=>{
+    if(upgradeSkill(id)){keepSkillPanelOpen=true;renderMenu();}
+   },lv>=maxSkillLevel||!available(price)));
+  }
   const progress=panel('작전 기록');
-  paragraph(progress,'캐릭터 Lv. '+characterLevel()+(characterLevel()<30?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
+  paragraph(progress,'캐릭터 Lv. '+characterLevel()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
   paragraph(progress,save.cleared+' / '+stages.length+' 스테이지 클리어');
   paragraph(progress,Object.values(save.stars).reduce((sum,count)=>sum+count,0)+' / 60 ★ · 보스 추적 '+save.cleared+'종 해금');
   return;
@@ -450,7 +555,7 @@ function renderMenu(next=page){
   }
   const index=stageView;
   const p=panel(stageId(index)+' '+stages[index][0]);
-  paragraph(p,'약 3분 · 세 구역 돌파 후 '+stageBosses[index][0]+' 출현. 청록 발판은 가속, 주황 통은 사격 시 폭발해.');
+  paragraph(p,'약 3분 · 세 구역 돌파 후 '+stageBosses[index][0]+' 출현. 청록 발판은 가속, 초록 십자는 회복, 주황 통은 사격하면 잠시 후 폭발해.');
   p.prepend(button('‹ 스테이지 목록',()=>{stageView=null;renderMenu();}));
   paragraph(p,index<save.cleared?'첫 클리어 보상 · 수령 완료':'첫 클리어 보상','section-label');
   paragraph(p,rewardPreview(index));
@@ -462,35 +567,37 @@ function renderMenu(next=page){
   paragraph(farm,'처치 보상 · '+name+' 표본 +1 · 크레딧 +'+(100+index*9)+' · 합금 +2');
   paragraph(farm,name+' 표본 '+count+'개','section-label');
   farm.append(button(index<save.cleared?'보스 도전':'스테이지 첫 클리어 후 해금',()=>start(index,undefined,true),index>=save.cleared,'primary'));
-  farm.append(button('표본 3개 교환 · 보스 코어 1개 + 정밀 부품 2개',()=>exchangeBossMaterial(index),count<3));
+  farm.append(button('표본 3개 교환 · 보스 코어 1개 + 정밀 부품 1개',()=>exchangeBossMaterial(index),count<3));
   return;
  }
  if(page==='contracts'){
-  const p=panel('의뢰 던전');
-  paragraph(p,'캐릭터 Lv. '+characterLevel()+(characterLevel()<30?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
-  paragraph(p,'스테이지 첫 클리어 +100 XP · 의뢰 클리어 +50 XP');
-  const tabs=grid(p);
-  contractBands.forEach((band,i)=>{
-   const tab=button('Lv. '+band.min+'–'+band.max+(contractLevel(i)===null?' 🔒':''),()=>{selectedBand=i;renderMenu();});
-   tab.setAttribute('aria-pressed',String(i===selectedBand));
-   if(i===selectedBand)tab.classList.add('primary');
-   tabs.append(tab);
-  });
-  const difficulty=contractLevel(selectedBand);
+  const p=panel('던전');
+  paragraph(p,'캐릭터 Lv. '+characterLevel()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
   const list=grid(p);
   for(const [i,c] of contracts.entries()){
-   const card=document.createElement('article');card.className='item';
+   const band=selectedBands[i],range=contractBands[band],difficulty=contractLevel(band);
+   const card=document.createElement('article');card.className='item';list.append(card);
+   paragraph(card,c.reward==='xp'?'레벨업 던전':c.reward?'스킬 레벨업 던전':'장비 재료 던전','section-label');
    paragraph(card,c.name+' · '+c.boss,'');
-   paragraph(card,rewardText(contractReward(c,selectedBand)));
-   paragraph(card,c.materials.map(id=>materialNames[id]+' '+balance(id)).join(' · ')+' 보유');
-   card.append(button(difficulty===null?'Lv. '+contractBands[selectedBand].min+'에 해금':'Lv. '+difficulty+' 출격',()=>start(-1,i,false,selectedBand),difficulty===null));
-   list.append(card);
+   if(c.slots)paragraph(card,c.slots.map((slot,j)=>slots[slot]+' · '+materialNames[c.materials[j]]+' '+balance(c.materials[j])+'개 보유').join(' / '));
+   const picker=disclosure(card,'현재 '+(band+1)+'단계 · Lv. '+range.min+'–'+range.max);
+   picker.className='dungeon-picker';
+   const options=grid(picker);
+   for(const [j,option] of contractBands.entries()){
+    const locked=contractLevel(j)===null;
+    const pick=button((j+1)+'단계 · Lv. '+option.min+'–'+option.max+(locked?' 🔒':''),()=>{
+     selectedBands[i]=j;renderMenu();
+    },locked,j===band?'primary':'');
+    pick.setAttribute('aria-pressed',String(j===band));options.append(pick);
+   }
+   paragraph(card,'클리어 보상 · '+rewardText(contractReward(c,band)));
+   card.append(button('Lv. '+difficulty+' 출격',()=>start(-1,i,false,band),difficulty===null,'primary'));
   }
-  paragraph(p,'철편·용수철은 총기, 섬유·수지는 나머지 장비, 렌즈·코일은 공격·탄환 속도, 효소·겔은 이동·재장전 강화에 사용해.');
   return;
  }
  if(slotView===null){
   renderEquipmentBoard();
+  renderSets();
   const inventory=panel('보유 장비');
   const list=document.createElement('div');list.className='inventory-grid';
   for(const [id,item] of Object.entries(gear))if(own(id)){
@@ -504,7 +611,7 @@ function renderMenu(next=page){
   const p=panel(slots[slotView]);
   p.prepend(button('‹ 장비 화면',()=>{slotView=null;renderMenu();}));
   const owned=Object.entries(gear).filter(([id,item])=>item.slot===slotView&&own(id));
-  if(!owned.length)paragraph(p,'스테이지와 의뢰를 클리어해 장비를 획득해.');
+  if(!owned.length)paragraph(p,'스테이지와 던전을 클리어해 장비를 획득해.');
   for(const [id,item] of owned){
    const option=equipmentTile(slotView,id,()=>showEquipment(slotView,id));
    option.classList.add('equipment-option');
@@ -519,9 +626,16 @@ function renderMenu(next=page){
    const rankLabel=document.createElement('p');rankLabel.className='equipment-rank';
    rankLabel.style.color=rankColors[grade(id)-1];rankLabel.textContent='★'.repeat(grade(id))+' · '+grade(id)+'성';
    card.append(rankLabel);
-   const equipped=save.equipped[slot]===id;const max=slot==='gun'?10:5;
-   paragraph(card,item.name+' +'+level(id)+(equipped?' · 장착 중':''),'');
-   paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*(1+level(id)*.043)*(1+.026*gradeBonus(id))):''));
+   const equipped=save.equipped[slot]===id;const max=maxGearLevel(id);
+   paragraph(card,item.name+' +'+level(id)+' / +'+max+(equipped?' · 장착 중':''),'');
+   paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*gearPower(id)*(1+.026*gradeBonus(id))):''));
+   if(item.theme)paragraph(card,themes[item.theme].name+' 세트');
+   const advancedPerLevel={head:.2,armor:.2,gloves:.35,boots:.2,charm:.25};
+   const advancedLabel={head:'받는 피해 감소',armor:'받는 피해 감소',gloves:'재장전 속도 증가',boots:'이동 속도 증가',charm:'스킬 재사용 시간 감소'};
+   if(slot!=='gun'&&max>5){
+    const percent=Number((advancedLevel(id)*advancedPerLevel[slot]).toFixed(2));
+    paragraph(card,'+5 이후 강화 1당 '+advancedLabel[slot]+' '+advancedPerLevel[slot]+'% · 현재 '+percent+'%');
+   }
    const row=document.createElement('div');row.className='big-actions';card.append(row);
    row.append(button('장착',()=>{save.equipped[slot]=id;persist();renderMenu();},equipped));
    if(level(id)<max){
@@ -533,9 +647,8 @@ function renderMenu(next=page){
      save.levels[id]++;persist();renderMenu();
     },Object.entries(price).some(([k,v])=>save[k]<v)));
     const materials=gearMaterialPrice(id);
-    if(price.cores)materials.cores=price.cores;
-    paragraph(card,'의뢰 재료로 강화 · '+priceText(materials));
-    row.append(button('의뢰 재료 사용',()=>{
+    paragraph(card,'던전 재료로 강화 · '+priceText(materials));
+    row.append(button('던전 재료 사용',()=>{
      if(level(id)>=max||!available(materials))return;
      pay(materials);save.levels[id]++;persist();renderMenu();
     },!available(materials)));
@@ -544,14 +657,14 @@ function renderMenu(next=page){
    if(currentRank<6){
     const price=promotionCost(id);
     const enough=Object.entries(price).every(([k,v])=>save[k]>=v);
-    paragraph(card,'승급 조건 · 강화 +'+currentRank+' · '+Object.entries(price).filter(([,v])=>v).map(([k,v])=>currencies[k]+' '+v).join(' · '));
-    row.append(button((currentRank+1)+'성 승급',()=>promote(id),level(id)<currentRank||!enough));
+    paragraph(card,'승급 조건 · 강화 +'+promotionLevel(id)+' · '+Object.entries(price).filter(([,v])=>v).map(([k,v])=>currencies[k]+' '+v).join(' · '));
+    row.append(button((currentRank+1)+'성 승급',()=>promote(id),level(id)<promotionLevel(id)||!enough));
    }
    if(level(id)>=5){
     const mods=item.mods||(slot==='boots'?['긴 대시','빠른 회복']:slot==='gloves'?['재장전 가속','정밀 조준']:['효과 증폭','비상 보호막']);
     mods.forEach((mod,i)=>row.append(button(mod,()=>{save.mods[id]=i;persist();renderMenu();},(save.mods[id]||0)===i)));
    }
-   if(slot==='gun'&&level(id)===10)paragraph(card,'특수 효과 · 대시 후 첫 사격 피해 증가');
+   if(slot==='gun'&&level(id)>=10)paragraph(card,'특수 효과 · 대시 후 첫 사격 피해 증가');
 }
 const mountPoints=[
  ['head',19,22],['gun',81,22],
@@ -576,9 +689,10 @@ function equipmentPortrait(slot,id,extra=''){
   canvas.style.setProperty('--rank-color',rankColors[grade(id)-1]);
  }
  const g=canvas.getContext('2d');
- const light=hues[id]||'#73868e',dark='#233947',mid='#506979',glow='#9af9eb';
+ const light=themes[gear[id]?.theme]?.color||hues[id]||'#73868e',dark='#233947',mid='#506979',glow='#9af9eb';
  function shape(color,points){polygon(g,color,points);}
  function rect(color,x,y,w,h){g.fillStyle=color;g.fillRect(x,y,w,h);}
+ id=gearFamily(id);
  g.globalAlpha=id?1:.52;
  shape('#0d171e',[[13,73],[45,82],[84,68],[53,61]]);
  switch(slot){
@@ -674,6 +788,25 @@ function equipmentTile(slot,id,action){
 function showEquipment(slot,id=null){
  slotView=slot;itemView=id;window.scrollTo(0,0);renderMenu();
 }
+function renderSets(){
+ const shell=panel('장비 세트');
+ const bonuses=setBonuses(save.equipped);
+ const details=disclosure(shell,'테마 5개 · 3세트와 6세트 효과');
+ if(save.cleared>=19&&!save.milestoneTheme)details.open=true;
+ for(const [id,theme] of Object.entries(themes)){
+  const card=document.createElement('article');card.className='item';details.append(card);
+  const equipped=bonuses.counts[id]||0;
+  paragraph(card,theme.name+' · '+equipped+'/6','section-label');
+  paragraph(card,'3세트 '+theme.text[0]+(equipped>=3?' · 적용 중':''));
+  paragraph(card,'6세트 '+theme.text[1]+(equipped>=6?' · 적용 중':''));
+  if(save.cleared>=19&&!save.milestoneTheme){
+   card.append(button(theme.name+' 세트 수령',()=>{
+    if(claimMilestone(id)){notice=theme.name+' 5성 +20 장비 6개 획득';renderMenu();}
+   }));
+  }
+ }
+ paragraph(shell,save.milestoneTheme?themes[save.milestoneTheme].name+' 세트 보상 수령 완료':save.cleared>=19?'테마 하나를 골라 5성 +20 장비 6개를 한 번 받을 수 있어.':'2-9 첫 클리어 보상 · 원하는 테마의 5성 +20 장비 6개');
+}
 function renderEquipmentBoard(){
  const shell=panel('장착 장비');shell.classList.add('loadout-panel');
  const board=document.createElement('div');board.className='loadout-board';
@@ -726,6 +859,16 @@ function releaseStick(){
  if(pointer!==null&&arena.hasPointerCapture(pointer))arena.releasePointerCapture(pointer);
 }
 const skillReady=()=>game&&!game.paused&&!game.over&&game.p.cd<=0;
+function stageDevices(index,walls){
+ const devices=[
+  {kind:'vent',x:155,y:130+(index%3)*96,r:34},
+  {kind:'vent',x:749,y:414-(index%3)*74,r:34},
+  {kind:'drum',x:357,y:210+(index%2)*125,r:18},
+  {kind:'drum',x:636,y:280,r:18},
+  {kind:'med',x:475,y:index%2===0?496:88,r:22}
+ ];
+ return devices.filter(o=>!walls.some(w=>Math.hypot(o.x-clamp(o.x,w.x,w.x+w.w),o.y-clamp(o.y,w.y,w.y+w.h))<o.r+8));
+}
 function start(index,contract,bossHunt=false,band=0){
  if(bossHunt && (index<0||index>=save.cleared))return;
  const c=index<0?contracts[contract]:null;
@@ -736,13 +879,15 @@ function start(index,contract,bossHunt=false,band=0){
  const campaign=index>=0&&!bossHunt;
  const gunId=save.equipped.gun||'pistol';
  if(campaign){mode='assault';n=3;}
+ const bonuses=setBonuses(save.equipped);
  const stat={...gear[gunId]};
- stat.interval/= .92*trainingFactor('fire');
- stat.reload/=trainingFactor('reload');
- stat.speed*=trainingFactor('projectile');
- stat.travelTimeScale=1/trainingFactor('projectile');
- if(gunId==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
- if(gunId==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
+ const projectileFactor=trainingFactor('projectile')*(1+bonuses.projectile);
+ stat.interval/=.92*trainingFactor('fire')*(1+bonuses.fire);
+ stat.reload/=trainingFactor('reload')*(1+bonuses.reload);
+ stat.speed*=projectileFactor;
+ stat.travelTimeScale=1/projectileFactor;
+ if(gearFamily(gunId)==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
+ if(gearFamily(gunId)==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
  const lab=index>=10||Boolean(c&&contract>1);
  const shift=(Math.max(index,0)%5)*24;
  const walls=mode==='range'?[]:[{x:260+shift,y:148,w:55,h:125},{x:580-shift,y:307,w:65,h:118}];
@@ -762,11 +907,13 @@ function start(index,contract,bossHunt=false,band=0){
  }
  if(mode==='defend')objects.push({x:450,y:295,r:26,hp:145,max:145,done:false});
  const charm=save.equipped.charm;
- const terrain=campaign?[{kind:'vent',x:165,y:175+(index%3)*80,r:32},{kind:'vent',x:714,y:383-(index%3)*75,r:32},{kind:'drum',x:378,y:207+(index%2)*120,r:18},{kind:'drum',x:632,y:279,r:18}]:[];
- game={dungeon:c,dungeonLevel,band,damageScale:c?contractScale(dungeonLevel).damage:1,skill:equippedSkill(),moveFactor:trainingFactor('move'),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
-  p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,gunId,stat}};
+ const terrain=campaign?stageDevices(index,walls):[];
+
+ game={bonuses,skillExtra:skillLevel(equippedSkill())-1,dungeon:c,dungeonLevel,band,damageScale:c?contractScale(dungeonLevel).damage:1,skill:equippedSkill(),moveFactor:trainingFactor('move')*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.002),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+  p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
+ $('combatHint').textContent=campaign?'» 가속 · + 응급 회복 · ! 폭발통':'화면을 끌어 이동 · 가까운 적 자동 사격';
  document.body.classList.add('fighting');$('menu').hidden=true;$('combat').hidden=false;$('result').hidden=true;
  $('pause').textContent='일시정지';$('pause').disabled=false;
  if(mode==='armor'||mode==='samples'||mode==='elite'){
@@ -802,28 +949,30 @@ function move(body,dx,dy){
 function activateSkill(){
  if(!skillReady())return;
  const g=game,p=g.p;
+ const extra=g.skillExtra,recovery=(1-extra*.01)*(1-g.bonuses.cooldown)*(1-advancedLevel(save.equipped.charm)*.0025);
  if(g.skill!=='dash'){
   const skill=skills[g.skill];
-  p.cd=skill.cooldown;
+  p.cd=skill.cooldown*recovery;
   playEffect('dash');
-  g.effects.push({x:p.x,y:p.y,r:g.skill==='pulse'?128:42,color:skill.color,life:.35,ring:true});
-  if(g.skill==='shield')p.shield=1.4;
-  if(g.skill==='overdrive')p.overdrive=3;
+  const radius=128+extra*3;
+  g.effects.push({x:p.x,y:p.y,r:g.skill==='pulse'?radius:42,color:skill.color,life:.35,ring:true});
+  if(g.skill==='shield')p.shield=1.4+extra*.06;
+  if(g.skill==='overdrive')p.overdrive=3+extra*.15;
   if(g.skill==='pulse'){
-   g.bolts=g.bolts.filter(b=>dist(b,p)>128);
+   g.bolts=g.bolts.filter(b=>dist(b,p)>radius);
    for(const e of g.enemies){
-    if(dist(e,p)>128+e.r)continue;
-    e.hp-=e.type==='boss'?50:65;
+    if(dist(e,p)>radius+e.r)continue;
+    e.hp-=(e.type==='boss'?50:65)+extra*4;
     e.wind=0;e.rush=0;e.stun=Math.max(e.stun,.7);
    }
   }
   return;
  }
- const boots=save.equipped.boots,l=level(boots),m=modOf(boots);
+ const boots=save.equipped.boots,l=effectLevel(boots),m=modOf(boots),family=gearFamily(boots);
  const input=movement();
  p.dashDir=Math.hypot(input.x,input.y)>.1?Math.atan2(input.y,input.x):p.dir;
- playEffect('dash');p.dash=.145+(boots==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
- p.cd=((boots==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots));
+ playEffect('dash');p.dash=.145+extra*.012+(family==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
+ p.cd=((family==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots))*recovery;
  p.inv=p.dash+.1;p.afterDash=1.1;
 }
 function movement(){
@@ -836,46 +985,54 @@ function reload(){
  const p=game?.p;
  if(!p||game.over||game.paused||p.reload>0||p.ammo===p.stat.mag)return;
  const gloves=save.equipped.gloves;
- p.reload=p.stat.reload*(gloves==='quick'&&p.afterDash>0?.63-level(gloves)*.045:1);
+ p.reload=p.stat.reload*(gearFamily(gloves)==='quick'&&p.afterDash>0?.63-effectLevel(gloves)*.045:1);
  if(gloves&&level(gloves)>=5&&modOf(gloves)===0)p.reload*=.8;
- p.reload*=1-.028*gradeBonus(gloves);
+ p.reload*=(1-.028*gradeBonus(gloves))/(1+advancedLevel(gloves)*.0035);
 }
 function shotLifetime(id,mod){
  if(id==='shotgun')return .48;
  if(id==='sniper')return mod===1?1.35:1.05;
  return 1.4;
 }
+function clearShot(from,to){
+ const samples=Math.ceil(dist(from,to)/10);
+ for(let i=1;i<samples;i++){
+  const t=i/samples;
+  if(blocked(from.x+(to.x-from.x)*t,from.y+(to.y-from.y)*t,3))return false;
+ }
+ return true;
+}
 function firingTarget(p){
  const targets=game.mode==='destroy'?[...game.enemies,...game.objects]:game.enemies;
  const mod=level(p.gunId)>=5?modOf(p.gunId):-1;
- let nearest=null,range=shotLifetime(p.gunId,mod)*p.stat.travelTimeScale*p.stat.speed+18;
+ let nearest=null,range=shotLifetime(gearFamily(p.gunId),mod)*p.stat.travelTimeScale*p.stat.speed+18;
  for(const target of targets){
   if(target.hp<=0||target.done)continue;
   const distance=dist(p,target);
   if(distance>=range)continue;
-  const samples=Math.ceil(distance/10);
-  let clear=true;
-  for(let i=1;i<samples;i++){
-   const t=i/samples;
-   if(blocked(p.x+(target.x-p.x)*t,p.y+(target.y-p.y)*t,3)){clear=false;break;}
-  }
-  if(clear){nearest=target;range=distance;}
+  if(clearShot(p,target)){nearest=target;range=distance;}
+ }
+ if(nearest){
+  const drum=game.terrain.find(o=>o.kind==='drum'&&!o.spent&&!o.fuse&&dist(o,nearest)<90&&
+   dist(o,p)<Math.min(range+35,shotLifetime(gearFamily(p.gunId),mod)*p.stat.travelTimeScale*p.stat.speed+18)&&clearShot(p,o)&&
+   (nearest.type==='boss'||game.enemies.filter(e=>e.hp>0&&dist(e,o)<100).length>=2));
+  if(drum)return drum;
  }
  return nearest;
 }
 function shoot(){
- const p=game.p,g=p.stat,id=p.gunId,l=level(id),mod=l>=5?modOf(id):-1;
+ const p=game.p,g=p.stat,equipped=p.gunId,id=gearFamily(equipped),l=level(equipped),mod=l>=5?modOf(equipped):-1;
  if(p.cool>0||p.reload>0)return;
  if(!p.ammo){reload();return;}
  p.ammo--;playEffect(id);
  p.cool=g.interval*(id==='pistol'&&mod===1?.65:1);
  const gloves=save.equipped.gloves,charm=save.equipped.charm;
- const stable=gloves==='stable'&&Math.hypot(movement().x,movement().y)<.1;
+ const stable=gearFamily(gloves)==='stable'&&Math.hypot(movement().x,movement().y)<.1;
  const precise=gloves&&level(gloves)>=5&&modOf(gloves)===1;
- const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.23):0)*(stable?.65-level(gloves)*.04:1)*(precise?.84:1);
- const boost=p.afterDash>0?(charm==='rift'?.19+level(charm)*.06+gradeBonus(charm)*.025+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l===10?.3:0):0;
+ const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.23):0)*(stable?.65-effectLevel(gloves)*.04:1)*(precise?.84:1);
+ const boost=p.afterDash>0?(gearFamily(charm)==='rift'?.19+effectLevel(charm)*.06+gradeBonus(charm)*.025+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l>=10?.3:0):0;
  if(boost)p.afterDash=0;
- const damage=g.damage*(1+l*.043+boost)*(1+.026*gradeBonus(id))*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
+ const damage=g.damage*(gearPower(equipped)+boost)*(1+.026*gradeBonus(equipped))*(1+game.bonuses.damage)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
   game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod)*g.travelTimeScale,damage,id,mod,seen:new Set(),pierce:id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0)});
@@ -885,21 +1042,22 @@ function shoot(){
 }
 function hurt(damage,origin,electric=false){
  const p=game.p;if(p.inv>0||p.shield>0)return;
- const head=save.equipped.head;
- if(head==='scoutHelmet'||(head==='sealedHelmet'&&electric))damage*=1-(head==='scoutHelmet'?.11:.24)-level(head)*.022;
+ const head=save.equipped.head,headType=gearFamily(head);
+ if(headType==='scoutHelmet'||(headType==='sealedHelmet'&&electric))damage*=1-(headType==='scoutHelmet'?.11:.24)-effectLevel(head)*.022;
  if(head&&level(head)>=5){
   if(modOf(head)===0)damage*=.9;
   else if(p.hp<35)damage*=.69;
  }
- const armor=save.equipped.armor;
- if(electric&&armor==='insulated')damage*=.56-level(armor)*.05;
- if(armor==='plate'&&origin&&Math.cos(p.dir-angle(p,origin))>.25)damage*=.72-level(armor)*.047;
+ const armor=save.equipped.armor,armorType=gearFamily(armor);
+ if(electric&&armorType==='insulated')damage*=.56-effectLevel(armor)*.05;
+ if(armorType==='plate'&&origin&&Math.cos(p.dir-angle(p,origin))>.25)damage*=.72-effectLevel(armor)*.047;
  if(armor&&level(armor)>=5&&modOf(armor)===0)damage*=.85;
  if(armor&&level(armor)>=5&&modOf(armor)===1&&p.hp<35)damage*=.72;
- damage*=1-.015*(gradeBonus(head)+gradeBonus(armor));
- p.hp-=Math.round(damage*game.damageScale);game.hits++;playEffect('hurt');p.inv=.52;
- if(p.hp>0&&p.hp<=32&&save.equipped.charm==='battery'&&!game.usedBattery){
-  p.inv=2+level('battery')*.43+gradeBonus('battery')*.14+(level('battery')>=5&&modOf('battery')===0?.8:0);game.usedBattery=true;
+ damage*=(1-.015*(gradeBonus(head)+gradeBonus(armor)))*(1-.002*(advancedLevel(head)+advancedLevel(armor)));
+ p.hp-=Math.round(damage*(1-game.bonuses.defense)*game.damageScale);game.hits++;playEffect('hurt');p.inv=.52;
+ const charm=save.equipped.charm;
+ if(p.hp>0&&p.hp<=32&&gearFamily(charm)==='battery'&&!game.usedBattery){
+  p.inv=2+effectLevel(charm)*.43+gradeBonus(charm)*.14+(level(charm)>=5&&modOf(charm)===0?.8:0);game.usedBattery=true;
  }
 }
 function damageEnemy(e,b){
@@ -1075,15 +1233,41 @@ function dungeonTick(g){
  g.spawned++;
  g.nextSpawn=g.t+2.55;
 }
+function updateDevices(g,dt){
+ const p=g.p;
+ for(const o of g.terrain){
+  if(o.spent)continue;
+  if(o.fuse>0){
+   o.fuse-=dt;
+   if(o.fuse<=0){
+    o.spent=true;
+    g.effects.push({x:o.x,y:o.y,color:'#ffab4d',r:108,life:.32,ring:true});
+    for(const e of g.enemies){
+     const distance=dist(o,e);
+     if(distance>108+e.r||!clearShot(o,e))continue;
+     e.hp-=Math.max(45,105-distance*.5);
+     e.stun=Math.max(e.stun,.65);
+    }
+   }
+   continue;
+  }
+  if(dist(o,p)>o.r+p.r)continue;
+  if(o.kind==='vent')p.vent=1.15;
+  if(o.kind==='med'&&p.hp<=p.max-15){
+   p.hp+=15;o.spent=true;
+   g.effects.push({x:o.x,y:o.y,color:'#8afc92',r:44,life:.35,ring:true});
+  }
+ }
+}
 function step(dt){
  const g=game,p=g.p;
  g.t+=dt;
- for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive'])p[key]=Math.max(0,p[key]-dt);
+ for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent'])p[key]=Math.max(0,p[key]-dt);
  if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;}}
  hazards();
  const input=movement();
- const boosted=g.terrain.some(o=>o.kind==="vent"&&dist(o,p)<o.r+p.r);
- const speed=boosted?280:g.wet&&save.equipped.boots!=='grip'?142:212;
+ updateDevices(g,dt);
+ const speed=p.vent>0?280:g.wet&&gearFamily(save.equipped.boots)!=='grip'?142:212;
  const previousX=p.x,previousY=p.y;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*720*dt,Math.sin(p.dashDir)*720*dt);
  else {
@@ -1115,9 +1299,8 @@ function step(dt){
   if(blocked(b.x,b.y,3)||b.x<0||b.x>W||b.y<0||b.y>H)b.life=0;
   if(b.life<=0)continue;
   for(const o of g.terrain){
-   if(o.kind!=='drum'||o.spent||dist(o,b)>o.r+4)continue;
-   o.spent=true;b.life=0;g.effects.push({x:o.x,y:o.y,color:'#ffab4d',r:108,life:.32});
-   for(const e of g.enemies)if(dist(o,e)<108+e.r){e.hp-=110;e.stun=.9;}
+   if(o.kind!=='drum'||o.spent||o.fuse||dist(o,b)>o.r+4)continue;
+   o.fuse=.42;b.life=0;
    break;
   }
   if(b.life<=0)continue;
@@ -1201,28 +1384,28 @@ function finish(won,reason){
   if(g.bossHunt){
    const name=stageBosses[g.index][0];
    save.bossMaterials[g.index]=(save.bossMaterials[g.index]||0)+1;
-   reward={credits:100+g.index*9,alloy:2};
+   reward={credits:40+g.index*4,alloy:1};
    extra=' · '+name+' 표본 +1';
    row.append(button('보스 다시 도전',()=>start(g.index,undefined,true),false,'primary'));
   }else if(g.index>=0){
    const prior=save.stars[g.index]||0;
    reward=clearReward(g.index,!prior,Math.max(0,stars-prior));
-   if(!prior){save.xp+=100;extra=' · XP +100';}
+   if(!prior){reward.xp=100;if(g.index===18)extra=' · 5성 +20 장비 세트 선택권';}
    save.stars[g.index]=Math.max(prior,stars);
    save.cleared=Math.max(save.cleared,g.index+1);
    extra+=unlock(unlocks[g.index]);
    if(g.index<stages.length-1)row.append(button('다음 스테이지',()=>start(g.index+1),false,'primary'));
   }else if(g.dungeon){
    reward=contractReward(g.dungeon,g.band);
-   save.xp+=50;
-   extra=' · XP +50'+unlock(g.dungeon.unlock);
+   extra=unlock(g.dungeon.unlock);
   }
+  if(reward.xp)reward.xp=Math.min(reward.xp,(maxCharacterLevel-1)*100-save.xp);
   addFunds(reward);persist();
   result='★'.repeat(stars)+' · '+rewardText(reward)+extra;
   row.append(button('장비 강화',()=>openPage('gear')));
  }else row.append(button('다시 도전',()=>start(g.index,g.contract,g.bossHunt,g.band),false,'primary'));
  if(won&&g.index<0)row.append(button('다시 출격',()=>start(g.index,g.contract,false,g.band)));
- row.append(button(g.bossHunt?'보스 상세':g.index<0?'의뢰 목록':'전투 홈',()=>renderMenu(g.bossHunt?'stages':g.index<0?'contracts':'campaign')));
+ row.append(button(g.bossHunt?'보스 상세':g.index<0?'던전 목록':'전투 홈',()=>renderMenu(g.bossHunt?'stages':g.index<0?'contracts':'campaign')));
  $('resultText').textContent=result;$('result').hidden=false;
 }
 function disc(x,y,r,color){
@@ -1357,10 +1540,15 @@ function draw(){
  }
  for(const o of g.terrain){
   if(o.spent)continue;
-  const vent=o.kind==='vent';disc(o.x,o.y,o.r,vent?'#316665':'#613f32');
-  ctx.strokeStyle=vent?'#68dfc8':'#ffbd60';ctx.lineWidth=3;
+  const vent=o.kind==='vent',med=o.kind==='med';
+  const color=vent?'#68dfc8':med?'#8afc92':o.fuse?'#ffef91':'#ffbd60';
+  disc(o.x,o.y,o.r,vent?'#316665':med?'#275a40':'#613f32');
+  ctx.strokeStyle=color;ctx.lineWidth=3;
+  if(o.fuse){
+   ctx.beginPath();ctx.arc(o.x,o.y,108,0,TAU);ctx.lineWidth=2;ctx.stroke();
+  }
   ctx.beginPath();ctx.arc(o.x,o.y,o.r-3,g.t*.8,g.t*.8+5.2);ctx.stroke();
-  ctx.save();ctx.translate(o.x,o.y);if(portrait)ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillStyle='#fff4d2';ctx.fillText(vent?'»':'!',0,7);ctx.restore();
+  ctx.save();ctx.translate(o.x,o.y);if(portrait)ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillStyle='#fff4d2';ctx.fillText(vent?'»':med?'+':'!',0,7);ctx.restore();
  }
  if(['switch','escape'].includes(g.mode)){
   const ready=g.objects.every(o=>o.done);disc(g.exit.x,g.exit.y,28,ready?'#69d9a5':'#666d62');
@@ -1568,6 +1756,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
 
