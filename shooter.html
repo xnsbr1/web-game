@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.11.0">
+<meta name="game-build" content="1.11.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -1028,7 +1028,7 @@ function renderMenu(next=page){
   }
   const index=stageView;
   const p=panel(stageId(index)+' '+stages[index][0]);
-  paragraph(p,'약 3분 · 세 구역 돌파 후 '+stageBosses[index][0]+' 출현. 청록 발판은 가속, 초록 십자는 회복, 주황 통은 사격하면 잠시 후 폭발해.');
+  paragraph(p,'잡몹 '+(sectorQuota(index)*2+sectorQuota(index,2))+'마리 처치 후 '+stageBosses[index][0]+' 출현. 청록 발판은 가속, 초록 십자는 회복, 주황 통은 사격하면 잠시 후 폭발해.');
   bossBrief(p,index);
   squadBrief(p,index);
   p.prepend(button('‹ 스테이지 목록',()=>{stageView=null;renderMenu();}));
@@ -1953,7 +1953,11 @@ function updateWarnings(dt){
  }
  game.warnings=game.warnings.filter(a=>a.time>-a.active);
 }
-const sectorQuota=index=>index===0?18:22+Math.min(16,index);
+const sectorQuota=(index,sector=0)=>3+Number(index>=10)+Number(sector===2);
+const campaignBossHp=[
+ 1750,2100,2100,2480,2500,2290,2500,3050,3450,3860,
+ 4030,4300,4030,4440,3770,4670,4100,4610,4770,4850
+];
 const liveAdds=g=>g.enemies.filter(e=>e.type!=='boss'&&e.hp>0).length;
 const bossAddCap=2;
 function squadSpawn(g,tier,x,y){
@@ -1969,23 +1973,23 @@ function squadSpawn(g,tier,x,y){
  return e;
 }
 function campaignTick(g){
- const quota=sectorQuota(g.index);
+ const quota=sectorQuota(g.index,g.sector);
  if(!g.bossEntered&&g.sectorKills>=quota){
   g.sectorKills=0;
   g.p.hp=Math.min(g.p.max,g.p.hp+(g.index===0?12:8));
   if(g.sector===2){
-   g.bossEntered=true;g.nextSpawn=g.t+7;playEffect('boss');
+   g.p.hp=Math.min(g.p.max,g.p.hp+10);
+   g.bossEntered=true;g.nextSpawn=g.t+11;playEffect('boss');
    spawn('boss',g.p.x>W/2?95:W-95,H/2);
    const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
    Object.assign(e,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
-   e.hp=e.max=940+g.index*36;
+   e.hp=e.max=campaignBossHp[g.index];
    return;
   }
   g.sector++;g.roundSpawn=0;g.nextSpawn=g.t;
  }
- // Reserve space for the boss escort as the last round approaches its quota.
- const fieldCap=g.index<10?5:7;
- const cap=g.bossEntered?bossAddCap:g.sector===2?Math.min(fieldCap,quota-g.sectorKills+bossAddCap):fieldCap;
+ // Spawn only enough enemies to fill the round quota. The escort starts with the boss.
+ const cap=g.bossEntered?bossAddCap:sectorQuota(g.index,g.sector)-g.sectorKills;
  const alive=liveAdds(g);
  if(alive>=cap||g.t<g.nextSpawn)return;
  const packSize=g.index===0&&g.spawned>0?3:4;
@@ -1996,7 +2000,7 @@ function campaignTick(g){
   const tier=g.bossEntered?g.spawned%2:g.sector===0?Number(earlyScout):g.sector===1?(n%3===2?0:1):[2,1,2,0][n%4];
   squadSpawn(g,tier);g.spawned++;g.roundSpawn=n+1;
  }
- g.nextSpawn=g.t+(g.bossEntered?7.5:3.2);
+ g.nextSpawn=g.t+(g.bossEntered?12:1.8);
 }
 function trackMovement(g,dx,dy,dt){
  if(g.p.dash>0||Math.hypot(dx,dy)<70*dt){
@@ -2178,7 +2182,7 @@ function updateHud(){
  if(g.dungeon){
   const boss=g.enemies.find(e=>e.type==='boss');
   progress='Lv. '+g.dungeonLevel+' · '+(g.bossEntered?g.dungeon.boss+' '+(boss?Math.ceil(100*boss.hp/boss.max):0)+'%':g.kills+'/'+g.n+' 처치');
- }else if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/(940+g.index*36))+'%':(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index)+' 처치';
+ }else if(g.campaign)progress=g.bossEntered?stageBosses[g.index][0]+' '+Math.ceil(100*(g.enemies.find(e=>e.type==='boss')?.hp||0)/campaignBossHp[g.index])+'%':(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index,g.sector)+' 처치';
  else if(g.mode==='defend')progress=Math.ceil(Math.max(0,g.n-g.t))+'초 · 시설 '+Math.max(0,Math.ceil(g.objects[0].hp));
  else if(g.mode==='survive')progress=Math.ceil(Math.max(0,g.n-g.t))+'초';
  else if(g.mode==='escape')progress='녹색 출구';
