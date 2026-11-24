@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.8">
+<meta name="game-build" content="1.4.9">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -70,8 +70,9 @@ details .item{margin-bottom:8px}
  .crate-opening .supply-crate::before{border-color:var(--crate-accent);box-shadow:0 0 10px var(--crate-accent)}
  .crate-beam{position:absolute;pointer-events:none;z-index:1;left:-18px;right:-18px;top:-75px;height:96px;opacity:0;background:linear-gradient(to top,var(--crate-accent),transparent 95%);clip-path:polygon(3% 0,97% 0,83% 100%,17% 100%);animation:crate-beam .85s ease-out both}
  @keyframes crate-beam{0%,20%{opacity:0;transform:scaleY(.35);transform-origin:bottom}75%,100%{opacity:.88;transform:scaleY(1);transform-origin:bottom}}
- .supply-actions{gap:8px}
- .supply-actions button{min-height:44px;flex:1 1 auto}
+ .supply-actions{position:sticky;top:max(4px,env(safe-area-inset-top));z-index:3;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin:12px 0;padding:6px;background:#17272f;border:1px solid #45616c;border-radius:10px}
+ .supply-actions button{min-width:0;min-height:54px;padding:5px;font-weight:750}
+ .supply-actions small{display:block;font-size:11px;font-weight:500}
  .supply-results{width:100%;display:grid;gap:8px}
  .supply-result{min-width:0;display:grid;gap:4px;justify-items:center;padding:6px}
  .supply-results-batch{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -646,6 +647,19 @@ function renderSupply(){
  const supply=panel('장비 뽑기');
  const price=supplyPrice();
  paragraph(supply,'현재 '+stageId(supplyStage())+' 상자 · 다음 스테이지로 진입할 때마다 1회 가격 +8 크레딧');
+ const actions=document.createElement('div');actions.className='supply-actions';supply.append(actions);
+ const batchOpening=pendingSupply;
+ for(const count of [1,10]){
+  const skipping=batchOpening?.cards.length===count;
+  const name=count===10?'10연뽑':'1회 열기';
+  const control=button(skipping?'연출 스킵':name,()=>{
+   if(skipping)revealSupply(batchOpening,true);
+   else openSupply(count);
+  },!skipping&&(Boolean(batchOpening)||save.credits<price*count),count===10||skipping?'primary':'');
+  const cost=document.createElement('small');
+  cost.textContent=skipping?'결과 바로 보기':price*count+' 크레딧';
+  control.append(cost);actions.append(control);
+ }
  const reveal=document.createElement('div');
  reveal.className='supply-reveal'+(pendingSupply?' crate-opening':lastSupply&&!lastSupply.skipped?' crate-revealed':'');
  reveal.setAttribute('role','status');
@@ -668,14 +682,6 @@ function renderSupply(){
   cards.className=lastSupply.cards.length===10?'supply-results supply-results-batch':'supply-results';
   reveal.append(cards);
   for(const result of lastSupply.cards)renderSupplyCard(cards,result);
- }
- const actions=document.createElement('div');actions.className='row supply-actions';supply.append(actions);
- if(pendingSupply){
-  const batch=pendingSupply;
-  actions.append(button('연출 스킵 · 결과 보기',()=>revealSupply(batch,true),false,'primary'));
- }else{
-  actions.append(button('1회 열기 · '+price+' 크레딧',()=>openSupply(1),save.credits<price));
-  actions.append(button('10연뽑 · '+price*10+' 크레딧',()=>openSupply(10),save.credits<price*10,'primary'));
  }
  const odds=disclosure(supply,'스테이지별 상자 확률');
  odds.open=supplyOddsOpen;
@@ -2102,6 +2108,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-tile .equipment-rank{font-size:11px;line-height:1.2}
 </style>
 </body></html>
+
 
 
 
