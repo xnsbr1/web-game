@@ -33,8 +33,12 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 </head>
 <body><main>
 <header><h1>심층 탄환</h1><div id="money"></div></header>
-<nav aria-label="정비소"><button data-page="campaign">작전 지도</button><button data-page="gear">장비 · 강화</button><button data-page="contracts">의뢰 · 사격장</button></nav>
-<section id="menu"></section>
+<section id="menu" aria-label="정비소"></section>
+<nav id="dock" aria-label="정비소 메뉴">
+  <button type="button" data-page="gear"><i class="dock-icon equipment" aria-hidden="true"></i><span>장비</span></button>
+  <button type="button" data-page="campaign"><i class="dock-icon combat" aria-hidden="true"></i><span>전투</span></button>
+  <button type="button" data-page="contracts"><i class="dock-icon missions" aria-hidden="true"></i><span>의뢰</span></button>
+</nav>
 <section id="combat" hidden aria-label="전투">
 <div class="hud"><strong id="objective"></strong><span id="combatStats"></span><button id="pause">일시정지</button></div>
 <div class="arena" id="arena"><canvas id="screen" width="900" height="580" aria-label="전투 지도"></canvas>
@@ -100,12 +104,21 @@ function paragraph(parent,value,cls='muted'){const p=document.createElement('p')
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
 function renderMenu(next=page){
  if(document.fullscreenElement===$('combat') && document.exitFullscreen)document.exitFullscreen().catch(()=>{});
+ if(next!==page || !$('combat').hidden)window.scrollTo(0,0);
  page=next;$('combat').hidden=true;$('menu').hidden=false;document.body.classList.remove('fighting');
  $('money').textContent=Object.keys(currencies).map(k=>currencies[k]+' '+save[k]).join(' · ');
  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.page===page)));
  $('menu').replaceChildren();
  if(notice){const note=panel('보상');paragraph(note,notice);notice='';}
  if(page==='campaign'){
+  const current=Math.min(save.cleared,stages.length-1);
+  const [name,mode]=stages[current];
+  const hero=panel(stageId(current)+' '+name);
+  hero.classList.add('deployment');
+  hero.classList.toggle('flooded',current>=10);
+  paragraph(hero,(save.cleared>=stages.length?'전체 작전 완료 · 재도전':objectiveNames[mode])+' · '+save.cleared+'/'+stages.length+' 클리어');
+  const deploy=button(save.cleared>=stages.length?'최종 스테이지 재도전':'출격',()=>start(current),false,'primary');
+  hero.append(deploy);
   for(const [chapter,title] of ['폐광','침수 연구소'].entries()){
    const p=panel((chapter+1)+'지역 · '+title);
    const list=grid(p);
@@ -647,5 +660,26 @@ body.fighting{overflow:hidden;overscroll-behavior:none}
 #combat .result{z-index:3;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 #joystick{position:absolute;display:none;pointer-events:none;border-radius:50%;border:2px solid #9de4d7a8;background:#233b43b8;width:92px;height:92px;transform:translate(-50%,-50%);z-index:1}
 #joystick i{position:absolute;top:50%;left:50%;width:32px;height:32px;margin:-16px;border-radius:50%;background:var(--teal);box-shadow:0 0 16px #8fe8d466}
+</style>
+<style>
+:root{--dock-size:69px}
+body:not(.fighting) main{padding-bottom:calc(var(--dock-size) + env(safe-area-inset-bottom) + 22px)}
+#dock{position:fixed;z-index:4;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,610px);margin:0;display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:5px;padding:5px max(8px,env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:#10181a;border:1px solid #44575d;border-radius:14px 14px 0 0}
+body.fighting #dock{display:none}
+#dock button{min-width:0;height:57px;display:grid;place-items:center;align-content:center;gap:2px;padding:3px;color:#b9cfd2;font-size:13px;font-weight:750;border:1px solid transparent;background:transparent}
+#dock button[aria-pressed=true]{color:var(--teal);background:#213b3e;border-color:#467976}
+#dock button[data-page=campaign][aria-pressed=true]{color:#142625;background:var(--teal)}
+.dock-icon{display:block;width:21px;height:21px;position:relative}
+.dock-icon.equipment{height:17px;margin-block:2px;border:2px solid;border-radius:4px}
+.equipment::before{content:"";position:absolute;left:5px;right:5px;top:-5px;height:4px;border:2px solid;border-bottom:0;border-radius:2px}
+.equipment::after{content:"";position:absolute;top:5px;left:1px;right:1px;border-top:2px solid}
+.dock-icon.combat{border:2px solid;border-radius:50%}
+.combat::before{content:"";position:absolute;inset:5px;border:2px solid;border-radius:50%}
+.dock-icon.missions{width:16px;border:2px solid;border-radius:3px}
+.missions::after{content:"";position:absolute;left:2px;right:2px;top:5px;border-top:2px solid;box-shadow:0 4px currentColor}
+.deployment{position:relative;overflow:hidden;padding:clamp(16px,5vw,33px);border-color:#54766d;background:radial-gradient(ellipse at 95% 5%,#426051 0%,#243838 48%,#192329 100%)}
+.deployment.flooded{background:radial-gradient(ellipse at 95% 5%,#386575 0%,#20333f 48%,#18232c 100%)}
+.deployment h2{font-size:clamp(22px,6vw,37px);letter-spacing:-.045em}
+.deployment .primary{min-height:48px;min-width:min(100%,180px);margin-top:12px}
 </style>
 </body></html>
