@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
+<meta name="game-build" content="1.1.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -31,10 +32,20 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 .result{position:absolute;inset:0;display:grid;place-items:center;background:#10181ae8;padding:10px;text-align:center}.result article{padding:14px;max-width:430px}.result p{margin:8px 0}.result .row{justify-content:center}
 #dash{background:var(--amber);color:#382510;font-weight:800;min-height:44px}
 @media(max-height:500px) and (orientation:landscape){body.fighting main{padding:3px 8px}canvas{max-height:68dvh}}
+
+#openSettings{min-height:44px;flex-shrink:0}
+#settings{width:min(420px,calc(100% - 28px));max-height:85dvh;padding:20px;color:#eef8fa;background:#19252d;border:1px solid #779ca8;border-radius:16px;box-sizing:border-box}
+#settings::backdrop{background:#060d13c9}
+#settings h2,#settings h3{margin:0 0 10px}
+#settings label{display:block;font-weight:700;margin:14px 0}
+#settings output{float:right;color:#a0f1d7}
+#settings input{display:block;width:100%;height:34px;accent-color:#70dfc5}
+#settings button{min-height:44px}
+.version-panel{border-top:1px solid #53636d;margin:18px 0 14px;padding-top:14px}
 </style>
 </head>
 <body><main>
-<header><h1>심층 탄환</h1><div id="money"></div></header>
+<header><h1>심층 탄환</h1><div id="money"></div><button type="button" id="openSettings">설정</button></header>
 <section id="menu" aria-label="정비소"></section>
 <nav id="dock" aria-label="정비소 메뉴">
   <button type="button" data-page="gear"><i class="dock-icon equipment" aria-hidden="true"></i><span>장비</span></button>
@@ -50,10 +61,126 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 <p id="combatHint">화면을 끌어 이동 · 가까운 적 자동 사격</p>
 <button id="dash" aria-label="대시">대시</button>
 </section>
+<dialog id="settings" aria-labelledby="settingsTitle">
+ <h2 id="settingsTitle">설정</h2>
+ <label>효과음 <output id="effectsValue"></output><input id="effectsVolume" type="range" min="0" max="100" step="5"></label>
+ <label>배경음 <output id="musicValue"></output><input id="musicVolume" type="range" min="0" max="100" step="5"></label>
+ <button type="button" id="previewAudio">소리 미리 듣기</button>
+ <section class="version-panel" aria-labelledby="versionTitle">
+  <h3 id="versionTitle">게임 업데이트</h3>
+  <p id="updateStatus" role="status"></p>
+  <div class="row"><button type="button" id="checkUpdate">최신 버전 확인</button><button type="button" id="applyUpdate">새로고침</button></div>
+ </section>
+ <form method="dialog"><button type="submit">닫기</button></form>
+</dialog>
 </main>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
+const build=document.querySelector('meta[name="game-build"]').content;
+const settingsKey='deep-rounds-settings-v1';
+let audioSettings={effects:65,music:25};
+try{
+ const stored=JSON.parse(localStorage.getItem(settingsKey));
+ for(const name of Object.keys(audioSettings)){
+  if(Number.isFinite(stored?.[name]))audioSettings[name]=Math.max(0,Math.min(100,stored[name]));
+ }
+}catch{}
+let audioContext,effectsGain,musicGain;
+function enableAudio(){
+ const Audio=window.AudioContext||window.webkitAudioContext;
+ if(!Audio)return;
+ if(!audioContext){
+  audioContext=new Audio();
+  effectsGain=audioContext.createGain();effectsGain.connect(audioContext.destination);
+  musicGain=audioContext.createGain();musicGain.connect(audioContext.destination);
+  setVolume();
+ }
+ if(audioContext.state!=='running')audioContext.resume().catch(()=>{});
+}
+function setVolume(){
+ if(!audioContext)return;
+ effectsGain.gain.setTargetAtTime(audioSettings.effects/100,audioContext.currentTime,.02);
+ musicGain.gain.setTargetAtTime(audioSettings.music/100,audioContext.currentTime,.02);
+}
+function tone(output,frequency,end,duration,amplitude,type='sine',delay=0){
+ if(audioContext?.state!=='running'||document.hidden)return;
+ const at=audioContext.currentTime+delay;
+ const oscillator=audioContext.createOscillator(),envelope=audioContext.createGain();
+ oscillator.type=type;
+ oscillator.frequency.setValueAtTime(frequency,at);
+ oscillator.frequency.exponentialRampToValueAtTime(end,at+duration);
+ envelope.gain.setValueAtTime(.001,at);
+ envelope.gain.exponentialRampToValueAtTime(amplitude,at+.012);
+ envelope.gain.exponentialRampToValueAtTime(.001,at+duration);
+ oscillator.connect(envelope);envelope.connect(output);
+ oscillator.start(at);oscillator.stop(at+duration+.02);
+}
+const soundProfiles={
+ pistol:[230,72,.085,.15,'triangle'],revolver:[177,47,.13,.16,'triangle'],
+ rifle:[315,106,.065,.11,'square'],smg:[390,145,.05,.085,'triangle'],
+ shotgun:[128,35,.16,.2,'sawtooth'],sniper:[210,38,.17,.19,'triangle'],rail:[710,86,.22,.13,'triangle'],
+ dash:[120,470,.15,.13,'triangle'],hurt:[105,48,.2,.18,'sawtooth'],
+ boss:[63,47,.65,.23,'triangle'],win:[330,440,.31,.16,'triangle'],
+ lose:[210,58,.43,.16,'triangle']
+};
+function playEffect(name){
+ if(audioSettings.effects>0)tone(effectsGain,...soundProfiles[name]);
+}
+let beat=0;
+setInterval(()=>{
+ if(audioSettings.music<=0||!game||game.over||game.paused||$('combat').hidden||document.hidden||audioContext?.state!=='running')return;
+ const notes=[55,55,65.41,55,49,49,73.42,65.41];
+ const note=notes[beat++%notes.length];
+ tone(musicGain,note,note,.46,.18);
+ if(beat%2===0)tone(musicGain,note*4,note*4,.26,.07,'triangle',.14);
+},480);
+$('openSettings').onclick=()=>$('settings').showModal();
+for(const name of Object.keys(audioSettings)){
+ const slider=$(name+'Volume'),value=$(name+'Value');
+ slider.value=audioSettings[name];value.textContent=slider.value+'%';
+ slider.oninput=()=>{
+  audioSettings[name]=Number(slider.value);value.textContent=slider.value+'%';
+  setVolume();
+  try{localStorage.setItem(settingsKey,JSON.stringify(audioSettings));}catch{}
+ };
+}
+$('previewAudio').onclick=()=>{
+ enableAudio();
+ if(!audioContext)return;
+ audioContext.resume().then(()=>{
+  playEffect('pistol');
+  if(audioSettings.music>0)tone(musicGain,220,220,.35,.17,'triangle',.24);
+ }).catch(()=>{});
+};
+const updateStatus=$('updateStatus');
+const checkUpdate=$('checkUpdate'),applyUpdate=$('applyUpdate');
+updateStatus.textContent='현재 버전 '+build;
+checkUpdate.onclick=async()=>{
+ checkUpdate.disabled=true;applyUpdate.disabled=true;
+ updateStatus.textContent='최신 배포 버전 확인 중…';
+ try{
+  const url=new URL('shooter.html',location.href);
+  url.searchParams.set('check',Date.now());
+  const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(10000)});
+  if(!response.ok)throw new Error('Version check failed');
+  const page=new DOMParser().parseFromString(await response.text(),'text/html');
+  const latest=page.querySelector('meta[name="game-build"]')?.content;
+  if(!latest)throw new Error('Version unavailable');
+  applyUpdate.textContent=latest===build?'새로고침':'업데이트 적용';
+  updateStatus.textContent=latest===build?'최신 버전 '+build:'현재 '+build+' · 최신 '+latest;
+ }catch{
+  updateStatus.textContent='현재 '+build+' · 확인에 실패했어. 잠시 후 다시 확인해 줘.';
+ }finally{
+  checkUpdate.disabled=false;applyUpdate.disabled=false;
+ }
+};
+applyUpdate.onclick=()=>{
+ const url=new URL(location.href);
+ url.searchParams.delete('v');
+ url.searchParams.set('refresh',Date.now());
+ location.replace(url.href);
+};
 const stages=[
  ['광산 입구','clear',12],['버려진 선로','destroy',3,'cart'],['포자 굴','survive',90],['장갑 갱도','armor',3],
  ['굴착장 · 철턱','boss',1],['좁은 굴','clear',24],['무너지는 갱도','switch',2,'rock'],['폭발 둥지','destroy',3,'blast'],
@@ -459,6 +586,7 @@ function releaseStick(){
 const dashReady=()=>game&&!game.paused&&!game.over&&game.p.cd<=0;
 function start(index,contract,bossHunt=false){
  if(bossHunt && (index<0||index>=save.cleared))return;
+ enableAudio();beat=0;
  const c=contracts[contract];
  let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,c.mode,c.n,contract===3?'rock':'']:stages[index];
  const campaign=index>=0&&!bossHunt;
@@ -528,7 +656,7 @@ function dash(){
  const p=game.p, boots=save.equipped.boots,l=level(boots),m=modOf(boots);
  const input=movement();
  p.dashDir=Math.hypot(input.x,input.y)>.1?Math.atan2(input.y,input.x):p.dir;
- p.dash=.145+(boots==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
+ playEffect('dash');p.dash=.145+(boots==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
  p.cd=((boots==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots));
  p.inv=p.dash+.1;p.afterDash=1.1;
 }
@@ -573,7 +701,7 @@ function shoot(){
  const p=game.p,g=p.stat,id=p.gunId,l=level(id),mod=l>=5?modOf(id):-1;
  if(p.cool>0||p.reload>0)return;
  if(!p.ammo){reload();return;}
- p.ammo--;
+ p.ammo--;playEffect(id);
  p.cool=g.interval*(id==='pistol'&&mod===1?.65:1);
  const gloves=save.equipped.gloves,charm=save.equipped.charm;
  const stable=gloves==='stable'&&Math.hypot(movement().x,movement().y)<.1;
@@ -603,7 +731,7 @@ function hurt(damage,origin,electric=false){
  if(armor&&level(armor)>=5&&modOf(armor)===0)damage*=.85;
  if(armor&&level(armor)>=5&&modOf(armor)===1&&p.hp<35)damage*=.72;
  damage*=1-.015*(gradeBonus(head)+gradeBonus(armor));
- p.hp-=Math.round(damage);game.hits++;p.inv=.52;
+ p.hp-=Math.round(damage);game.hits++;playEffect('hurt');p.inv=.52;
  if(p.hp>0&&p.hp<=32&&save.equipped.charm==='battery'&&!game.usedBattery){
   p.inv=2+level('battery')*.43+gradeBonus('battery')*.14+(level('battery')>=5&&modOf('battery')===0?.8:0);game.usedBattery=true;
  }
@@ -727,7 +855,7 @@ function campaignTick(g){
   g.sector++;g.sectorKills=0;g.nextSpawn=g.t;
   g.p.hp=Math.min(g.p.max,g.p.hp+12);
   if(g.sector===3){
-   g.bossEntered=true;
+   g.bossEntered=true;playEffect('boss');
    const x=g.p.x>450?95:805;
    spawn('boss',x,290);
    const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
@@ -845,6 +973,7 @@ function updateHud(){
  $('dash').disabled=!dashReady();$('dash').textContent=p.cd>0?p.cd.toFixed(1)+'초':'대시';
 }
 function finish(won,reason){
+ playEffect(won?'win':'lose');
  const g=game;g.over=true;releaseStick();$('pause').disabled=true;
  $('resultTitle').textContent=won?'임무 성공':'임무 실패';
  const row=$('resultActions');row.replaceChildren();
@@ -1141,4 +1270,5 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
