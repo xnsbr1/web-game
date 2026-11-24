@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.4.7">
+<meta name="game-build" content="1.4.8">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -119,7 +119,8 @@ details .item{margin-bottom:8px}
  <h2 id="settingsTitle">설정</h2>
  <label>효과음 <output id="effectsValue"></output><input id="effectsVolume" type="range" min="0" max="100" step="5"></label>
  <label>배경음 <output id="musicValue"></output><input id="musicVolume" type="range" min="0" max="100" step="5"></label>
- <button type="button" id="previewAudio">소리 미리 듣기</button>
+ <button type="button" id="previewAudio">현재 총기 발사음 듣기</button>
+ <p id="audioStatus" role="status"></p>
  <section class="version-panel" aria-labelledby="versionTitle">
   <h3 id="versionTitle">게임 업데이트</h3>
   <p id="updateStatus" role="status"></p>
@@ -151,16 +152,19 @@ try{
  }
 }catch{}
 let audioContext,effectsGain,musicGain;
-function enableAudio(){
+async function enableAudio(){
  const Audio=window.AudioContext||window.webkitAudioContext;
- if(!Audio)return;
- if(!audioContext){
-  audioContext=new Audio();
-  effectsGain=audioContext.createGain();effectsGain.connect(audioContext.destination);
-  musicGain=audioContext.createGain();musicGain.connect(audioContext.destination);
-  setVolume();
- }
- if(audioContext.state!=='running')audioContext.resume().catch(()=>{});
+ if(!Audio)return false;
+ try{
+  if(!audioContext){
+   audioContext=new Audio();
+   effectsGain=audioContext.createGain();effectsGain.connect(audioContext.destination);
+   musicGain=audioContext.createGain();musicGain.connect(audioContext.destination);
+   setVolume();
+  }
+  if(audioContext.state!=='running')await audioContext.resume();
+  return audioContext.state==='running';
+ }catch{return false;}
 }
 function setVolume(){
  if(!audioContext)return;
@@ -180,10 +184,18 @@ function tone(output,frequency,end,duration,amplitude,type='sine',delay=0){
  oscillator.connect(envelope);envelope.connect(output);
  oscillator.start(at);oscillator.stop(at+duration+.02);
 }
+const gunSounds={
+ pistol:[430,170,.065,.085,'triangle'],revolver:[360,140,.08,.095,'triangle'],
+ rifle:[470,205,.05,.063,'triangle'],smg:[510,240,.043,.055,'triangle'],
+ shotgun:[330,125,.082,.105,'triangle'],sniper:[390,155,.09,.095,'triangle'],rail:[680,235,.085,.075,'sine']
+};
+function playGunshot(id){
+ if(audioSettings.effects<=0)return;
+ const sound=gunSounds[id];
+ tone(effectsGain,...sound);
+ tone(effectsGain,sound[0]*1.65,sound[0],.023,sound[3]*.28);
+}
 const soundProfiles={
- pistol:[260,110,.06,.045,'triangle'],revolver:[190,76,.075,.052,'triangle'],
- rifle:[305,125,.045,.033,'triangle'],smg:[350,156,.036,.026,'sine'],
- shotgun:[135,57,.08,.058,'triangle'],sniper:[225,68,.09,.054,'triangle'],rail:[500,138,.09,.045,'sine'],
  dash:[120,470,.15,.13,'triangle'],hurt:[105,48,.2,.18,'sawtooth'],
  boss:[63,47,.65,.23,'triangle'],win:[330,440,.31,.16,'triangle'],
  lose:[210,58,.43,.16,'triangle'],
@@ -210,13 +222,12 @@ for(const name of Object.keys(audioSettings)){
   try{localStorage.setItem(settingsKey,JSON.stringify(audioSettings));}catch{}
  };
 }
-$('previewAudio').onclick=()=>{
- enableAudio();
- if(!audioContext)return;
- audioContext.resume().then(()=>{
-  playEffect('pistol');
-  if(audioSettings.music>0)tone(musicGain,220,220,.35,.17,'triangle',.24);
- }).catch(()=>{});
+$('previewAudio').onclick=async()=>{
+ const status=$('audioStatus');
+ if(!audioSettings.effects){status.textContent='효과음 볼륨을 0%보다 높여 줘.';return;}
+ if(!await enableAudio()){status.textContent='소리를 켜지 못했어. 버튼을 다시 눌러 줘.';return;}
+ playGunshot(gearFamily(save.equipped.gun||'pistol'));
+ status.textContent='현재 장착한 총기 발사음 재생';
 };
 const updateStatus=$('updateStatus');
 const checkUpdate=$('checkUpdate'),applyUpdate=$('applyUpdate');
@@ -428,8 +439,14 @@ let lastSupply=null,pendingSupply=null,supplyOddsOpen=false,supplyPreviewStage=n
 const save={copies:{},ascension:{},skillLevels:{},milestoneTheme:null,xp:null,materials:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
 Object.assign(save,testSnapshot||readSave(key));
 if(testMode){
- Object.defineProperty(save,'credits',{enumerable:true,get:()=>Number.MAX_SAFE_INTEGER,set:()=>{}});
+ const unlimited=(obj,id)=>Object.defineProperty(obj,id,{enumerable:true,get:()=>Number.MAX_SAFE_INTEGER,set:()=>{}});
+ for(const id of Object.keys(currencies))unlimited(save,id);
+ for(const id of Object.keys(materialNames))if(id!=='xp')unlimited(save.materials,id);
+ stages.forEach((_,index)=>unlimited(save.bossMaterials,index));
+ save.xp=(maxCharacterLevel-1)*100;
 }
+const resourceLabel=value=>testMode&&value===Number.MAX_SAFE_INTEGER?'∞':value;
+
 
 if(!Number.isFinite(save.xp))save.xp=save.cleared*100;
 save.xp=Math.max(0,Math.min((maxCharacterLevel-1)*100,save.xp));
@@ -440,7 +457,7 @@ function installTestControls(){
  const form=$('testModeForm'),exit=$('testModeExit'),status=$('testModeStatus');
  form.hidden=testMode;exit.hidden=!testMode;
  $('privateTest').open=testMode;
- if(testMode)status.textContent='테스트 중 · 크레딧 무제한. 종료하면 테스트 기록을 지우고 원래 세이브로 돌아가.';
+ if(testMode)status.textContent='테스트 중 · Lv. 100 · 재화와 재료 무제한 · 던전 전 단계 해금. 종료하면 테스트 기록을 지우고 원래 세이브로 돌아가.';
  form.onsubmit=async event=>{
   event.preventDefault();
   if(testMode)return;
@@ -470,7 +487,7 @@ const level=id=>save.levels[id]||0;
 const maxGearLevel=id=>grade(id)*5;
 const transcendCap=5;
 const transcendLevel=id=>save.ascension[id]||0;
-const spareCopies=(id,rank)=>save.copies[id]?.[rank]||0;
+const spareCopies=(id,rank)=>testMode&&own(id)&&grade(id)===rank?Number.MAX_SAFE_INTEGER:save.copies[id]?.[rank]||0;
 const transcendPower=(id,stage=transcendLevel(id))=>stage*grade(id);
 const transcendAbilities={
  gun:power=>['강화 포격','다섯 번째 사격 피해 +'+power*1.5+'%'],
@@ -484,7 +501,7 @@ function transcend(id){
  if(!own(id))return false;
  const stage=transcendLevel(id),rank=grade(id),required=stage+1;
  if(stage>=transcendCap||spareCopies(id,rank)<required)return false;
- save.copies[id][rank]-=required;
+ if(!testMode)save.copies[id][rank]-=required;
  save.ascension[id]=required;persist();
  return true;
 }
@@ -563,8 +580,10 @@ function rollSupply(random,tiers){
  const outcome=previousRank===0?'new':tier.rank>previousRank?'promoted':'duplicate';
  if(outcome==='duplicate'){
   save.parts+=1;
-  save.copies[id]??={};
-  save.copies[id][tier.rank]=spareCopies(id,tier.rank)+1;
+  if(!testMode){
+   save.copies[id]??={};
+   save.copies[id][tier.rank]=spareCopies(id,tier.rank)+1;
+  }
  }
  else{
   unlock(id);
@@ -716,7 +735,7 @@ function renderMenu(next=page){
  const resetScroll=next!==page||!$('combat').hidden;
  page=next;$('combat').hidden=true;$('menu').hidden=false;document.body.classList.remove('fighting');
  if(resetScroll)window.scrollTo(0,0);
- $('money').textContent=(testMode?'테스트 모드 · ':'')+Object.keys(currencies).map(k=>currencies[k]+' '+(testMode&&k==='credits'?'∞':save[k])).join(' · ');
+ $('money').textContent=(testMode?'테스트 모드 · ':'')+Object.keys(currencies).map(k=>currencies[k]+' '+resourceLabel(save[k])).join(' · ');
  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.page===page)));
  $('menu').replaceChildren();
  if(notice){const note=panel('보상');paragraph(note,notice);notice='';}
@@ -750,7 +769,7 @@ function renderMenu(next=page){
    if(selected)choice.classList.add('selected-skill');
    skillList.append(choice);
   }
-  const upgrade=disclosure(fieldSkill,'스킬 강화 · 전술 데이터 '+balance('skillData'));
+  const upgrade=disclosure(fieldSkill,'스킬 강화 · 전술 데이터 '+resourceLabel(balance('skillData')));
   upgrade.open=keepSkillPanelOpen;
   for(const [id,skill] of Object.entries(skills)){
    const lv=skillLevel(id),price=skillPrice(id);
@@ -793,7 +812,7 @@ function renderMenu(next=page){
   const count=save.bossMaterials[index]||0;
   paragraph(farm,'전용 보스 · '+bossMoves[move]);
   paragraph(farm,'처치 보상 · '+name+' 표본 +1 · 크레딧 +'+(100+index*9)+' · 합금 +2');
-  paragraph(farm,name+' 표본 '+count+'개','section-label');
+  paragraph(farm,name+' 표본 '+resourceLabel(count)+'개','section-label');
   farm.append(button(index<save.cleared?'보스 도전':'스테이지 첫 클리어 후 해금',()=>start(index,undefined,true),index>=save.cleared,'primary'));
   farm.append(button('표본 3개 교환 · 보스 코어 1개 + 정밀 부품 1개',()=>exchangeBossMaterial(index),count<3));
   return;
@@ -809,7 +828,7 @@ function renderMenu(next=page){
    paragraph(info,c.reward==='xp'?'레벨업 던전':c.reward?'스킬 레벨업 던전':'장비 재료 던전','dungeon-category');
    paragraph(info,c.name,'dungeon-name');
    paragraph(info,c.boss+' · '+rewardText(contractReward(c,band)));
-   if(c.slots)paragraph(info,c.slots.map((slot,j)=>slots[slot]+' 재료 '+balance(c.materials[j])+'개').join(' · ')+' 보유');
+   if(c.slots)paragraph(info,c.slots.map((slot,j)=>slots[slot]+' 재료 '+resourceLabel(balance(c.materials[j]))+'개').join(' · ')+' 보유');
    card.append(button('Lv. '+difficulty+' 출격',()=>start(-1,i,false,band),difficulty===null,'primary dungeon-launch'));
    const picker=disclosure(card,(band+1)+'단계 · Lv. '+range.min+'–'+range.max);
    picker.className='dungeon-picker';
@@ -1087,7 +1106,7 @@ function renderTranscendence(parent,id){
  paragraph(section,name+(stage?' · '+effect:' · 초월 1단계에서 해금'),'');
  if(stage<transcendCap){
   paragraph(section,'다음 초월 · '+ability(transcendPower(id,needed))[1]);
-  paragraph(section,'같은 '+rank+'성 '+gear[id].name+' 복제본 '+current+' / '+needed);
+  paragraph(section,'같은 '+rank+'성 '+gear[id].name+' 복제본 '+resourceLabel(current)+' / '+needed);
   section.append(button('초월 '+needed+'단계',()=>{if(transcend(id))renderMenu();},current<needed,'primary'));
  }
  const stored=Object.entries(save.copies[id]||{}).filter(([stars,count])=>Number(stars)!==rank&&count>0);
@@ -1335,7 +1354,7 @@ function shoot(){
  const p=game.p,g=p.stat,equipped=p.gunId,id=gearFamily(equipped),l=level(equipped),mod=l>=5?modOf(equipped):-1;
  if(p.cool>0||p.reload>0)return;
  if(!p.ammo){reload();return;}
- p.ammo--;game.shotsFired++;playEffect(id);
+ p.ammo--;game.shotsFired++;playGunshot(id);
  p.cool=g.interval*(id==='pistol'&&mod===1?.65:1);
  const gloves=save.equipped.gloves,charm=save.equipped.charm;
  const stable=gearFamily(gloves)==='stable'&&Math.hypot(movement().x,movement().y)<.1;
@@ -1927,6 +1946,7 @@ function draw(){
 
 function pause(){
  if(!game||game.over)return;
+ if(game.paused)void enableAudio();
  game.paused=!game.paused;releaseStick();keys.clear();
  $('pause').textContent=game.paused?'계속하기':'일시정지';
  $('resultTitle').textContent='일시정지';$('resultText').textContent='';
@@ -1942,6 +1962,9 @@ document.addEventListener('keydown',e=>{
  keys.add(k);if(e.repeat)return;if(k===' ')activateSkill();if(k==='r')reload();if(k==='escape')pause();
 });
 document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+document.addEventListener('pointerup',()=>{
+ if(!$('combat').hidden&&audioContext?.state!=='running')void enableAudio();
+},true);
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&game&&!game.over&&!game.paused&&!$('combat').hidden)pause();});
 const arena=$('arena');
 const joystick=$('joystick');
@@ -2079,6 +2102,7 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-tile .equipment-rank{font-size:11px;line-height:1.2}
 </style>
 </body></html>
+
 
 
 
