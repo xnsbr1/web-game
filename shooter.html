@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="1.1.0">
+<meta name="game-build" content="1.1.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -615,7 +615,7 @@ function start(index,contract,bossHunt=false){
  if(mode==='defend')objects.push({x:450,y:295,r:26,hp:145,max:145,done:false});
  const charm=save.equipped.charm;
  const terrain=campaign?[{kind:'vent',x:165,y:175+(index%3)*80,r:32},{kind:'vent',x:714,y:383-(index%3)*75,r:32},{kind:'drum',x:378,y:207+(index%2)*120,r:18},{kind:'drum',x:632,y:279,r:18}]:[];
- game={terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+ game={movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
   p:{x:96,y:292,r:15,hp:100,max:100,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
@@ -752,7 +752,7 @@ function damageEnemy(e,b){
 function shootEnemy(e,target){
  const d=angle(e,target);
  for(const spread of e.type==='boss'?[-.31,0,.31]:[0]){
-  game.bolts.push({x:e.x+Math.cos(d+spread)*e.r,y:e.y+Math.sin(d+spread)*e.r,a:d+spread,life:3,hit:e.type==='boss'?16:e.hit});
+  game.bolts.push({x:e.x+Math.cos(d+spread)*e.r,y:e.y+Math.sin(d+spread)*e.r,a:d+spread,life:3,steers:target===game.p,turnUsed:0,hit:e.type==='boss'?16:e.hit});
  }
 }
 function huntAttack(e,p){
@@ -871,6 +871,29 @@ function campaignTick(g){
  if(dist(e,g.p)<145)e.x=g.p.x>450?35:865;
  g.nextSpawn=g.t+4.35*12/quota;
 }
+function trackMovement(g,dx,dy,dt){
+ if(g.p.dash>0||Math.hypot(dx,dy)<70*dt){
+  g.movementTime=0;
+  return;
+ }
+ const heading=Math.atan2(dy,dx);
+ if(!g.movementTime||Math.cos(heading-g.movementHeading)<.94){
+  g.movementHeading=heading;
+  g.movementTime=0;
+ }
+ g.movementTime=Math.min(3,g.movementTime+dt);
+}
+function steerBolt(b,g,dt){
+ if(!b.steers||g.movementTime<.8)return;
+ const strength=clamp((g.movementTime-.8)/2.2,0,1);
+ const desired=angle(b,g.p)-b.a;
+ const offset=Math.atan2(Math.sin(desired),Math.cos(desired));
+ // Limit both the turning rate and the total curvature of each shot.
+ const maxTurn=Math.min(.28*strength*dt,.14-b.turnUsed);
+ const turn=clamp(offset,-maxTurn,maxTurn);
+ b.a+=turn;
+ b.turnUsed=Math.min(.14,b.turnUsed+Math.abs(turn));
+}
 function step(dt){
  const g=game,p=g.p;
  g.t+=dt;
@@ -880,8 +903,10 @@ function step(dt){
  const input=movement();
  const boosted=g.terrain.some(o=>o.kind==="vent"&&dist(o,p)<o.r+p.r);
  const speed=boosted?280:g.wet&&save.equipped.boots!=='grip'?142:212;
+ const previousX=p.x,previousY=p.y;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*720*dt,Math.sin(p.dashDir)*720*dt);
  else move(p,input.x*speed*dt,input.y*speed*dt);
+ trackMovement(g,p.x-previousX,p.y-previousY,dt);
 
  const target=firingTarget(p);
  if(target){p.dir=angle(p,target);shoot();}
@@ -924,6 +949,7 @@ function step(dt){
   }
  }
  for(const b of g.bolts){
+  steerBolt(b,g,dt);
   b.x+=Math.cos(b.a)*285*dt;b.y+=Math.sin(b.a)*285*dt;b.life-=dt;
   if(blocked(b.x,b.y,4))b.life=0;
   if(b.life>0&&dist(b,p)<p.r+5){hurt(b.hit,b);b.life=0;}
@@ -1019,6 +1045,16 @@ function bar(x,y,hp,max,w){
  ctx.fillStyle='#101619';ctx.fillRect(x-w/2,y,w,5);
  ctx.fillStyle='#a4e8a7';ctx.fillRect(x-w/2,y,w*clamp(hp/max,0,1),5);
 }
+function drawBolt(b,dx,dy,width,glow,core){
+ ctx.save();
+ ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(b.x-dx,b.y-dy);ctx.lineTo(b.x,b.y);
+ ctx.strokeStyle=glow;
+ ctx.globalAlpha=.22;ctx.lineWidth=width+7;ctx.stroke();
+ ctx.globalAlpha=.85;ctx.lineWidth=width;ctx.stroke();
+ ctx.globalAlpha=1;ctx.strokeStyle=core;ctx.lineWidth=width*.46;ctx.stroke();
+ ctx.restore();
+}
 function portraitField(){return canvas.clientHeight>canvas.clientWidth;}
 function draw(){
  const g=game,p=g.p;
@@ -1098,8 +1134,11 @@ function draw(){
   disc(e.x+Math.cos(e.dir)*e.r*.59,e.y+Math.sin(e.dir)*e.r*.59,e.r*.24,'#5e3431');
   if(e.type==='armor'||e.type==='boss'||e.hp<e.max)bar(e.x,e.y-e.r-9,e.hp,e.max,e.r*2);
  }
- for(const b of g.shots){ctx.beginPath();ctx.moveTo(b.x-b.vx*.023,b.y-b.vy*.023);ctx.lineTo(b.x,b.y);ctx.strokeStyle='#ffba5888';ctx.lineWidth=4;ctx.stroke();disc(b.x,b.y,b.id==='rail'?5:3,'#fff0bd');}
- for(const b of g.bolts)disc(b.x,b.y,6,'#ff828a');
+ for(const b of g.shots){
+  const speed=Math.hypot(b.vx,b.vy),length=b.id==='rail'?34:22;
+  drawBolt(b,b.vx/speed*length,b.vy/speed*length,b.id==='rail'?6:4,'#41ddff','#ecffff');
+ }
+ for(const b of g.bolts)drawBolt(b,Math.cos(b.a)*25,Math.sin(b.a)*25,5,'#ff4d72','#fff0e9');
  for(const effect of g.effects)disc(effect.x,effect.y,effect.r,effect.color+'77');
  if(g.hazard==='dark'){
   const lights=g.objects.filter(o=>o.done);
@@ -1270,5 +1309,6 @@ header{gap:12px;align-items:flex-start}
 #menu .equipment-option{flex-wrap:wrap}
 </style>
 </body></html>
+
 
 
