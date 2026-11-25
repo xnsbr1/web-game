@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.12">
+<meta name="game-build" content="2.0.13">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -763,6 +763,14 @@ const alphaStageCount=10;
 const alphaUnlockLabel='일반 2-10 클리어 후 해금';
 const canStartAlpha=index=>Number.isInteger(index)&&index>=0&&index<alphaStageCount&&
  (testMode||save.cleared>=stages.length);
+const alphaDebuffs=[
+ {name:'분진 노출',description:'재장전 시간 +12%',reload:1.12},
+ {name:'전술 교란',description:'대시 포함 모든 전투 스킬 쿨타임 +12%',cooldown:1.12},
+ {name:'회복 억제',description:'자동 체력 회복량 −25%',recovery:.75}
+];
+function alphaDebuff(index){
+ return alphaDebuffs[index<3?0:index<6?1:2];
+}
 const alphaBalance={mobHealth:1.45,damage:1.28,move:1.08,bossHealth:1.28,patternInterval:.82};
 const stageChapterNames=['폐광','침수 연구소','폐광 알파','침수 연구소 알파'];
 let chapterView=0, stageView=null, itemView=null;
@@ -1517,7 +1525,7 @@ function renderMenu(next=page){
     if(alpha){
      const stars=save.challengeStars?.['alpha'+index]||0;
      const status=!canStartAlpha(index)?alphaUnlockLabel:stars?'★'.repeat(stars):'출격 가능';
-     p.append(largeEntry(stageId(index)+' '+name+' · 알파',status+' · '+armorRecommendation(index,true),()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
+     p.append(largeEntry(stageId(index)+' '+name+' · 알파',status+' · '+armorRecommendation(index,true)+' · '+alphaDebuff(index).name,()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
      return;
     }
     const status=index<save.cleared?'클리어 · 보스 파밍 가능':testMode?'테스트 출격 가능':index===save.cleared?'출격 가능':'잠김';
@@ -1536,6 +1544,8 @@ function renderMenu(next=page){
    const stars=save.challengeStars?.['alpha'+index]||0;
    paragraph(p,(stars?'최고 기록 '+'★'.repeat(stars)+' · ':'')+'클리어 보상 · '+rewardText({credits:165,parts:2,['core'+coreRank(index)]:1}));
    paragraph(p,'강화된 적 · 체력 및 공격력 증가 · 이동 속도 소폭 증가 · 보스 패턴 강화');
+   const debuff=alphaDebuff(index);
+   paragraph(p,'패시브 디버프 · '+debuff.name+' · '+debuff.description,'section-label');
    const locked=!canStartAlpha(index);
    p.append(button(locked?alphaUnlockLabel:'알파 출격',()=>start(index,undefined,false,0,'alpha'),locked,'primary'));
    return;
@@ -2067,7 +2077,8 @@ function start(index,contract,bossHunt=false,band=0,special=''){
  if(index<0&&dungeonLevel===null)return;
  enableAudio();beat=0;
  let [name,mode,n,hazard]=bossHunt?[stageBosses[index][0],'boss',1,stages[index][3]]:c?[c.name,'raid',20,c.hazard]:stages[index];
- if(special==='alpha')name+=' · 알파';
+ const debuff=special==='alpha'?alphaDebuff(index):null;
+ if(debuff)name+=' · 알파';
  const campaign=index>=0&&!bossHunt;
  const gunId=save.equipped.gun||'pistol';
  if(campaign){mode='assault';n=3;}
@@ -2081,6 +2092,7 @@ function start(index,contract,bossHunt=false,band=0,special=''){
  stat.reload/=(hasTrainingPerk('quickLoad')?1.08:1)*(hasTrainingPerk('reloadMaster')?1.06:1)*(1+bonuses.reload)*(operator.reload||1);
  stat.speed*=.86*projectileFactor;
  stat.travelTimeScale=1/projectileFactor;
+ stat.reload*=debuff?.reload??1;
  if(gearFamily(gunId)==='revolver'&&level(gunId)>=5&&modOf(gunId)===1)stat.mag+=2;
  if(gearFamily(gunId)==='rifle'&&level(gunId)>=5&&modOf(gunId)===0)stat.reload*=.68;
  const lab=index>=10||Boolean(c&&contract>1);
@@ -2106,8 +2118,8 @@ function start(index,contract,bossHunt=false,band=0,special=''){
  const maxHp=characterMaxHp();
 
  const transcendStats=Object.fromEntries(Object.keys(slots).map(slot=>[slot,transcendPower(save.equipped[slot])]));
- game={tree,special,rushStart:index,rushEnd:index+9,linkAt:6,element:(index<0?contract:index)%5,secondary:secondarySkill(),secondaryCd:0,operator,transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:(skillLevel(equippedSkill())-1)*.7,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:(operator.move||1)*(hasTrainingPerk('stride')?1.05:1)*(hasTrainingPerk('moveMaster')?1.04:1)*(hasTrainingPerk('footwork')?1.02:1)*(1+bonuses.move)*(1+tree.mobility/100)*(1+advancedLevel(save.equipped.boots)*.0029),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
-  p:{recovery:(operator.recovery||1)*(hasTrainingPerk('recovery')?1.20:1)*(1+tree.sustain/100),leechCredit:3,regenAt:0,x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
+ game={tree,debuff,special,rushStart:index,rushEnd:index+9,linkAt:6,element:(index<0?contract:index)%5,secondary:secondarySkill(),secondaryCd:0,operator,transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:(skillLevel(equippedSkill())-1)*.7,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:(operator.move||1)*(hasTrainingPerk('stride')?1.05:1)*(hasTrainingPerk('moveMaster')?1.04:1)*(hasTrainingPerk('footwork')?1.02:1)*(1+bonuses.move)*(1+tree.mobility/100)*(1+advancedLevel(save.equipped.boots)*.0029),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+  p:{recovery:(operator.recovery||1)*(hasTrainingPerk('recovery')?1.20:1)*(1+tree.sustain/100)*(debuff?.recovery??1),leechCredit:3,regenAt:0,x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
  $('combatHint').textContent=campaign?'» 가속 · + 응급 회복 · ! 폭발통':'화면을 끌어 이동 · 가까운 적 자동 사격';
@@ -2161,7 +2173,7 @@ function activateSkill(){
  const extra=g.skillExtra,recovery=(g.operator.cooldown||1)*(1-extra*.01)*(1-g.bonuses.cooldown)*(1-g.tree.tactics/100)*(1-advancedLevel(save.equipped.charm)*.0036);
  if(g.skill!=='dash'){
   const skill=skills[g.skill];
-  p.cd=skill.cooldown*recovery;
+  p.cd=skill.cooldown*recovery*(g.debuff?.cooldown??1);
   playEffect(g.skill);
   const radius=150+extra*3;
   const power=1+extra*.02;
@@ -2195,6 +2207,7 @@ function activateSkill(){
  playEffect('dash');skillFlash('dash',p,105);p.dash=.145+extra*.012+(family==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
  p.cd=2.15+((family==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots))*recovery;
  if(hasTrainingPerk('dashCycle'))p.cd*=.90;
+ p.cd*=g.debuff?.cooldown??1;
  p.inv=p.dash+.1+(hasTrainingPerk('dashGuard')?.18:0)+g.tree.dashCover;p.afterDash=1.1;
 }
 function movement(){
@@ -2962,7 +2975,7 @@ function updateHud(){
   }else progress=(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index,g.sector)+' 처치';
  }
  else if(g.mode==='defend')progress=Math.ceil(Math.max(0,g.n-g.t))+'초 · 시설 '+Math.max(0,Math.ceil(g.objects[0].hp));
- else if(g.mode==='survive')progress=Math.ceil(Math.max(0,g.n-g.t))+'초';
+ else if(g.mode==='survive')progress=Math.ceil(Math.max(0,g.n-g.t))+'초'+(g.debuff?' · '+g.debuff.name:'');
  else if(g.mode==='escape')progress='녹색 출구';
  else if(g.mode==='switch'||g.mode==='destroy'||g.mode==='recover'){
   const count=g.objects.filter(o=>o.done).length;
@@ -2977,7 +2990,7 @@ function updateHud(){
  meter.setAttribute('aria-valuemax',p.max);
  const recovering=p.hp>0&&p.hp<p.max&&g.t>p.regenAt;
  meter.lastElementChild.textContent='HP '+hp+' / '+p.max+(recovering?' · 회복 중':'');meter.setAttribute('aria-valuenow',hp);
- $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.special==='rush'?600:g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초';
+ $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.special==='rush'?600:g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초'+(g.debuff?' · '+g.debuff.name:'');
  const skillButton=$('dash'),skillName=skills[g.skill].name;
  const reserve=$('reserveSkill');reserve.disabled=g.secondaryCd>0||g.paused||g.over;
  reserve.textContent=g.secondaryCd>0?g.secondaryCd.toFixed(1)+'초':skills[g.secondary].name;
