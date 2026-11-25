@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.16">
+<meta name="game-build" content="2.0.17">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -33,7 +33,10 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 #dash{background:var(--amber);color:#382510;font-weight:800;min-height:44px}
 @media(max-height:500px) and (orientation:landscape){body.fighting main{padding:3px 8px}canvas{max-height:68dvh}}
 
-#openSettings{min-height:44px;min-width:44px;flex-shrink:0;font-size:22px}
+#openSettings{min-height:44px;min-width:44px;font-size:22px}
+#headerMenu{position:relative;flex-shrink:0}
+#gameMenu{position:absolute;right:0;top:calc(100% + 5px);z-index:25;width:clamp(70px,20vw,132px);display:grid;gap:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:#172637;box-shadow:0 8px 20px #0008}
+#gameMenu button{min-height:44px;padding:5px 2px;font-size:14px;white-space:nowrap}
 .service-dialog{width:min(440px,calc(100% - 28px));max-height:85dvh;padding:16px;border:1px solid var(--line);border-radius:12px;background:#172637;color:var(--ink)}
 .service-dialog::backdrop{background:#070e17b8}
 .service-dialog button{min-height:44px;margin:4px 5px 4px 0}
@@ -104,7 +107,15 @@ details .item{margin-bottom:8px}
 </style>
 </head>
 <body><main>
-<header><h1>심층 탄환</h1><div id="money"></div><button type="button" id="openSettings" aria-label="메뉴" aria-haspopup="dialog">☰</button></header>
+<header><h1>심층 탄환</h1><div id="money"></div><div id="headerMenu">
+ <button type="button" id="openSettings" aria-label="메뉴" aria-expanded="false" aria-controls="gameMenu">☰</button>
+ <div id="gameMenu" role="group" aria-label="메뉴 바로가기" hidden>
+  <button type="button" id="menuSettings">설정</button>
+  <button type="button" id="menuAccount">계정</button>
+  <button type="button" id="menuMail">우편함</button>
+  <button type="button" id="menuNotices">공지</button>
+ </div>
+</div></header>
 <section id="menu" aria-label="정비소"></section>
 <nav id="dock" aria-label="정비소 메뉴">
   <button type="button" data-page="supply"><i class="dock-icon supply-icon" aria-hidden="true"></i><span>뽑기</span></button>
@@ -144,14 +155,7 @@ details .item{margin-bottom:8px}
  </details>
  <form method="dialog"><button type="submit">닫기</button></form>
 </dialog>
-<dialog id="gameMenu" class="service-dialog" aria-labelledby="gameMenuTitle">
- <h2 id="gameMenuTitle">메뉴</h2>
- <button type="button" id="menuSettings">설정</button>
- <button type="button" id="menuAccount">계정</button>
- <button type="button" id="menuMail">우편함</button>
- <button type="button" id="menuNotices">공지</button>
- <form method="dialog"><button>닫기</button></form>
-</dialog>
+
 <dialog id="accountDialog" class="service-dialog" aria-labelledby="accountTitle">
  <h2 id="accountTitle">계정</h2>
  <p id="accountStatus" role="status"></p>
@@ -166,7 +170,7 @@ details .item{margin-bottom:8px}
 </dialog>
 <dialog id="noticesDialog" class="service-dialog" aria-labelledby="noticeTitle">
  <h2 id="noticeTitle">공지</h2>
- <p>2.0.16 · 오른쪽 위 메뉴에서 설정, 계정, 우편함, 공지를 열 수 있어.</p>
+ <p>2.0.17 · ☰ 버튼 아래에서 설정, 계정, 우편함, 공지를 열 수 있어.</p>
  <form method="dialog"><button>닫기</button></form>
 </dialog>
 </main>
@@ -3917,10 +3921,21 @@ async function renderMailbox(){
   }
  }catch(error){status.textContent=error.message;}
 }
-function openServiceDialog(id){
- $('gameMenu').close();$(id).showModal();
+function setHeaderMenu(open){
+ $('gameMenu').hidden=!open;
+ $('openSettings').setAttribute('aria-expanded',String(open));
 }
-$('openSettings').onclick=()=>$('gameMenu').showModal();
+function openServiceDialog(id){
+ setHeaderMenu(false);$(id).showModal();
+}
+$('openSettings').onclick=()=>setHeaderMenu($('gameMenu').hidden);
+document.addEventListener('click',event=>{
+ if(!$('gameMenu').hidden&&!$('headerMenu').contains(event.target))setHeaderMenu(false);
+});
+document.addEventListener('keydown',event=>{
+ if(event.key!=='Escape'||$('gameMenu').hidden)return;
+ setHeaderMenu(false);$('openSettings').focus();
+});
 $('menuSettings').onclick=()=>openServiceDialog('settings');
 $('menuNotices').onclick=()=>openServiceDialog('noticesDialog');
 $('menuAccount').onclick=async()=>{
