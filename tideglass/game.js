@@ -1,6 +1,17 @@
 'use strict';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d');
 const playfield = $('game');
+const viewport = document.querySelector('meta[name="viewport"]');
+const menuViewport = viewport.content;
+function setGameplayGestures(playing) {
+ document.documentElement.classList.toggle('playing', playing);
+ viewport.content = playing ? menuViewport + ', maximum-scale=1, user-scalable=no' : menuViewport;
+}
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+ document.addEventListener(type, event => {
+  if (!playfield.hidden) event.preventDefault();
+ }, {capture: true, passive: false});
+}
 const cancelBrowserGesture = event => event.preventDefault();
 for (const type of ['dblclick', 'selectstart', 'dragstart', 'contextmenu']) {
  playfield.addEventListener(type, cancelBrowserGesture);
@@ -69,10 +80,10 @@ function msg(t){$('toast').textContent=t;timer=3}
 function save(){if(role==='solo'&&dirty){try{localStorage.setItem(key,JSON.stringify(state));dirty=false}catch{msg('기기 저장 공간을 확인하세요')}}}
 function enter(r){
  role=r;p={...spawn,vx:0,vy:0,face:1,hp:5,ground:false};keys.clear();selected=null;cool=0;hurt=0;mode='mine';clock=0;aimPhase=0;
- $('mode').textContent='곡괭이';$('home').hidden=true;$('game').hidden=false;active=true;lastFrame=0;msg('좌우로 이동 · 가까운 지형을 눌러 채굴');requestAnimationFrame(frame);
+ $('mode').textContent='곡괭이';$('home').hidden=true;$('game').hidden=false;setGameplayGestures(true);active=true;lastFrame=0;msg('좌우로 이동 · 가까운 지형을 눌러 채굴');requestAnimationFrame(frame);
 }
 $('solo').onclick=()=>{state=newWorld();try{const s=JSON.parse(localStorage.getItem(key));state=restoreWorld(s)}catch{}enter('solo')};
-function leave(){save();active=false;peer?.destroy();peer=null;link=null;friends.clear();room='';keys.clear();$('game').hidden=true;$('home').hidden=false;$('status').textContent='';role='solo'}
+function leave(){save();active=false;peer?.destroy();peer=null;link=null;friends.clear();room='';keys.clear();$('game').hidden=true;setGameplayGestures(false);$('home').hidden=false;$('status').textContent='';role='solo'}
 $('back').onclick=leave;addEventListener('pagehide',save);
 const tile=(x,y)=>x<0||x>=W||y>=H?8:y<0?0:state.tiles[y*W+x];
 function solid(x,y){return tile(Math.floor(x),Math.floor(y))!==0}
