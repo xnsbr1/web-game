@@ -1,0 +1,150 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0e2025"><title>마지막 교신 · 심층 탄환</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#edf6f1;background:#0e2025;font:16px/1.55 system-ui,sans-serif;word-break:keep-all}main{max-width:720px;margin:auto;padding:18px max(16px,env(safe-area-inset-left)) 55px}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #547373;padding-bottom:12px}a{color:#a5e3d6}h1{font-size:clamp(40px,9vw,72px);line-height:1.05;margin:16px 0;color:#ffda94;letter-spacing:-.07em}h2{font-size:24px;margin:0 0 7px}p{margin:5px 0 12px;color:#cfdfda}button,input,select{font:inherit;border-radius:8px;padding:11px 14px;min-height:46px}button{background:#ffd48b;color:#202a26;border:1px solid #e2bf81;font-weight:750;cursor:pointer}button:disabled{opacity:.55}input,select{background:#11282b;color:white;border:1px solid #72908b;max-width:100%}section,details{border:1px solid #416568;border-radius:14px;background:#173237;padding:16px;margin:14px 0}summary{cursor:pointer;font-weight:bold}.art{position:relative;overflow:hidden;background:radial-gradient(ellipse at 70% 100%,#345255,transparent 60%),#12292e;padding:22px 16px 12px;border-bottom:4px solid #e4a35e}.art svg{width:100%;height:82px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.modes{display:grid;gap:10px;margin-top:18px}.modes button{text-align:left;display:flex;justify-content:space-between;align-items:center;background:#19383c;border:1px solid #557a77;color:#fff;font-size:20px;padding:16px}.modes small{font-size:13px;color:#b6d3ca}.stage{display:block;width:100%;text-align:left;margin-top:8px}.quiet{background:#28464b;color:#e1efea;border-color:#557773}canvas{display:block;width:100%;height:auto;border-radius:12px;touch-action:none;background:#122529}.hint{font-size:14px;color:#adc9c2}.play{position:relative}.dash{position:absolute;right:10px;bottom:10px;touch-action:none}.status{min-height:1.4em;color:#ffe0a2}[hidden]{display:none!important}
+</style></head><body><main><header><a href="shooter.html">‹ 전투 홈</a><b>심층 탄환 / 구조대</b></header><div class="art"><h1>마지막 교신</h1><svg viewBox="0 0 480 80" role="img" aria-label="폐광의 산등성이와 점등된 중계탑"><path fill="#30494c" d="M0 52 58 22 94 43 165 4 210 44 300 15 400 47 480 7V80H0Z"/><path fill="#14292a" d="M0 65 90 39 155 54 220 27 296 63 380 30 480 56V80H0Z"/><path fill="none" stroke="#edbc76" stroke-width="2" d="m269 68 12-49 12 49m-19-16h14m-11-13h8M0 76l168-9 80 6 232-14"/><circle cx="281" cy="17" r="4" fill="#ffe7ab"/><path stroke="#8de4ce" fill="none" d="M269 9q-8 8 0 16m23-16q8 8 0 16"/></svg><p>“막차는 아직 여기 있어. 세 중계기에 불을 켜줘.”</p></div>
+<div id="home" class="modes"><button data-page="solo">한 판 개조 <small>능력 조합 · 친구 도전</small></button><button data-page="coop">2인 구조 작전 <small>광차 정거장</small></button><button data-page="map">폐광 탐사 <small>구조 신호 추적</small></button></div>
+<section id="solo" hidden><h2>수신 주파수 선택</h2><p>공용 돌격소총과 대시로 출격해. 두 번의 교신에서 이번 작전의 능력을 골라.</p><div id="stages"></div><details><summary>친구 도전 코드</summary><p>친구와 같은 전장·장비·후보로 시작해.</p><input id="challenge" placeholder="예: Q1-3FX" maxlength="12" aria-label="친구 도전 코드"><button id="enter">출격</button><p id="codeMsg" class="status"></p></details></section>
+<section id="coop" hidden><h2>정거장 구조반</h2><p>“내가 신호기를 잡을게. 너는 분쇄기를 선로로 유인해.”</p><div id="connect"><button id="create">방 만들기</button><div class="row" style="margin-top:10px"><input id="roomCode" maxlength="6" placeholder="방 코드 6자리" aria-label="방 코드"><button id="join">참가</button></div></div><p id="netMsg" class="status" role="status"></p>
+<div id="lobby" hidden><label>공용 총기 <select id="gun"><option value="rifle">돌격소총 · 연사</option><option value="scout">정찰총 · 장거리</option></select></label> <button id="ready">준비 완료</button></div>
+<div id="field" class="play" hidden><canvas id="battle" width="600" height="440"></canvas><button class="dash" id="cdash">대시</button></div><p id="guide" class="hint" hidden>전장을 끌어 이동 · 자동 사격 · 황색 선로는 위험 · 쓰러진 친구 곁에서 구조</p><button id="leave" hidden class="quiet">방 나가기</button></section>
+<section id="map" hidden><h2>폐광 노선도</h2><p id="journal"></p><canvas id="atlas" width="600" height="380" aria-label="탐사 지도. 눌러서 이동"></canvas><p class="hint">가고 싶은 땅을 누르면 이동해. 시설에 가까이 가면 조사할 수 있어.</p><div class="row"><button id="inspect">기지 조사</button><button class="quiet" id="base">기지 귀환</button><select id="fast" aria-label="빠른 이동"><option>빠른 이동</option></select></div><p id="story" class="status" role="status"></p></section>
+<button id="back" class="quiet" hidden>‹ 구조대 기지</button></main>
+<script>
+const $=id=>document.getElementById(id),places=[
+ ['base','탐사 기지',70,292,0,'윤 기사의 마지막 교신이 도착했다. 정거장 전원, 광맥 중계기, 감압 밸브가 구조선에 연결돼 있다.'],
+ ['station','광차 정거장',220,227,1,'막차 안에 구조대의 빈 헬멧이 놓여 있다. 광차 전원을 복구하면 터널 지름길이 열린다.'],
+ ['rescue','무너진 갱도',314,105,0,'철문 뒤에서 세 번 두드리는 소리. 잔해를 치우자 윤 기사가 빠져나온다. “표본 굴의 푸른 불빛을 따라가.”'],
+ ['sample','포자 굴',445,217,0,'포자에 묻힌 수신기를 닦자 침수 연구소의 호출 부호가 나타났다.'],
+ ['cave','광맥 중계기',486,68,9,'광맥 포식자가 안테나를 둘러싸고 있다. 수정벽을 넘어 중계기를 복구해.'],
+ ['lab','침수 연구소',537,310,14,'갇힌 막차에 산소를 보내려면 감압 밸브를 열어야 한다. 절연 갑각이 밸브 앞에 버티고 있다.']];
+const missions=places.filter(p=>p[4]);
+const done=id=>localStorage.getItem('signal-clear-'+id)==='1';
+function deploy(p,site=false,code=''){
+ const key=code||'Q'+p[4]+'-'+crypto.getRandomValues(new Uint32Array(1))[0].toString(36).toUpperCase();
+ location.href='shooter.html?op='+key+(site?'&site='+p[0]:'');
+}
+for(const p of missions){const b=document.createElement('button');b.className='stage quiet';b.textContent=p[1]+' · '+({'station':'선로 분쇄기','cave':'광맥 포식자','lab':'절연 갑각'})[p[0]];b.onclick=()=>deploy(p);$('stages').append(b);}
+$('enter').onclick=()=>{const c=$('challenge').value.trim().toUpperCase();if(/^Q(1|9|14)-[0-9A-Z]{1,7}$/.test(c))deploy(null,false,c);else $('codeMsg').textContent='Q로 시작하는 결과 화면의 코드를 입력해.';};
+function page(){const wanted=location.hash.slice(1),active=['map','coop','solo'].includes(wanted)?wanted:'home';
+ for(const id of ['home','solo','coop','map'])$(id).hidden=id!==active;
+ $('back').hidden=active==='home';if(active==='map')mapHud();if(active==='coop')checkNet();
+}
+document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>location.hash=b.dataset.page);
+$('back').onclick=()=>{if(room){$('netMsg').textContent='방 나가기를 누르면 기지로 돌아갈 수 있어.';return;}location.hash='';};
+let trek;try{trek=JSON.parse(localStorage.getItem('signal-map-v1'));}catch{}
+if(!trek||!Array.isArray(trek.found))trek={x:70,y:292,found:['base'],day:0};
+let dest=null,near=null,eventNear=false;
+const events=[
+ ['끊어진 전선',158,154,'전선을 이어 보조등을 켰다. 광차 승강장으로 가는 길이 밝아졌다.'],
+ ['빈 운반차',398,295,'운반차를 밀자 돌무더기가 흩어진다. 차에 올라 정거장까지 되돌아갈 수 있다.'],
+ ['푸른 포자 신호',386,144,'빛을 따라가자 윤의 음성 기록이 들린다. “무전기는 끝까지 두고 가지 마.”']
+];
+function eventToday(){return events[(trek.day||0)%events.length];}
+const saveMap=()=>localStorage.setItem('signal-map-v1',JSON.stringify(trek));
+const ending=()=>missions.every(p=>done(p[0]))&&trek.found.includes('rescue')&&trek.found.includes('sample');
+function mapHud(){
+ near=places.find(p=>Math.hypot(trek.x-p[2],trek.y-p[3])<34);
+ const event=eventToday();
+ eventNear=Math.hypot(trek.x-event[1],trek.y-event[2])<35;
+ $('inspect').disabled=!near&&!eventNear;$('inspect').textContent=near?near[1]+' 조사':eventNear?'현장 신호 조사':'시설 가까이 이동';
+ $('journal').textContent=ending()?'막차의 객실등이 켜졌다. 윤 기사는 마지막 구조 확인을 보내고 기지로 돌아왔다.':'복구된 신호 '+missions.filter(p=>done(p[0])).length+'/3 · 발견한 장소 '+trek.found.length+'/6';
+ $('fast').replaceChildren(new Option('빠른 이동',''));
+ for(const p of places.filter(p=>trek.found.includes(p[0])))$('fast').add(new Option(p[1],p[0]));
+}
+function walkTo(p){trek.x=p[2];trek.y=p[3];dest=null;saveMap();mapHud();}
+$('base').onclick=()=>walkTo(places[0]);$('fast').onchange=e=>{const p=places.find(p=>p[0]===e.target.value);if(p)walkTo(p);};
+$('inspect').onclick=()=>{
+ if(!near&&eventNear){
+  const event=eventToday();trek.day=(trek.day||0)+1;saveMap();mapHud();$('story').textContent=event[3];
+  if(event===events[1]){const ride=document.createElement('button');ride.textContent='운반차 탑승';ride.onclick=()=>walkTo(places[1]);$('story').append(ride);}
+  return;
+ }
+ if(!near)return;
+ const [id,name,x,y,index,line]=near;
+ if(id==='lab'&&!trek.found.includes('sample')){$('story').textContent='주파수를 알 수 없어. 포자 굴의 수신기를 먼저 조사해.';return;}
+ if(id==='cave'&&!done('station')){$('story').textContent='광차 정거장 전원이 끊겨 중계기 문이 닫혀 있어.';return;}
+ if(!trek.found.includes(id))trek.found.push(id);
+ saveMap();mapHud();$('story').replaceChildren(document.createTextNode(line+' '));
+ if(index){const p=near,b=document.createElement('button');b.textContent=done(id)?'다시 출격':'작전 진입';b.onclick=()=>deploy(p,true);$('story').append(b);}
+ if(id==='station'&&done(id)){const b=document.createElement('button');b.textContent='광차로 중계기 이동';b.onclick=()=>{walkTo(places[4]);$('story').textContent='막차가 중계기 승강장에 도착했다.';};$('story').append(b);}
+ if(id==='base'&&ending())$('story').textContent='“다음 교신까지, 전원 무사 귀환.” — 윤';
+};
+function point(c,e){const r=c.getBoundingClientRect();return {x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height};}
+$('atlas').onpointerdown=e=>{dest=point($('atlas'),e);$('story').replaceChildren();};
+function dot(c,x,y,r,col){c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fillStyle=col;c.fill();}
+function path(c,pts,col,width){c.beginPath();pts.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.strokeStyle=col;c.lineWidth=width;c.stroke();}
+function terrain(c,w,h){
+ c.fillStyle='#152b30';c.fillRect(0,0,w,h);
+ for(let i=0;i<34;i++){const x=(i*83)%w,y=(i*53)%h;path(c,[[x-16,y+7],[x,y-7],[x+12,y+1]],'#2c4748',2);}
+}
+function paintMap(dt){
+ const c=$('atlas').getContext('2d');terrain(c,600,380);
+ if(dest){const dx=dest.x-trek.x,dy=dest.y-trek.y,d=Math.hypot(dx,dy),step=Math.min(d,dt*160);if(d>1){trek.x+=dx/d*step;trek.y+=dy/d*step;}else{dest=null;saveMap();mapHud();}}
+ for(const route of [[0,1,2,4],[1,3,5],[2,3]]){const points=route.map(i=>places[i].slice(2,4));path(c,points,'#0c1c1c',12);path(c,points,'#67827c',3);}
+ for(const [id,name,x,y] of places){dot(c,x,y,13,done(id)?'#7cf5bd':trek.found.includes(id)?'#e4b873':'#688b8c');c.font='bold 16px sans-serif';c.fillStyle='#f4ece0';c.textAlign='center';c.fillText(name,x,y+32);}
+ const ev=eventToday();dot(c,ev[1],ev[2],8,'#d6a5ff');c.fillStyle='#eacaff';c.fillText(ev[0],ev[1],ev[2]-13);
+ dot(c,trek.x,trek.y,7,'#fff');if(dest)dot(c,dest.x,dest.y,4,'#ffcb72');
+}
+window.addEventListener('pagehide',saveMap);
+let room=null,state=null,busy=false,pendingDash=false,stick=null,axis={x:0,y:0},lastReady=false;
+try{room=JSON.parse(sessionStorage.getItem('signal-room'));}catch{}
+async function api(action,body){
+ const res=await fetch('api/game/coop/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(5500)});
+ if(!res.headers.get('content-type')?.includes('application/json'))throw Error('이 주소에는 협동 서버가 없어. 서버가 배포된 게임 주소에서 열어줘.');
+ const data=await res.json();if(!res.ok){const err=Error(data.error||'연결 실패');err.status=res.status;throw err;}return data;
+}
+async function checkNet(){
+ if(room){$('connect').hidden=true;return;}
+ $('netMsg').textContent='구조 채널 연결 중…';
+ try{const r=await fetch('api/game/status',{signal:AbortSignal.timeout(4500)});if(!r.ok||!(await r.json()).online)throw Error();
+ $('netMsg').textContent='구조 채널 연결됨. 두 사람이 준비하면 출발해.';}
+ catch{$('netMsg').textContent='이 주소에서는 협동 서버가 연결되지 않았어. 서버가 배포된 주소에서 방을 열어줘. 개조와 탐사는 바로 플레이할 수 있어.';}
+}
+async function openRoom(action){
+ if(busy||room)return;busy=true;
+ try{room=await api(action,{code:$('roomCode').value.trim()});sessionStorage.setItem('signal-room',JSON.stringify(room));$('connect').hidden=true;lastReady=false;}
+ catch(e){$('netMsg').textContent=e.message;}finally{busy=false;}
+}
+$('create').onclick=()=>openRoom('create');$('join').onclick=()=>openRoom('join');
+$('ready').onclick=async()=>{if(!room)return;try{await api('ready',{...room,gun:$('gun').value});lastReady=true;}catch(e){$('netMsg').textContent=e.message;}};
+function forget(){room=null;state=null;lastReady=false;sessionStorage.removeItem('signal-room');$('field').hidden=$('guide').hidden=$('leave').hidden=$('lobby').hidden=true;$('connect').hidden=false;}
+$('leave').onclick=async()=>{const old=room;forget();if(old)try{await api('leave',old);}catch{}location.hash='';};
+const board=$('battle');board.onpointerdown=e=>{board.setPointerCapture(e.pointerId);stick={...point(board,e),id:e.pointerId};};
+board.onpointermove=e=>{if(stick?.id!==e.pointerId)return;const p=point(board,e);axis={x:(p.x-stick.x)/40,y:(p.y-stick.y)/40};};
+function release(){stick=null;axis={x:0,y:0};}
+board.onlostpointercapture=release;window.addEventListener('blur',release);$('cdash').onclick=()=>pendingDash=true;
+async function sync(){
+ if(!room||busy||document.hidden)return;busy=true;const current=room,dash=pendingDash;pendingDash=false;
+ try{
+  const next=await api('sync',{...current,...axis,dash});if(current!==room)return;state=next;
+  const lobby=state.phase==='lobby',battle=state.phase==='battle';
+  $('lobby').hidden=!lobby;$('field').hidden=!battle;$('guide').hidden=!battle;$('leave').hidden=false;
+  $('ready').disabled=lastReady||state.players[room.index].ready;$('gun').disabled=$('ready').disabled;
+  const mine=state.players[room.index];$('cdash').textContent=mine.cd>0?'대시 '+mine.cd.toFixed(1):'대시';
+  $('netMsg').textContent=lobby?'방 '+room.code+' · '+state.players.length+'/2명 · 준비 '+state.players.filter(p=>p.ready).length+'/2':
+   battle?(state.waiting?'동료 재연결 대기 · 30초 이내 복귀':'작전 '+Math.floor(state.t)+'초 · 내 체력 '+mine.hp+' · '+(state.boss?'분쇄기 '+Math.max(0,Math.ceil(100*state.boss.hp/state.boss.max))+'%':'광차 도착까지 '+Math.ceil(36-state.t)+'초')):
+   (state.phase==='won'?'막차 구조 성공':state.phase==='closed'?'동료가 방을 나갔어':'작전 종료')+' · '+Math.floor(state.t)+'초 · 구조 '+state.players.reduce((n,p)=>n+p.rescues,0)+'회 · 전환 성공 '+state.players.reduce((n,p)=>n+p.opened,0)+'회';
+  if(!battle&&!lobby){sessionStorage.removeItem('signal-room');}
+ }catch(e){if(current===room){if(e.status===404||e.status===403)forget();$('netMsg').textContent=e.message;}}finally{busy=false;}
+}
+function paintBattle(){
+ if(!state||state.phase!=='battle'||!room)return;const c=board.getContext('2d');terrain(c,600,440);
+ for(const y of [132,310]){
+  for(let x=5;x<600;x+=28)c.fillRect(x,y-9,6,18);
+  for(const yy of [y-6,y+6])path(c,[[0,yy],[600,yy]],'#80928b',3);
+ }
+ const b=state.boss;if(b?.rail){c.fillStyle=b.locked?'#e98d4666':'#fcca4a60';c.fillRect(0,b.lane-32,600,64);}
+ dot(c,64,220,28,'#e9af5d');c.fillStyle='#182429';c.textAlign='center';c.font='bold 13px sans-serif';c.fillText('신호기',64,225);
+ if(b){c.save();c.translate(b.x,b.y);c.fillStyle=b.weak>state.t?'#ffcd71':'#c66742';c.fillRect(-26,-16,52,32);for(const x of [-18,0,18])dot(c,x,17,7,'#74848e');c.restore();}
+ for(const e of state.mobs){dot(c,e.x,e.y,9,'#eb8392');dot(c,e.x+3,e.y-2,2,'#ffeac9');}
+ state.players.forEach((p,i)=>{
+  if(p.ray?.until>state.t)path(c,[[p.x,p.y],[p.ray.x,p.ray.y]],'#ffdf8b',2);
+  dot(c,p.x,p.y,12,p.hp?(i===room.index?'#68edca':'#a9afff'):'#666e78');
+  c.fillStyle='#fff';c.textAlign='center';c.fillText(!p.hp?'구조 '+Math.round(p.revive/1.7*100)+'%':i===room.index?'나':'동료',p.x,p.y-17);
+ });
+ if(stick){dot(c,stick.x,stick.y,24,'#ffffff38');dot(c,stick.x+Math.max(-1,Math.min(1,axis.x))*18,stick.y+Math.max(-1,Math.min(1,axis.y))*18,8,'#fff');}
+}
+setInterval(sync,110);
+let previous=performance.now();function frame(now){const dt=Math.min(.08,(now-previous)/1000);previous=now;if(!$('map').hidden)paintMap(dt);if(!$('field').hidden)paintBattle();requestAnimationFrame(frame);}
+window.addEventListener('hashchange',page);page();requestAnimationFrame(frame);
+</script></body></html>
