@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.11">
+<meta name="game-build" content="2.0.12">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -755,9 +755,15 @@ const recommendedArmor=[
 ];
 function armorRecommendation(index,alpha){
  const [rank,level]=recommendedArmor[index];
- if(!rank)return alpha?'권장 방어구 2성 +3':'권장 방어구 없음 · 기본 장비';
- return '권장 방어구 '+rank+'성 +'+Math.min(rank*5,level+(alpha?3:0));
+ if(alpha)return '권장 방어구 5성 +'+(15+Math.floor(index/2));
+ if(!rank)return '권장 방어구 없음 · 기본 장비';
+ return '권장 방어구 '+rank+'성 +'+level;
 }
+const alphaStageCount=10;
+const alphaUnlockLabel='일반 2-10 클리어 후 해금';
+const canStartAlpha=index=>Number.isInteger(index)&&index>=0&&index<alphaStageCount&&
+ (testMode||save.cleared>=stages.length);
+const alphaBalance={mobHealth:1.45,damage:1.28,move:1.08,bossHealth:1.28,patternInterval:.82};
 const stageChapterNames=['폐광','침수 연구소','폐광 알파','침수 연구소 알파'];
 let chapterView=0, stageView=null, itemView=null;
 const bossHuntReward=index=>({credits:40+index*4,alloy:1});
@@ -954,7 +960,7 @@ const levelGuideTips=[
  [30,15,'Lv.25부터 기본 강화 3단계가 열려. 필요한 장비별 재료는 장비 재료 던전에서 수급해.'],
  [40,19,'Lv.35 특수 노드는 기본 강화 3단계가 필요해. 장비 탭의 스킬 정비에서는 전술 데이터로 스킬을 강화해.'],
  [50,19,'Lv.45 기본 강화 4단계와 Lv.50 두 번째 곁가지에 도전해. 곁가지의 선행 노드를 먼저 구매해.'],
- [60,19,'장비를 같은 테마로 맞춰 세트 효과를 활용해. 알파는 일반 스테이지 클리어 뒤 스테이지 선택에서 열려.'],
+ [60,19,'장비를 같은 테마로 맞춰 세트 효과를 활용해. 폐광 알파는 일반 2-10 클리어 뒤 스테이지 선택에서 열려.'],
  [70,19,'Lv.65 기본 강화 5단계를 준비해. 5성 무기는 최대 +25까지 올릴 수 있으니 자주 쓰는 총에 재료를 집중해.'],
  [80,19,'Lv.75부터 기본 강화 6단계와 세 번째 곁가지가 열려. 부족한 보스 코어는 스테이지 상세에서 보스 도전으로 모아.'],
  [90,19,'Lv.85 기본 강화 7단계와 두 번째 특수 노드를 확인해. 초월에 필요한 동일 등급 총기 복제본은 분해 전에 확인해.'],
@@ -998,7 +1004,7 @@ function guideSystemMissions(){
   ['xp-1','경험치 던전 첫 클리어','던전 목록의 레벨업 던전에서 경험치를 받아.',dungeon.xp||0,1,'contracts'],
   ['xp-10','경험치 던전 누적 10회 클리어','현재 레벨에 맞춰 던전 단계 상자를 올려.',dungeon.xp||0,10,'contracts'],
   ['skill-dungeon','스킬 레벨업 던전 첫 클리어','스킬 강화에 필요한 전술 데이터를 얻어.',dungeon.skillData||0,1,'contracts'],
-  ['alpha-1','알파 스테이지 첫 클리어','일반 스테이지를 깬 뒤 같은 번호의 알파에 도전해.',Object.keys(save.challengeStars||{}).filter(id=>id.startsWith('alpha')&&save.challengeStars[id]>0).length,1,'alpha']
+  ['alpha-1','알파 스테이지 첫 클리어','일반 2-10을 깬 뒤 스테이지 선택에서 폐광 알파에 도전해.',Object.keys(save.challengeStars||{}).filter(id=>id.startsWith('alpha')&&save.challengeStars[id]>0).length,1,'alpha']
  ];
  const legacyGoals={'crate-1':2,'gear-1':3};
  const linkNames={campaign:'보급 기지',supply:'뽑기로',gear:'장비로',skills:'스킬 정비',growth:'스킬 트리',contracts:'던전으로',alpha:'알파 목록'};
@@ -1006,7 +1012,7 @@ function guideSystemMissions(){
   id:'system-'+id,title,tip,legacy:(save.guideStep||0)>=(legacyGoals[id]??Infinity),progress:Math.min(value,target)+' / '+target,done:value>=target,
   reward:{credits:25+Math.min(target,15)*5},link:linkNames[destination],
   open:()=>{
-   if(destination==='alpha'){stageView=null;chapterView=save.cleared>=11?3:2;renderMenu('stages');return;}
+   if(destination==='alpha'){stageView=null;chapterView=2;renderMenu('stages');return;}
    openPage(destination);
    if(destination==='campaign')$('guide-farm')?.scrollIntoView?.({block:'start'});
   }
@@ -1045,15 +1051,30 @@ function guidePanel(){
   }
  }
  const systems=guideSystemMissions();
- const missions=[...main,...systems,...mastery];
+ const all=[...main,...systems,...mastery];
+ const byId=new Map(all.map(mission=>[mission.id,mission]));
+ const routeBeforeStage={
+  0:['system-login'],1:['system-gear-1','system-tree-1'],
+  2:['system-crate-1'],3:['system-materials-1'],5:['system-xp-1','level-5'],
+  7:['system-gear-5'],10:['level-10','system-skill-dungeon'],
+  13:['system-equip-6','system-skill-5'],17:['system-gear-15']
+ };
+ const route=stages.flatMap((_,index)=>[...(routeBeforeStage[index]||[]),'stage-'+index]);
+ const order=new Set([...route,'system-alpha-1',...all.map(mission=>mission.id)]);
+ const missions=[...order].map(id=>byId.get(id));
+ const recommended=stages.flatMap((_,index)=>[
+  ...(routeBeforeStage[index]||[]).filter(id=>save.cleared<=index||byId.get(id).done),
+  'stage-'+index
+ ]).map(id=>byId.get(id));
  const claimed=mission=>mission.legacy||save.guideClaims?.[mission.id]===true;
  const count=missions.filter(claimed).length;
- const current=missions.find(mission=>!claimed(mission));
+ const current=recommended.find(mission=>!claimed(mission))||
+  missions.find(mission=>mission.done&&!claimed(mission))||missions.find(mission=>!claimed(mission));
  const ready=missions.filter(mission=>mission.done&&!claimed(mission));
  const header=panel('진행 가이드');
  header.classList.add('guide-home');
  header.replaceChildren();
- const p=disclosure(header,'가이드 '+count+'/'+missions.length+' · '+(current?current.title:'모든 미션 완료'));
+ const p=disclosure(header,'추천 가이드 '+count+'/'+missions.length+' · '+(current?current.title:'모든 미션 완료'));
  p.open=homeGuideOpen;
  p.ontoggle=()=>{homeGuideOpen=p.open;};
  if(count===0)paragraph(p,'전투는 자동 조준·사격이야. 왼쪽으로 이동하고 오른쪽 버튼으로 스킬을 써. 생존이 어렵다면 장비 탭에서 장착과 강화를 확인해.');
@@ -1081,27 +1102,13 @@ function guidePanel(){
   }
   persist();renderMenu();
  },false,'primary'));
- const groups=[
-  ['전체 가이드 · 스테이지',main.filter(mission=>mission.id.startsWith('stage-'))],
-  ['레벨 5–50',main.filter(mission=>mission.id.startsWith('level-')&&Number(mission.id.slice(6))<=50)],
-  ['레벨 55–100',main.filter(mission=>mission.id.startsWith('level-')&&Number(mission.id.slice(6))>50)],
-  ['장비·스킬·던전',systems],
-  ['별 3개 도전',mastery]
- ];
- for(const [label,group] of groups){
-  const list=disclosure(p,label+' · '+group.filter(claimed).length+'/'+group.length);
-  list.open=openGuideGroups.has(label);
-  list.ontoggle=()=>{
-   if(list.open)openGuideGroups.add(label);else openGuideGroups.delete(label);
-  };
-  for(const mission of group){
-   const item=document.createElement('article');item.className='item guide-mission';list.append(item);
-   showMission(item,mission);
-  }
+ paragraph(p,'전체 가이드 퀘스트 · 추천 순서','section-label');
+ for(const mission of missions){
+  const item=document.createElement('article');item.className='item guide-mission';p.append(item);
+  showMission(item,mission);
  }
 }
 let homeGuideOpen=false;
-const openGuideGroups=new Set();
 function farmPanel(){
  const p=panel('보급 기지');p.id='guide-farm';
  if(!save.farmSince){save.farmSince=Date.now();persist();}
@@ -1500,14 +1507,16 @@ function renderMenu(next=page){
    const p=panel('스테이지 선택');
    p.prepend(button('‹ 전투 홈',()=>openPage('campaign')));
    const chapters=document.createElement('div');chapters.className='stage-chapters';
-   stageChapterNames.forEach((name,i)=>chapters.append(button(name,()=>{chapterView=i;renderMenu();},i===chapterView,i===chapterView?'primary':'')));
+   stageChapterNames.forEach((name,i)=>chapters.append(button(i===3?name+' · 추후 공개':name,()=>{chapterView=i;renderMenu();},i===chapterView,i===chapterView?'primary':'')));
    p.append(chapters);
+   if(chapterView===3){paragraph(p,'침수 연구소 알파 · 추후 공개');return;}
+   if(alpha&&!canStartAlpha(0))paragraph(p,alphaUnlockLabel,'section-label');
    const offset=(chapterView%2)*10;
    stages.slice(offset,offset+10).forEach(([name],i)=>{
     const index=offset+i;
     if(alpha){
      const stars=save.challengeStars?.['alpha'+index]||0;
-     const status=stars?'★'.repeat(stars):testMode||index<save.cleared?'출격 가능':'일반 '+stageId(index)+' 클리어 후 해금';
+     const status=!canStartAlpha(index)?alphaUnlockLabel:stars?'★'.repeat(stars):'출격 가능';
      p.append(largeEntry(stageId(index)+' '+name+' · 알파',status+' · '+armorRecommendation(index,true),()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
      return;
     }
@@ -1526,8 +1535,9 @@ function renderMenu(next=page){
   if(alpha){
    const stars=save.challengeStars?.['alpha'+index]||0;
    paragraph(p,(stars?'최고 기록 '+'★'.repeat(stars)+' · ':'')+'클리어 보상 · '+rewardText({credits:165,parts:2,['core'+coreRank(index)]:1}));
-   const locked=!testMode&&index>=save.cleared;
-   p.append(button(locked?'일반 '+stageId(index)+' 클리어 후 해금':'알파 출격',()=>start(index,undefined,false,0,'alpha'),locked,'primary'));
+   paragraph(p,'강화된 적 · 체력 및 공격력 증가 · 이동 속도 소폭 증가 · 보스 패턴 강화');
+   const locked=!canStartAlpha(index);
+   p.append(button(locked?alphaUnlockLabel:'알파 출격',()=>start(index,undefined,false,0,'alpha'),locked,'primary'));
    return;
   }
   paragraph(p,index<save.cleared?'첫 클리어 보상 · 수령 완료':'첫 클리어 보상','section-label');
@@ -2048,6 +2058,7 @@ function stageDevices(index,walls){
  return devices.filter(o=>!walls.some(w=>Math.hypot(o.x-clamp(o.x,w.x,w.x+w.w),o.y-clamp(o.y,w.y,w.y+w.h))<o.r+8));
 }
 function start(index,contract,bossHunt=false,band=0,special=''){
+ if(special==='alpha'&&!canStartAlpha(index))return;
  if(special&&!testMode&&save.cleared<=index)return;
  if(index>=stages.length||(!testMode&&index>=0&&(bossHunt?index>=save.cleared:index>save.cleared)))return;
  if(testMode&&index>=0){save.testSupplyStage=index;supplyPreviewStage=null;persist();}
@@ -2366,13 +2377,15 @@ function campaignBossPhases(index){
  if(index%10===5)return [68,32];
  return [60];
 }
-function campaignBossPhase(e){
- return campaignBossPhases(e.signature).filter(threshold=>e.hp*100<=e.max*threshold).length;
+function campaignBossPhase(e,alpha=false){
+ const thresholds=campaignBossPhases(e.signature);
+ const phase=thresholds.filter(threshold=>e.hp*100<=e.max*threshold).length;
+ return Math.min(thresholds.length,phase+Number(alpha));
 }
 function campaignBossPattern(e){
  const index=e.signature,chapter=chapterBossMoves[index];
  const primary=bossSignatures[index];
- const phase=campaignBossPhase(e);
+ const phase=campaignBossPhase(e,game.special==='alpha');
  const attacks=chapter?(phase===0?[primary,chapter[0]]:phase===1?[chapter[1],primary,chapter[2]]:[chapter[3],chapter[4]||chapter[0],chapter[2],primary]):phase===0?[primary]:[bossSecondMoves[index],primary];
  const turn=e.patternPhase===phase?e.patternTurn:0;
  e.patternPhase=phase;e.patternTurn=turn+1;
@@ -2397,7 +2410,8 @@ function bossSafeLane(e,p,phase){
  const position=column?p.x:p.y;
  const direction=position>limit/2?-1:1;
  const intro=e.signature===9&&g.special!=='alpha'&&phase<2;
- const gap=intro?285:e.signature===9&&g.special!=='alpha'?214:final?176:middle?205:e.signature<4?222:199;
+ const normalGap=intro?285:e.signature===9&&g.special!=='alpha'?214:final?176:middle?205:e.signature<4?222:199;
+ const gap=g.special==='alpha'?normalGap-22:normalGap;
  const distance=intro?155:e.signature===9&&g.special!=='alpha'?192:final?220:middle?196:e.signature<4?180:194;
  const center=clamp(position+direction*distance,gap*.5+26,limit-gap*.5-26);
  const time=intro?1.65:final?1.38:middle?1.29:1.17;
@@ -2409,7 +2423,7 @@ function bossSafeLane(e,p,phase){
  zone(0,center-gap/2,time);
  zone(center+gap/2,limit,time);
  e.laneTurn++;
- e.nextLane=g.t+(final?5.35:middle?6.1:6.5)-phase*.45;
+ e.nextLane=g.t+((final?5.35:middle?6.1:6.5)-phase*.45)*(g.special==='alpha'?alphaBalance.patternInterval:1);
 }
 function huntAttack(e,p,dt){
  const tutorial=game.campaign&&e.signature===9&&game.special!=='alpha'&&campaignBossPhase(e)<2;
@@ -2432,6 +2446,7 @@ function huntAttack(e,p,dt){
   const windup=elite?.87:1;
   e.bossCast={name,kind,count,variant,x:p.x,y:p.y,dir:angle(e,p),left:windup,windup};
   e.clock=campaign?(elite?Math.max(1.65,2.6-e.patternPhase*.35):Math.max(1.95,3.05-e.patternPhase*.45)):Math.max(2.6,4.4*e.tempo);
+  if(game.special==='alpha')e.clock*=alphaBalance.patternInterval;
  }
  const cast=e.bossCast;
  cast.left-=dt;
@@ -2442,9 +2457,9 @@ function huntAttack(e,p,dt){
  const tuned=game.campaign&&bossSignatures[e.signature];
  const major=tuned&&chapterBossMoves[e.signature];
  const pressure=tuned?(e.signature%10===9?1.43:e.signature%10===5?1.32:1.24):1;
- const hit=damage=>Math.round(damage*pressure*(game.special==='alpha'?1.12:1));
+ const hit=damage=>Math.round(damage*pressure*(game.special==='alpha'?alphaBalance.damage:1));
  const warn=(shape)=>game.warnings.push({time:.65,active:.22,damage:hit(tuned?18:14),...shape});
- if(tuned&&e.patternTurn%2===0){
+ if(tuned&&(e.patternTurn%2===0||game.special==='alpha'&&e.patternPhase>=1)){
   const lead=major?112:75;
   const heading=game.movementTime>.2?game.movementHeading:dir;
   warn({x:clamp(x+Math.cos(heading)*lead,40,W-40),y:clamp(y+Math.sin(heading)*lead,40,H-40),
@@ -2636,7 +2651,7 @@ function updateEnemy(e,dt){
   }
  }
  if(dist(e,target)<e.r+target.r){
-  if(target===p)hurt(e.type==='boss'?(e.rush>0&&game.campaign?24:e.rush>0?18:12):e.hit,e);else target.hp-=e.hit*dt*.65;
+  if(target===p)hurt(e.type==='boss'?((e.rush>0&&game.campaign?24:e.rush>0?18:12)*(game.special==='alpha'?alphaBalance.damage:1)):e.hit,e);else target.hp-=e.hit*dt*.65;
  }
 }
 function hazards(dt){
@@ -2692,8 +2707,13 @@ function squadSpawn(g,tier,x,y){
  spawn(unit.type,x,y);
  const e=g.enemies.at(-1);
  e.hp=e.max=Math.round(([40,61,86][tier]+enemyTypes[e.type].hp*.23)*(1+g.index*.032));
- e.hit=Math.round(([10,14,19][tier]+e.hit*.22)*(1+g.index*.007)*(g.special==='alpha'?1.44:g.index===0?1.14:1.29));
+ e.hit=Math.round(([10,14,19][tier]+e.hit*.22)*(1+g.index*.007)*(g.index===0?1.14:1.29));
  e.v*=1.08+tier*.035;
+ if(g.special==='alpha'){
+  e.hp=e.max=Math.round(e.max*alphaBalance.mobHealth);
+  e.hit=Math.round(e.hit*alphaBalance.damage);
+  e.v*=alphaBalance.move;
+ }
  e.trait=squad.trait;e.tier=tier;e.name=unit.name;e.phase=g.spawned*.73;
  e.color=['#93dcbb','#ffbf69','#ee8bd7'][tier];
  if(x===undefined&&dist(e,g.p)<175)e.x=g.p.x>W/2?35:W-35;
@@ -2711,7 +2731,10 @@ function campaignTick(g){
    const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
    Object.assign(e,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
    e.nextLane=g.t+(g.index===9&&g.special!=='alpha'?0:4);e.laneTurn=0;
-   e.hp=e.max=Math.round(campaignBossHp[g.index]*(g.special==='alpha'?1.62:g.index%10===9?1.57:g.index===5?1.33:g.index%10===5?1.39:1.23));
+   const baseHealth=g.index%10===9?1.57:g.index===5?1.33:1.23;
+   const alpha=g.special==='alpha';
+   e.hp=e.max=Math.round(campaignBossHp[g.index]*baseHealth*(alpha?alphaBalance.bossHealth:1));
+   if(alpha)e.v*=alphaBalance.move;
    return;
   }
   g.sector++;g.roundSpawn=0;g.nextSpawn=g.t;
@@ -2933,7 +2956,7 @@ function updateHud(){
   const boss=g.enemies.find(e=>e.type==='boss');
   if(g.bossEntered){
    const health=boss?Math.ceil(100*boss.hp/boss.max):0;
-   const phase=boss?campaignBossPhase(boss)+1:1;
+   const phase=boss?campaignBossPhase(boss,g.special==='alpha')+1:1;
    progress=stageBosses[g.index][0]+' '+health+'% · '+phase+'페이즈';
    if(boss?.bossCast?.name)progress+=' · '+boss.bossCast.name;
   }else progress=(g.sector+1)+'R · '+stageSquads[g.index].units[g.sector].name+' · '+g.sectorKills+'/'+sectorQuota(g.index,g.sector)+' 처치';
