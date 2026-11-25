@@ -1,5 +1,14 @@
 'use strict';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d');
+const playfield = $('game');
+const cancelBrowserGesture = event => event.preventDefault();
+for (const type of ['dblclick', 'selectstart', 'dragstart', 'contextmenu']) {
+ playfield.addEventListener(type, cancelBrowserGesture);
+}
+// Pointer controls already handle the tap. Suppress Safari's follow-up touch gesture.
+playfield.addEventListener('touchend', event => {
+ if (event.target.closest('canvas, [data-key]')) event.preventDefault();
+}, {passive: false});
 const W=100,H=60,T=20,key='tideglass.world.v1',spawn={x:5.5,y:8};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),range=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const surface=x=>12+Math.round(Math.sin(x*.16)*1.4);
