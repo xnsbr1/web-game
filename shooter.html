@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.3">
+<meta name="game-build" content="2.0.4">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -984,7 +984,7 @@ function renderGrowth(previousScroll){
  growth.prepend(button('‹ 전투 홈',()=>openPage('campaign')));
  const filled=Object.keys(training).reduce((total,branch)=>total+trainingLevel(branch)+
   [0,1,2,3,4,5].filter(index=>hasTrainingPerk(trainingPerk(branch,index).id)).length,0);
- paragraph(growth,filled+' / '+(Object.keys(training).length*trainingNodes.length)+' 습득 · 지도를 밀거나 계열을 눌러 이동해.');
+ paragraph(growth,filled+' / '+(Object.keys(training).length*trainingNodes.length)+' 습득 · 한 손가락으로 이동 · 두 손가락으로 확대·축소');
  const legend=document.createElement('div');legend.className='tree-legend';growth.append(legend);
  for(const [branch,config] of Object.entries(trainingBranches)){
   const key=button(config.symbol+' '+training[branch].name,()=>{
@@ -1009,12 +1009,14 @@ function renderGrowth(previousScroll){
  function setZoom(scale,point={
   x:(scroll.scrollLeft+scroll.clientWidth/2)/treeZoom,
   y:(scroll.scrollTop+scroll.clientHeight/2)/treeZoom
- }){
+ },anchor={x:scroll.clientWidth/2,y:scroll.clientHeight/2}){
   treeZoom=scale;
   bounds.style.width=bounds.style.height=Math.floor(treeSize*scale)+'px';
   map.style.transform='scale('+scale+')';
   zoomLabel.textContent=Math.round(scale*100)+'%';
-  locate(point);
+  const insetX=Math.max(0,(scroll.clientWidth-treeSize*scale)/2);
+  scroll.scrollLeft=point.x*scale+insetX-anchor.x;
+  scroll.scrollTop=point.y*scale-anchor.y;
  }
  const overviewScale=()=>Math.min(scroll.clientWidth,scroll.clientHeight)/treeSize;
  const zoomLabel=document.createElement('output');
@@ -1026,6 +1028,49 @@ function renderGrowth(previousScroll){
   button('전체 보기',()=>setZoom(overviewScale(),root)),
   button('중앙으로',()=>setZoom(1,root))
  );
+ const fingers=new Map();
+ let dragged=false;
+ function touchPoint(event){
+  const area=scroll.getBoundingClientRect();
+  return {x:event.clientX-area.left-scroll.clientLeft,y:event.clientY-area.top-scroll.clientTop};
+ }
+ const midpoint=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+ const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+ scroll.addEventListener('pointerdown',event=>{
+  if(event.pointerType!=='touch'||fingers.size>=2)return;
+  dragged=fingers.size>0;
+  fingers.set(event.pointerId,touchPoint(event));
+ });
+ scroll.addEventListener('pointermove',event=>{
+  const previous=fingers.get(event.pointerId);
+  if(!previous)return;
+  const point=touchPoint(event);
+  if(fingers.size===1){
+   if(!dragged&&distance(previous,point)<6)return;
+   dragged=true;
+   scroll.scrollLeft-=point.x-previous.x;
+   scroll.scrollTop-=point.y-previous.y;
+  }else{
+   const other=[...fingers].find(([id])=>id!==event.pointerId)[1];
+   const oldCenter=midpoint(previous,other);
+   const insetX=Math.max(0,(scroll.clientWidth-treeSize*treeZoom)/2);
+   const mapPoint={
+    x:(scroll.scrollLeft+oldCenter.x-insetX)/treeZoom,
+    y:(scroll.scrollTop+oldCenter.y)/treeZoom
+   };
+   const ratio=Math.max(1,distance(point,other))/Math.max(1,distance(previous,other));
+   setZoom(clamp(treeZoom*ratio,overviewScale(),1.6),mapPoint,midpoint(point,other));
+  }
+  fingers.set(event.pointerId,point);
+ });
+ for(const type of ['pointerup','pointercancel','lostpointercapture']){
+  scroll.addEventListener(type,event=>fingers.delete(event.pointerId));
+ }
+ scroll.addEventListener('click',event=>{
+  if(!dragged||!event.detail)return;
+  event.preventDefault();
+  event.stopPropagation();
+ },true);
  const center=document.createElement('div');center.className='tree-core';center.textContent='Lv. '+characterLevel();
  placeTreeNode(center,root);map.append(center);
  for(const [branch,config] of Object.entries(trainingBranches)){
@@ -3181,7 +3226,7 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 .tree-scroll{height:clamp(290px,54dvh,640px);overflow:auto;overscroll-behavior:contain;border:1px solid #436080;border-radius:14px;background:#142238;margin-top:10px}
 .tree-bounds{overflow:hidden;margin-inline:auto}.tree-legend output{align-self:center;min-width:4ch;text-align:center}
 .tree-paths{position:absolute;inset:0;width:100%;height:100%;max-height:none;aspect-ratio:auto;pointer-events:none}
-.tree-legend{margin-top:10px} #menu .tree-legend button{padding:6px 10px;min-height:42px;font-size:14px}.tree-scroll{min-width:0;max-width:100%;touch-action:pan-x pan-y}.tree-panel{min-width:0}#menu .tree-node.has-perk{border-radius:14px}#menu .tree-node.side-perk{border-radius:40%}
+.tree-legend{margin-top:10px} #menu .tree-legend button{padding:6px 10px;min-height:42px;font-size:14px}.tree-scroll{min-width:0;max-width:100%;touch-action:none;user-select:none}.tree-panel{min-width:0}#menu .tree-node.has-perk{border-radius:14px}#menu .tree-node.side-perk{border-radius:40%}
 #menu .tree-detail{margin-top:10px}
 .daily-stock{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#menu .daily-stock button{font-size:13px;padding:8px 3px;min-height:56px}
 #reserveSkill{position:absolute;z-index:2;right:calc(92px + env(safe-area-inset-right));bottom:calc(22px + env(safe-area-inset-bottom));width:62px;height:62px;border-radius:50%;color:#102535;font-weight:800;padding:2px}
