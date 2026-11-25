@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.7">
+<meta name="game-build" content="2.0.8">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -664,8 +664,8 @@ const advancedLevel=id=>Math.max(0,level(id)-5);
 const advancedPerLevel={head:.29,armor:.29,gloves:.50,boots:.29,charm:.36};
 function claimMilestone(themeId){
  if(save.cleared<19||save.milestoneTheme||!Object.hasOwn(themes,themeId))return false;
- for(const id of themes[themeId].ids){
-  save.levels[id]=Math.max(level(id),20);
+ for(const id of themes[themeId].ids.filter(id=>['head','armor','boots'].includes(gear[id].slot))){
+  save.levels[id]=Math.max(level(id),12);
   save.ranks[id]=Math.max(grade(id),5);
  }
  save.milestoneTheme=themeId;persist();return true;
@@ -719,7 +719,7 @@ function largeEntry(title,detail,action,disabled=false){
  return b;
 }
 function rewardPreview(index){
- return rewardText(clearReward(index,true))+' · 첫 평가 별 1~3개만큼 정밀 부품 추가'+(unlocks[index]?' · '+gear[unlocks[index]].name:'')+(index===18?' · 5성 +20 세트 선택권':index===1?' · 2성 갑옷':'');
+ return rewardText(clearReward(index,true))+' · 첫 평가 별 1~3개만큼 정밀 부품 추가'+(unlocks[index]?' · '+gear[unlocks[index]].name:'')+(index===18?' · 5성 +12 방어구 3종 선택권':index===1?' · 2성 갑옷':'');
 }
 function exchangeBossMaterial(index){
  if((save.bossMaterials[index]||0)<3)return;
@@ -1352,7 +1352,7 @@ function renderMenu(next=page){
   const meter=document.createElement('progress');meter.className='operator-xp';meter.max=100;meter.value=progressValue;
   meter.setAttribute('aria-label','현재 레벨 경험치');operatorEntry.append(meter);hero.append(operatorEntry);
   paragraph(hero,complete?'모든 스테이지 완료':'구역 돌파 · 보스 격파');
-  if(save.cleared>=19&&!save.milestoneTheme)hero.append(button('2-9 보상 · 장비 세트 고르기',()=>openPage('gear')));
+  if(save.cleared>=19&&!save.milestoneTheme)hero.append(button('2-9 보상 · 방어구 고르기',()=>openPage('gear')));
 
   if(!complete){
    paragraph(hero,'첫 클리어 보상','section-label');
@@ -1893,12 +1893,12 @@ function renderSets(){
   paragraph(card,'3세트 '+theme.text[0]+(equipped>=3&&equipped<6?' · 적용 중':''));
   paragraph(card,'6세트 '+theme.text[1]+(equipped>=6?' · 적용 중':''));
   if(save.cleared>=19&&!save.milestoneTheme){
-   card.append(button(theme.name+' 세트 수령',()=>{
-    if(claimMilestone(id)){notice=theme.name+' 5성 +20 장비 6개 획득';renderMenu();}
+   card.append(button(theme.name+' 방어구 수령',()=>{
+    if(claimMilestone(id)){notice=theme.name+' 5성 +12 헬멧·갑옷·신발 획득';renderMenu();}
    }));
   }
  }
- paragraph(shell,save.milestoneTheme?themes[save.milestoneTheme].name+' 세트 보상 수령 완료':save.cleared>=19?'테마 하나를 골라 5성 +20 장비 6개를 한 번 받을 수 있어.':'2-9 첫 클리어 보상 · 원하는 테마의 5성 +20 장비 6개');
+ paragraph(shell,save.milestoneTheme?themes[save.milestoneTheme].name+' 세트 보상 수령 완료':save.cleared>=19?'테마 하나를 골라 5성 +12 헬멧·갑옷·신발을 한 번 받을 수 있어.':'2-9 첫 클리어 보상 · 원하는 테마의 5성 +12 헬멧·갑옷·신발');
 }
 function renderEquipmentBoard(){
  const shell=panel('장착 장비');shell.classList.add('loadout-panel');
@@ -2209,7 +2209,7 @@ function hurt(damage,origin,electric=false){
  if(armor&&level(armor)>=5&&modOf(armor)===0)damage*=.85;
  if(armor&&level(armor)>=5&&modOf(armor)===1&&healthRatio<.35)damage*=.72;
  damage*=(1-.015*(gradeBonus(head)+gradeBonus(armor)))*(1-.0029*(advancedLevel(head)+advancedLevel(armor)));
- const scale=game.bossHunt||game.bossEntered?Math.min(1.15,game.damageScale):game.damageScale;
+ const scale=game.dungeon?game.damageScale:game.bossHunt||game.bossEntered?Math.min(1.15,game.damageScale):game.damageScale;
  const loss=Math.round(damage*(1-game.bonuses.defense)*(1-(game.operator.defense||0))*scale);
  if(loss>0){p.regenAt=game.t+recoveryDelay(game.operator);p.medicBoostUntil=game.operator===operators.medic?p.regenAt+2:0;}
  const previousHp=p.hp;
@@ -2319,14 +2319,15 @@ function bossSafeLane(e,p,phase){
  const limit=column?W:H;
  const position=column?p.x:p.y;
  const direction=position>limit/2?-1:1;
- const gap=final?176:middle?205:e.signature<4?222:199;
- const distance=final?220:middle?196:e.signature<4?180:194;
+ const intro=e.signature===9&&g.special!=='alpha'&&phase<2;
+ const gap=intro?285:e.signature===9&&g.special!=='alpha'?214:final?176:middle?205:e.signature<4?222:199;
+ const distance=intro?155:e.signature===9&&g.special!=='alpha'?192:final?220:middle?196:e.signature<4?180:194;
  const center=clamp(position+direction*distance,gap*.5+26,limit-gap*.5-26);
- const time=final?1.38:middle?1.29:1.17;
+ const time=intro?1.65:final?1.38:middle?1.29:1.17;
  function zone(from,to,delay){
   const mid=(from+to)/2;
   g.warnings.push({x:column?mid:p.x,y:column?p.y:mid,column,cart:!column,
-   r:(to-from)/2,time:delay,active:.25,safeLane:true,damage:corridorDamage[e.signature]+(g.special==='alpha'?5:0)});
+   r:(to-from)/2,time:delay,active:.25,safeLane:true,damage:(intro?18:e.signature===9?28:corridorDamage[e.signature])+(g.special==='alpha'?5:0)});
  }
  zone(0,center-gap/2,time);
  zone(center+gap/2,limit,time);
@@ -2334,7 +2335,15 @@ function bossSafeLane(e,p,phase){
  e.nextLane=g.t+(final?5.35:middle?6.1:6.5)-phase*.45;
 }
 function huntAttack(e,p,dt){
- if(game.campaign&&game.t>=e.nextLane){
+ const tutorial=game.campaign&&e.signature===9&&game.special!=='alpha'&&campaignBossPhase(e)<2;
+ if(tutorial&&game.t>=e.nextLane&&!e.bossCast){
+  if(game.warnings.length)return true;
+  bossSafeLane(e,p,campaignBossPhase(e));
+  e.laneRecovery=game.t+2.25;
+  e.nextLane=game.t+10;
+ }
+ if(tutorial&&game.t<e.laneRecovery)return true;
+ if(!tutorial&&game.campaign&&game.t>=e.nextLane){
   bossSafeLane(e,p,campaignBossPhase(e));
  }
  if(!e.bossCast){
@@ -2565,10 +2574,12 @@ function hazards(dt){
    g.lastTideSurge=surge;hurt(10,null,true);
   }
  }
+ if(g.index===9&&g.bossEntered&&g.campaign&&g.special!=='alpha')return;
  if(!['rock','shock','cart','tide'].includes(g.hazard)||g.t<g.nextHazard)return;
  const enraged=g.mode==='boss'&&g.enemies.some(e=>e.hp<e.max/2);
- g.nextHazard=g.t+(g.hazard==='cart'?4.7:enraged?1.8:3.2);
- g.warnings.push({x:p.x,y:g.hazard==='cart'?H/2:p.y,r:g.hazard==='shock'?98:g.hazard==='cart'?30:64,cart:g.hazard==='cart',time:g.hazard==='cart'?1.15:.94,active:.32,damage:g.campaign&&g.index===1?12:18});
+ const earlyShock=g.dungeon&&g.hazard==='shock'&&g.dungeonLevel<=20;
+ g.nextHazard=g.t+(earlyShock?4.4:g.hazard==='cart'?4.7:enraged?1.8:3.2);
+ g.warnings.push({x:p.x,y:g.hazard==='cart'?H/2:p.y,r:earlyShock?79:g.hazard==='shock'?98:g.hazard==='cart'?30:64,cart:g.hazard==='cart',time:earlyShock?1.18:g.hazard==='cart'?1.15:.94,active:.32,damage:g.campaign&&g.index===1?12:18});
 }
 function pressureStrike(g){
  if(g.bossHunt||g.bossEntered||g.t<g.nextBarrage)return;
@@ -2622,14 +2633,14 @@ function campaignTick(g){
    spawn('boss',g.p.x>W/2?95:W-95,H/2);
    const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
    Object.assign(e,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
-   e.nextLane=g.t+4;e.laneTurn=0;
+   e.nextLane=g.t+(g.index===9&&g.special!=='alpha'?0:4);e.laneTurn=0;
    e.hp=e.max=Math.round(campaignBossHp[g.index]*(g.special==='alpha'?1.62:g.index%10===9?1.57:g.index===5?1.33:g.index%10===5?1.39:1.23));
    return;
   }
   g.sector++;g.roundSpawn=0;g.nextSpawn=g.t;
  }
  // Spawn only enough enemies to fill the round quota. The escort starts with the boss.
- const cap=g.bossEntered?bossAddCap:sectorQuota(g.index,g.sector)-g.sectorKills;
+ const cap=g.bossEntered&&g.index===9&&g.special!=='alpha'?Number(g.enemies.some(e=>e.type==='boss'&&e.hp<e.max*.36)):g.bossEntered?bossAddCap:sectorQuota(g.index,g.sector)-g.sectorKills;
  const alive=liveAdds(g);
  if(alive>=cap||g.t<g.nextSpawn)return;
  const packSize=g.index===0&&g.spawned>0?3:4;
@@ -2923,7 +2934,7 @@ function finish(won,reason){
   }else if(g.index>=0){
    const prior=save.stars[g.index]||0;
    reward=clearReward(g.index,!prior,Math.max(0,stars-prior));
-   if(!prior){if(g.index===1)extra+=unlock('plate');if([5,9,15,19].includes(g.index))extra+=grantWeaponBundle(g.index);reward.xp=100;if(g.index===18)extra=' · 5성 +20 장비 세트 선택권';}
+   if(!prior){if(g.index===1)extra+=unlock('plate');if([5,9,15,19].includes(g.index))extra+=grantWeaponBundle(g.index);reward.xp=100;if(g.index===18)extra=' · 5성 +12 방어구 3종 선택권';}
    save.stars[g.index]=Math.max(prior,stars);
    save.cleared=Math.max(save.cleared,g.index+1);
    extra+=unlock(unlocks[g.index]);
