@@ -57,7 +57,12 @@ footer button:active {
   --use-size: clamp(56px, 15vw, 74px);
   --tools-height: 48px;
   --pad-gap: clamp(5px, 1.6vw, 10px);
+  --control-inset-right: max(8px, env(safe-area-inset-right));
   align-items: end;
+  padding-right: var(--control-inset-right);
+}
+.touch-controls .action-controls {
+  margin-left: auto;
 }
 .touch-controls div {
   display: flex;
@@ -97,7 +102,7 @@ footer button:active {
 }
 .touch-controls .tool-controls {
   position: absolute;
-  right: max(6px, env(safe-area-inset-right));
+  right: var(--control-inset-right);
   bottom: calc(var(--jump-size) + 8px);
 }
 .touch-controls .tool-controls button {
@@ -109,12 +114,33 @@ footer button:active {
 #game:has(.touch-controls) #toast {
   bottom: calc(max(10px, env(safe-area-inset-bottom)) + clamp(80px, 23vw, 112px) + 64px);
 }
-@media (orientation: landscape) and (max-height: 450px) {
+@media (orientation: landscape) {
+  #home {
+    min-height: 100%;
+    align-items: center;
+    padding-inline-start: max(24px, env(safe-area-inset-left));
+  }
+  #game header { left: max(8px, env(safe-area-inset-left)); }
+  #game aside { left: max(10px, env(safe-area-inset-left)); }
   .touch-controls {
-    --nav-size: 72px;
-    --jump-size: 84px;
+    --nav-size: clamp(70px, 19vh, 92px);
+    --jump-size: clamp(84px, 23vh, 108px);
+    --use-size: clamp(60px, 17vh, 78px);
+    --control-bottom: max(6px, env(safe-area-inset-bottom));
+    --pad-gap: 8px;
+  }
+  .touch-controls .tool-controls {
+    right: calc(var(--control-inset-right) + var(--jump-size) + var(--pad-gap));
+    bottom: calc(var(--nav-size) + 8px);
   }
   #game:has(.touch-controls) #toast {
-    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 148px);
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + clamp(84px, 23vh, 108px) + 8px);
+    max-width: 50vw;
   }
+}
+@media (orientation: landscape) and (max-height: 450px) {
+  #home { padding-block: 10px; }
+  #home h1 { font-size: clamp(46px, 15vh, 68px); margin-top: 4px; }
+  #home h2 { font-size: 20px; }
+  #home p { margin: 6px 0; }
 }
