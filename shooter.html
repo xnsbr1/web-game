@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.5">
+<meta name="game-build" content="2.0.6">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -693,6 +693,15 @@ function coreCost(id,next){
 function costs(id){const next=level(id)+1;return {credits:18+next*8,alloy:1+Math.floor(next/5),parts:next>=10?1+Math.floor((next-10)/6):0,...coreCost(id,next)};}
 let page='campaign';
 let notice='';
+const recommendedArmor=[
+ [0,0],[0,0],[2,1],[2,2],[2,3],[3,3],[3,4],[3,5],[3,6],[4,6],
+ [4,7],[4,8],[4,9],[4,10],[4,11],[4,12],[5,12],[5,13],[5,14],[5,15]
+];
+function armorRecommendation(index,alpha){
+ const [rank,level]=recommendedArmor[index];
+ if(!rank)return alpha?'권장 방어구 2성 +3':'권장 방어구 없음 · 기본 장비';
+ return '권장 방어구 '+rank+'성 +'+Math.min(rank*5,level+(alpha?3:0));
+}
 const stageChapterNames=['폐광','침수 연구소','폐광 알파','침수 연구소 알파'];
 let chapterView=0, stageView=null, itemView=null;
 const bossHuntReward=index=>({credits:40+index*4,alloy:1});
@@ -707,7 +716,7 @@ function largeEntry(title,detail,action,disabled=false){
  return b;
 }
 function rewardPreview(index){
- return rewardText(clearReward(index,true))+' · 첫 평가 별 1~3개만큼 정밀 부품 추가'+(unlocks[index]?' · '+gear[unlocks[index]].name:'')+(index===18?' · 5성 +20 세트 선택권':'');
+ return rewardText(clearReward(index,true))+' · 첫 평가 별 1~3개만큼 정밀 부품 추가'+(unlocks[index]?' · '+gear[unlocks[index]].name:'')+(index===18?' · 5성 +20 세트 선택권':index===1?' · 2성 갑옷':'');
 }
 function exchangeBossMaterial(index){
  if((save.bossMaterials[index]||0)<3)return;
@@ -762,6 +771,7 @@ function drawSupplies(count,random=Math.random){
  save.credits-=price;
  const tiers=supplyOdds(stage);
  const cards=Array.from({length:count},()=>rollSupply(random,tiers));
+ save.supplyOpened=(save.supplyOpened||0)+count;
  persist();
  return {cards,highest:Math.max(...cards.map(card=>card.rank)),skipped:false};
 }
@@ -894,20 +904,80 @@ const levelGuideTips=[
  [90,19,'Lv.85 기본 강화 7단계와 두 번째 특수 노드를 확인해. 초월에 필요한 동일 등급 총기 복제본은 분해 전에 확인해.'],
  [100,19,'Lv.95에서 기본 강화 8단계, Lv.100에서 9단계와 최종 특수 노드가 열려. 최종 특수 노드는 같은 계열의 선행 특수 능력 두 개가 필요해.']
 ];
+const extraLevelGuideTips=[
+ [15,7,'11–20레벨 경험치 던전에서 레벨을 올리고, 스킬 레벨업 던전에서 전술 데이터를 모아.'],
+ [25,12,'기본 강화 3단계가 열렸어. 크레딧·합금이나 던전 재료 중 여유 있는 쪽으로 투자해.'],
+ [35,16,'기본 강화 3단계를 배운 계열에서 첫 특수 노드를 확인해.'],
+ [45,19,'기본 강화 4단계가 열렸어. 보스를 오래 상대한다면 공격력과 치명타를 먼저 비교해.'],
+ [55,19,'51–60레벨 던전에서 부족한 부위 재료를 선택해서 모아.'],
+ [65,19,'기본 강화 5단계가 열렸어. 공격력, 체력, 치명타 중 부족한 능력에 투자해.'],
+ [75,19,'기본 강화 6단계가 열렸어. 곁가지 최종 노드에는 앞선 곁가지 두 개가 필요해.'],
+ [85,19,'기본 강화 7단계와 두 번째 특수 노드가 열렸어. 특수 노드는 기본 강화 5단계가 필요해.'],
+ [95,19,'기본 강화 8단계가 열렸어. 91–100 경험치 던전에서 마지막 레벨을 올려.']
+];
+function guideSystemMissions(){
+ const highestGear=Math.max(0,...Object.values(save.levels));
+ const highestSkill=Math.max(1,...Object.values(save.skillLevels));
+ const ownedTheme=Object.keys(save.levels).some(id=>gear[id]?.theme)||Object.keys(save.salvaged).some(id=>gear[id]?.theme);
+ const equipped=Object.values(save.equipped).filter(id=>gear[id]&&own(id));
+ const themeCount=Math.max(0,...Object.values(setBonuses(save.equipped).counts));
+ const dungeon=save.guideDungeonWins||{};
+ const goals=[
+  ['login','접속 보상 받기','전투 홈 아래 보급 기지에서 오늘의 접속 보상을 받아.',Number(Boolean(save.loginDay)),1,'campaign'],
+  ['crate-1','장비 상자 처음 열기','뽑기 탭에서 1회 열기를 눌러 테마 장비를 얻어.',save.supplyOpened||(ownedTheme?1:0),1,'supply'],
+  ['crate-10','장비 상자 누적 10개 열기','1회 열기와 10연뽑 모두 합산돼.',save.supplyOpened||0,10,'supply'],
+  ['gear-1','장비 +1 강화','장비 상세 화면에서 첫 강화를 해 봐.',highestGear,1,'gear'],
+  ['gear-5','장비 +5 강화','강화 재료가 부족하면 장비 부위에 맞는 던전을 골라.',highestGear,5,'gear'],
+  ['gear-15','장비 +15 강화','+15까지 강화하려면 3성 이상의 장비가 필요해.',highestGear,15,'gear'],
+  ['equip-6','장비 6부위 장착','총기 외에 헬멧, 갑옷, 장갑, 신발, 장신구를 채워.',equipped.length,6,'gear'],
+  ['set-3','같은 테마 장비 3부위 장착','장비 이름 앞의 테마를 맞춰 3세트 효과를 활성화해.',themeCount,3,'gear'],
+  ['set-6','같은 테마 장비 6부위 장착','한 테마로 여섯 부위를 모두 장착하면 6세트 효과를 받아.',themeCount,6,'gear'],
+  ['skill-5','전투 스킬 Lv.5 달성','장비 탭의 스킬 정비에서 자주 쓰는 스킬을 강화해.',highestSkill,5,'skills'],
+  ['skill-15','전투 스킬 Lv.15 달성','스킬 레벨업 던전에서 전술 데이터를 모아 주력 스킬을 강화해.',highestSkill,15,'skills'],
+  ['tree-1','스킬 트리 기본 노드 구매','스킬 트리에서 네 계열 중 하나의 1단계 노드를 구매해.',Math.max(0,...Object.values(save.training)),1,'growth'],
+  ['tree-perk','스킬 트리 특수 능력 습득','중간 크기 노드를 눌러 필요 레벨과 선행 조건을 확인해.',Object.values(save.trainingPerks).filter(Boolean).length,1,'growth'],
+  ['transcend','장비 1회 초월','같은 등급의 복제본을 사용해 장비 상세에서 초월해.',Math.max(0,...Object.values(save.ascension)),1,'gear'],
+  ['materials-1','장비 재료 던전 첫 클리어','장비 강화에 필요한 재료가 적힌 던전을 골라.',dungeon.materials||0,1,'contracts'],
+  ['materials-10','장비 재료 던전 누적 10회 클리어','장비 재료 던전 세 곳 중 어느 곳을 돌아도 합산돼.',dungeon.materials||0,10,'contracts'],
+  ['xp-1','경험치 던전 첫 클리어','던전 목록의 레벨업 던전에서 경험치를 받아.',dungeon.xp||0,1,'contracts'],
+  ['xp-10','경험치 던전 누적 10회 클리어','현재 레벨에 맞춰 던전 단계 상자를 올려.',dungeon.xp||0,10,'contracts'],
+  ['skill-dungeon','스킬 레벨업 던전 첫 클리어','스킬 강화에 필요한 전술 데이터를 얻어.',dungeon.skillData||0,1,'contracts'],
+  ['alpha-1','알파 스테이지 첫 클리어','일반 스테이지를 깬 뒤 같은 번호의 알파에 도전해.',Object.keys(save.challengeStars||{}).filter(id=>id.startsWith('alpha')&&save.challengeStars[id]>0).length,1,'alpha']
+ ];
+ const legacyGoals={'crate-1':2,'gear-1':3};
+ const linkNames={campaign:'보급 기지',supply:'뽑기로',gear:'장비로',skills:'스킬 정비',growth:'스킬 트리',contracts:'던전으로',alpha:'알파 목록'};
+ return goals.map(([id,title,tip,value,target,destination])=>({
+  id:'system-'+id,title,tip,legacy:(save.guideStep||0)>=(legacyGoals[id]??Infinity),progress:Math.min(value,target)+' / '+target,done:value>=target,
+  reward:{credits:25+Math.min(target,15)*5},link:linkNames[destination],
+  open:()=>{
+   if(destination==='alpha'){stageView=null;chapterView=save.cleared>=11?3:2;renderMenu('stages');return;}
+   openPage(destination);
+   if(destination==='campaign')$('guide-farm')?.scrollIntoView?.({block:'start'});
+  }
+ }));
+}
 function guidePanel(){
- const missions=[];
+ const main=[];
+ const mastery=[];
+ const openStage=index=>{chapterView=Math.floor(index/10);stageView=index;renderMenu('stages');};
  const oldStageRewards={0:1,5:4,9:5};
  for(const [index,[name]] of stages.entries()){
-  missions.push({
+  main.push({
    id:'stage-'+index,title:stageId(index)+' '+name,tip:stageGuideTips[index],
    done:save.cleared>index,legacy:(save.guideStep||0)>=(oldStageRewards[index]??Infinity),
    reward:{credits:50+index*5,...([5,9,15,19].includes(index)?{['core'+coreRank(index)]:1}:{})},
-   open:()=>{
-    chapterView=Math.floor(index/10);stageView=index;renderMenu('stages');
-   },link:'스테이지 상세'
+   open:()=>openStage(index),link:'스테이지 상세'
   });
-  for(const [level,after,tip] of levelGuideTips.filter(entry=>entry[1]===index)){
-   missions.push({
+  const stars=save.stars[index]||0;
+  mastery.push({
+   id:'stars-'+index,title:stageId(index)+' '+name+' · 별 3개',
+   tip:'일반 스테이지에서 4회 이하로 피격되고 클리어해. '+stageGuideTips[index],
+   progress:stars+' / 3점',done:stars>=3,reward:{credits:35+index*3,alloy:1+Math.floor(index/10)},
+   open:()=>openStage(index),link:'스테이지 상세'
+  });
+  const levelGoals=[...levelGuideTips,...extraLevelGuideTips].filter(entry=>entry[1]===index).sort((a,b)=>a[0]-b[0]);
+  for(const [level,,tip] of levelGoals){
+   main.push({
     id:'level-'+level,title:'캐릭터 Lv. '+level+' 달성',tip,
     done:characterLevel()>=level,reward:{credits:60+level,skillData:Math.ceil(level/20)},
     open:()=>{
@@ -918,15 +988,19 @@ function guidePanel(){
    });
   }
  }
+ const systems=guideSystemMissions();
+ const missions=[...main,...systems,...mastery];
  const claimed=mission=>mission.legacy||save.guideClaims?.[mission.id]===true;
  const count=missions.filter(claimed).length;
  const current=missions.find(mission=>!claimed(mission));
+ const ready=missions.filter(mission=>mission.done&&!claimed(mission));
  const p=panel('진행 가이드 · '+count+' / '+missions.length);
  if(count===0)paragraph(p,'전투는 자동 조준·사격이야. 왼쪽으로 이동하고 오른쪽 버튼으로 스킬을 써. 생존이 어렵다면 장비 탭에서 장착과 강화를 확인해.');
  function showMission(parent,mission){
   const complete=claimed(mission);
   paragraph(parent,mission.title+(complete?' · 보상 수령':mission.done?' · 달성':''),'section-label');
   paragraph(parent,mission.tip);
+  if(!complete&&mission.progress)paragraph(parent,mission.progress);
   if(complete)return;
   const actions=document.createElement('div');actions.className='guide-actions';parent.append(actions);
   actions.append(button(mission.link,mission.open));
@@ -937,19 +1011,37 @@ function guidePanel(){
   },!mission.done,'primary'));
  }
  if(current)showMission(p,current);
- else paragraph(p,'일반 스테이지 20개와 레벨 100 가이드를 모두 완료했어.');
- const list=disclosure(p,'전체 가이드 · 스테이지와 레벨 보상');
- list.open=guideListOpen;
- list.ontoggle=()=>{guideListOpen=list.open;};
- for(const mission of missions){
-  if(mission===current)continue;
-  const item=document.createElement('article');item.className='item guide-mission';list.append(item);
-  showMission(item,mission);
+ else paragraph(p,'가이드 미션을 모두 완료했어.');
+ if(ready.length>1)p.append(button('달성 보상 '+ready.length+'개 받기',()=>{
+  save.guideClaims??={};
+  for(const mission of ready){
+   if(claimed(mission))continue;
+   save.guideClaims[mission.id]=true;addFunds(mission.reward);
+  }
+  persist();renderMenu();
+ },false,'primary'));
+ const groups=[
+  ['전체 가이드 · 스테이지',main.filter(mission=>mission.id.startsWith('stage-'))],
+  ['레벨 5–50',main.filter(mission=>mission.id.startsWith('level-')&&Number(mission.id.slice(6))<=50)],
+  ['레벨 55–100',main.filter(mission=>mission.id.startsWith('level-')&&Number(mission.id.slice(6))>50)],
+  ['장비·스킬·던전',systems],
+  ['별 3개 도전',mastery]
+ ];
+ for(const [label,group] of groups){
+  const list=disclosure(p,label+' · '+group.filter(claimed).length+'/'+group.length);
+  list.open=openGuideGroups.has(label);
+  list.ontoggle=()=>{
+   if(list.open)openGuideGroups.add(label);else openGuideGroups.delete(label);
+  };
+  for(const mission of group){
+   const item=document.createElement('article');item.className='item guide-mission';list.append(item);
+   showMission(item,mission);
+  }
  }
 }
-let guideListOpen=false;
+const openGuideGroups=new Set();
 function farmPanel(){
- const p=panel('보급 기지');
+ const p=panel('보급 기지');p.id='guide-farm';
  if(!save.farmSince){save.farmSince=Date.now();persist();}
  const quantity=()=>Math.min(240,Math.max(0,Math.floor((Date.now()-save.farmSince)/60000)));
  const available=quantity();paragraph(p,'자리를 비운 동안 분당 1크레딧 · 최대 4시간 보관');
@@ -1335,16 +1427,17 @@ function renderMenu(next=page){
     if(alpha){
      const stars=save.challengeStars?.['alpha'+index]||0;
      const status=stars?'★'.repeat(stars):testMode||index<save.cleared?'출격 가능':'일반 '+stageId(index)+' 클리어 후 해금';
-     p.append(largeEntry(stageId(index)+' '+name+' · 알파',status,()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
+     p.append(largeEntry(stageId(index)+' '+name+' · 알파',status+' · '+armorRecommendation(index,true),()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
      return;
     }
     const status=index<save.cleared?'클리어 · 보스 파밍 가능':testMode?'테스트 출격 가능':index===save.cleared?'출격 가능':'잠김';
-    p.append(largeEntry(stageId(index)+' '+name,'구역 돌파 · 보스 격파'+' · '+status,()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
+    p.append(largeEntry(stageId(index)+' '+name,status+' · '+armorRecommendation(index,false),()=>{stageView=index;window.scrollTo(0,0);renderMenu();}));
    });
    return;
   }
   const index=stageView;
   const p=panel(stageId(index)+' '+stages[index][0]+(alpha?' · 알파':''));
+  paragraph(p,armorRecommendation(index,alpha),'section-label');
   paragraph(p,'잡몹 '+(sectorQuota(index)*2+sectorQuota(index,2))+'마리 처치 후 '+stageBosses[index][0]+' 출현. 청록 발판은 가속, 초록 십자는 회복, 주황 통은 사격하면 잠시 후 폭발해.');
   bossBrief(p,index);
   squadBrief(p,index);
@@ -2026,7 +2119,7 @@ function reload(){
  if(p.ammo===0)p.reload/=1+game.transcendStats.gloves*.01;
 }
 function shotLifetime(id,mod){
- if(id==='shotgun')return .48;
+ if(id==='shotgun')return .58;
  if(id==='sniper')return mod===1?1.35:1.05;
  return 1.4;
 }
@@ -2066,7 +2159,7 @@ function shoot(){
  const gloves=save.equipped.gloves,charm=save.equipped.charm;
  const stable=gearFamily(gloves)==='stable'&&Math.hypot(movement().x,movement().y)<.1;
  const precise=gloves&&level(gloves)>=5&&modOf(gloves)===1;
- const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.23):0)*(stable?.65-effectLevel(gloves)*.04:1)*(precise?.84:1);
+ const count=id==='shotgun'?5:1,spread=(id==='shotgun'?(mod===1?.105:.18):0)*(stable?.65-effectLevel(gloves)*.04:1)*(precise?.84:1);
  const boost=p.afterDash>0?(gearFamily(charm)==='rift'?.19+effectLevel(charm)*.06+gradeBonus(charm)*.025+(level(charm)>=5&&modOf(charm)===0?.1:0):0)+(l>=10?.3:0):0;
  if(boost)p.afterDash=0;
  const firstRound=p.firstRound?(hasTrainingPerk('firstRound')?1.18:1)*(hasTrainingPerk('returnFire')?1.10:1):1;
@@ -2134,7 +2227,7 @@ function damageEnemy(e,b){
  }
  e.hp-=d;e.lastHit=game.t;
  if(game.operator===operators.tech&&game.t>=(e.paralyzeAt||0)){e.stun=Math.max(e.stun,.3);e.paralyzeAt=game.t+2;}
- if(b.id==='shotgun'&&b.mod===0)move(e,b.vx*.039,b.vy*.039);
+ if(b.id==='shotgun'&&b.mod===0&&e.type!=='boss')move(e,b.vx*.039,b.vy*.039);
  if(b.id==='smg'&&b.mod===0){
   const next=game.enemies.filter(other=>other!==e&&other.hp>0&&dist(e,other)<78&&clearShot(e,other))
    .sort((a,b)=>dist(e,a)-dist(e,b))[0];
@@ -2343,7 +2436,12 @@ function hazards(dt){
   const water=g.hazard==='tide'?135+75*Math.sin(g.t*.68):100;
   g.wet=p.y<water||p.y>H-water;
  }else g.wet=false;
- if(g.hazard==='tide'&&g.wet&&Math.sin(g.t*.68)>.66)hurt(10,null,true);
+ if(g.hazard==='tide'&&g.wet&&Math.sin(g.t*.68)>.66){
+  const surge=Math.floor(g.t*.68/TAU);
+  if(g.lastTideSurge!==surge){
+   g.lastTideSurge=surge;hurt(10,null,true);
+  }
+ }
  if(!['rock','shock','cart','tide'].includes(g.hazard)||g.t<g.nextHazard)return;
  const enraged=g.mode==='boss'&&g.enemies.some(e=>e.hp<e.max/2);
  g.nextHazard=g.t+(g.hazard==='cart'?4.7:enraged?1.8:3.2);
@@ -2356,7 +2454,7 @@ function pressureStrike(g){
  const repeat=g.lastStrike&&dist(g.lastStrike,g.p)<radius;
  g.focusFire=repeat?Math.min(4,(g.focusFire||0)+1):0;
  g.lastStrike={x:g.p.x,y:g.p.y};
- g.warnings.push({x:g.p.x,y:g.p.y,r:radius,time:1.05,active:.24,damage:24+12*g.focusFire});
+ g.warnings.push({x:g.p.x,y:g.p.y,r:radius,time:1.05,active:.24,damage:(g.campaign&&g.index===0?17:24)+12*g.focusFire});
  if(late){
   const heading=g.movementHeading;
   g.warnings.push({x:clamp(g.p.x+Math.cos(heading)*100,30,W-30),y:clamp(g.p.y+Math.sin(heading)*100,30,H-30),r:radius-6,time:1.34,active:.24,damage:25});
@@ -2693,13 +2791,16 @@ function finish(won,reason){
   }else if(g.index>=0){
    const prior=save.stars[g.index]||0;
    reward=clearReward(g.index,!prior,Math.max(0,stars-prior));
-   if(!prior){if([5,9,15,19].includes(g.index))extra+=grantWeaponBundle(g.index);reward.xp=100;if(g.index===18)extra=' · 5성 +20 장비 세트 선택권';}
+   if(!prior){if(g.index===1)extra+=unlock('plate');if([5,9,15,19].includes(g.index))extra+=grantWeaponBundle(g.index);reward.xp=100;if(g.index===18)extra=' · 5성 +20 장비 세트 선택권';}
    save.stars[g.index]=Math.max(prior,stars);
    save.cleared=Math.max(save.cleared,g.index+1);
    extra+=unlock(unlocks[g.index]);
    if(g.index<stages.length-1)row.append(button('다음 스테이지',()=>start(g.index+1),false,'primary'));
   }else if(g.dungeon){
    reward=contractReward(g.dungeon,g.band);
+   const kind=g.dungeon.reward||'materials';
+   save.guideDungeonWins??={};
+   save.guideDungeonWins[kind]=(save.guideDungeonWins[kind]||0)+1;
    extra=unlock(g.dungeon.unlock);
   }
   if(g.index>=0)reward['core'+coreRank(g.index)]=1;
