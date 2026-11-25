@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.15">
+<meta name="game-build" content="2.0.16">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -33,7 +33,12 @@ canvas{display:block;width:100%;aspect-ratio:900/580;max-height:62dvh;object-fit
 #dash{background:var(--amber);color:#382510;font-weight:800;min-height:44px}
 @media(max-height:500px) and (orientation:landscape){body.fighting main{padding:3px 8px}canvas{max-height:68dvh}}
 
-#openSettings{min-height:44px;flex-shrink:0}
+#openSettings{min-height:44px;min-width:44px;flex-shrink:0;font-size:22px}
+.service-dialog{width:min(440px,calc(100% - 28px));max-height:85dvh;padding:16px;border:1px solid var(--line);border-radius:12px;background:#172637;color:var(--ink)}
+.service-dialog::backdrop{background:#070e17b8}
+.service-dialog button{min-height:44px;margin:4px 5px 4px 0}
+.service-dialog label{display:grid;gap:5px;margin:9px 0}.service-dialog input{width:100%;min-height:39px;font:inherit}
+.service-dialog .item{margin-bottom:8px}
 #settings{width:min(420px,calc(100% - 28px));max-height:85dvh;padding:20px;color:#eef8fa;background:#19252d;border:1px solid #779ca8;border-radius:16px;box-sizing:border-box}
 #settings::backdrop{background:#060d13c9}
 #settings h2,#settings h3{margin:0 0 10px}
@@ -99,7 +104,7 @@ details .item{margin-bottom:8px}
 </style>
 </head>
 <body><main>
-<header><h1>심층 탄환</h1><div id="money"></div><button type="button" id="openSettings">설정</button></header>
+<header><h1>심층 탄환</h1><div id="money"></div><button type="button" id="openSettings" aria-label="메뉴" aria-haspopup="dialog">☰</button></header>
 <section id="menu" aria-label="정비소"></section>
 <nav id="dock" aria-label="정비소 메뉴">
   <button type="button" data-page="supply"><i class="dock-icon supply-icon" aria-hidden="true"></i><span>뽑기</span></button>
@@ -138,6 +143,31 @@ details .item{margin-bottom:8px}
   <p id="testModeStatus" role="status"></p>
  </details>
  <form method="dialog"><button type="submit">닫기</button></form>
+</dialog>
+<dialog id="gameMenu" class="service-dialog" aria-labelledby="gameMenuTitle">
+ <h2 id="gameMenuTitle">메뉴</h2>
+ <button type="button" id="menuSettings">설정</button>
+ <button type="button" id="menuAccount">계정</button>
+ <button type="button" id="menuMail">우편함</button>
+ <button type="button" id="menuNotices">공지</button>
+ <form method="dialog"><button>닫기</button></form>
+</dialog>
+<dialog id="accountDialog" class="service-dialog" aria-labelledby="accountTitle">
+ <h2 id="accountTitle">계정</h2>
+ <p id="accountStatus" role="status"></p>
+ <div id="accountActions"></div>
+ <form method="dialog"><button>닫기</button></form>
+</dialog>
+<dialog id="mailDialog" class="service-dialog" aria-labelledby="mailTitle">
+ <h2 id="mailTitle">우편함</h2>
+ <p id="mailStatus" role="status"></p>
+ <div id="mailItems"></div>
+ <form method="dialog"><button>닫기</button></form>
+</dialog>
+<dialog id="noticesDialog" class="service-dialog" aria-labelledby="noticeTitle">
+ <h2 id="noticeTitle">공지</h2>
+ <p>2.0.16 · 오른쪽 위 메뉴에서 설정, 계정, 우편함, 공지를 열 수 있어.</p>
+ <form method="dialog"><button>닫기</button></form>
 </dialog>
 </main>
 <script>
@@ -218,7 +248,7 @@ setInterval(()=>{
  tone(musicGain,note,note,.46,.18);
  if(beat%2===0)tone(musicGain,note*4,note*4,.26,.07,'triangle',.14);
 },480);
-$('openSettings').onclick=()=>$('settings').showModal();
+
 for(const name of Object.keys(audioSettings)){
  const slider=$(name+'Volume'),value=$(name+'Value');
  slider.value=audioSettings[name];value.textContent=slider.value+'%';
@@ -3730,6 +3760,177 @@ function frame(now){
  }else frameRemainder=0;
  requestAnimationFrame(frame);
 }
+const accountKey=key+'-account';
+let account=readSave(accountKey)||{};
+let servicesOnline=false;
+let accountBusy=false;
+function saveAccount(){
+ localStorage.setItem(accountKey,JSON.stringify(account));
+}
+async function gameApi(route,{body,token=account.code}={}){
+ const headers={};
+ if(token)headers.Authorization='Bearer '+token;
+ if(body)headers['Content-Type']='application/json';
+ const response=await fetch(new URL('api/game/'+route,location.href),{
+  method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,cache:'no-store'
+ });
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(result.error||'계정 서버에 연결할 수 없어.');
+ return result;
+}
+async function checkServices(){
+ try{servicesOnline=(await gameApi('status',{token:null})).online===true;}
+ catch{servicesOnline=false;}
+}
+function serviceField(parent,label,options={}){
+ const wrapper=document.createElement('label'),input=document.createElement('input');
+ wrapper.append(label,input);Object.assign(input,options);parent.append(wrapper);
+ return input;
+}
+function serviceAction(parent,status,text,action,disabled=false){
+ parent.append(button(text,async()=>{
+  if(accountBusy)return;
+  accountBusy=true;status.textContent='처리 중…';
+  try{await action();}
+  catch(error){status.textContent=error.message;}
+  finally{accountBusy=false;}
+ },disabled));
+}
+function updateAccount(data,code=account.code){
+ account={id:data.id,name:data.name,revision:data.revision,code};
+ saveAccount();
+}
+function useAccountSave(data){
+ localStorage.setItem(key+'-before-account-sync',JSON.stringify(save));
+ localStorage.setItem(key,JSON.stringify(data.save));
+}
+function pushAccountSave(){
+ return gameApi('save',{body:{revision:account.revision,save}}).then(data=>{updateAccount(data);return data;});
+}
+function renderSaveTransfer(parent,status){
+ const transfer=disclosure(parent,'진행 기록 옮기기');
+ serviceAction(transfer,status,'기록 파일 내보내기',async()=>{
+  const url=URL.createObjectURL(new Blob([JSON.stringify(save)],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='deep-rounds-save.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  status.textContent='진행 기록을 내보냈어.';
+ });
+ const input=serviceField(transfer,'기록 파일 선택',{type:'file',accept:'.json,application/json'});
+ serviceAction(transfer,status,'기록 파일 가져오기',async()=>{
+  const file=input.files?.[0];
+  if(!file||file.size>512*1024)throw new Error('512KB 이하의 게임 기록 파일을 선택해.');
+  let data;
+  try{data=JSON.parse(await file.text());}catch{throw new Error('게임 기록 파일을 읽을 수 없어.');}
+  if(!data||!Number.isInteger(data.cleared)||data.cleared<0||data.cleared>stages.length||
+   !data.levels||typeof data.levels!=='object'||Array.isArray(data.levels)||
+   !data.equipped||typeof data.equipped!=='object'||Array.isArray(data.equipped))
+   throw new Error('심층 탄환에서 내보낸 기록 파일을 선택해.');
+  if(!window.confirm('이 기록을 가져올까? 현재 기록은 기기에 백업돼.')){status.textContent='가져오기를 취소했어.';return;}
+  useAccountSave({save:data});location.reload();
+ });
+}
+function renderAccountDialog(){
+ const panel=$('accountActions'),status=$('accountStatus');
+ panel.replaceChildren();
+ if(testMode){status.textContent='원래 세이브로 돌아가면 계정을 연동할 수 있어.';return;}
+ status.textContent=account.name?'현재 이름 · '+account.name:'계정 이름을 정해.';
+ if(account.id)paragraph(panel,'계정 ID · '+account.id+' · 우편을 받으려면 이 ID를 알려줘.');
+ if(!account.code){
+  const name=serviceField(panel,'계정 이름',{value:account.name||'',maxLength:20,autocomplete:'nickname'});
+  serviceAction(panel,status,servicesOnline?'계정 만들기 및 현재 기록 연동':'이 기기에 이름 저장',async()=>{
+   const value=name.value.normalize('NFKC').trim();
+   if(!/^[\p{L}\p{N} _-]{2,20}$/u.test(value))throw new Error('이름을 2~20자로 입력해.');
+   if(servicesOnline){
+    const data=await gameApi('account',{body:{name:value,save}});
+    updateAccount(data,data.code);
+   }else{account.name=value;saveAccount();}
+   renderAccountDialog();renderMenu();
+  });
+  if(servicesOnline){
+   const code=serviceField(panel,'다른 기기에서 발급받은 연동 코드',{type:'password',autocomplete:'off',maxLength:43});
+   serviceAction(panel,status,'기존 계정 불러오기',async()=>{
+    const secret=code.value.trim(),data=await gameApi('account',{token:secret});
+    if(!window.confirm(data.name+'의 서버 기록을 불러올까? 이 기기의 현재 기록은 백업돼.')){status.textContent='불러오기를 취소했어.';return;}
+    useAccountSave(data);updateAccount(data,secret);location.reload();
+   });
+  }
+ }else{
+  const reveal=disclosure(panel,'연동 코드 확인');
+  paragraph(reveal,'다른 기기에서 이 코드로 불러올 수 있어. 연동 코드는 다른 사람에게 보내지 마.');
+  serviceField(reveal,'비공개 연동 코드',{value:account.code,readOnly:true});
+  serviceAction(panel,status,'현재 기록 서버에 저장',async()=>{await pushAccountSave();status.textContent='서버에 저장했어.';},!servicesOnline);
+  serviceAction(panel,status,'서버 기록 불러오기',async()=>{
+   const data=await gameApi('account');
+   if(!window.confirm('서버 기록을 불러올까? 이 기기의 현재 기록은 백업돼.')){status.textContent='불러오기를 취소했어.';return;}
+   useAccountSave(data);updateAccount(data);location.reload();
+  },!servicesOnline);
+ }
+ if(!servicesOnline)paragraph(panel,'이 주소는 계정 서버에 연결되지 않았어. 이름은 이 기기에 저장돼.');
+ renderSaveTransfer(panel,status);
+}
+function renderAdminMail(panel,status){
+ const admin=disclosure(panel,'개발자 우편 발송');admin.open=true;
+ const secret=serviceField(admin,'관리자 키',{type:'password',autocomplete:'off'});
+ const recipient=serviceField(admin,'받는 계정 ID',{maxLength:16,autocomplete:'off'});
+ const title=serviceField(admin,'제목',{maxLength:80});
+ const message=serviceField(admin,'내용',{maxLength:800});
+ const currency=document.createElement('select');
+ currency.setAttribute('aria-label','지급할 재화');
+ for(const [id,name] of Object.entries({...currencies,skillData:'전술 데이터'})){
+  const option=document.createElement('option');option.value=id;option.textContent=name;currency.append(option);
+ }
+ admin.append(currency);
+ const amount=serviceField(admin,'지급량',{type:'number',min:1,max:100000,step:1});
+ serviceAction(admin,status,'우편 발송',async()=>{
+  const id=recipient.value.trim(),quantity=Number(amount.value);
+  if(!/^[a-f0-9]{16}$/.test(id)||!title.value.trim()||!Number.isSafeInteger(quantity)||quantity<1||quantity>100000)
+   throw new Error('받는 계정 ID, 제목과 지급량을 확인해.');
+  const reward=rewardText({[currency.value]:quantity});
+  if(!window.confirm(id+' 계정으로 '+reward+' 우편을 보낼까?')){status.textContent='발송을 취소했어.';return;}
+  await gameApi('admin/mail',{token:secret.value,body:{recipient:id,title:title.value,message:message.value,currency:currency.value,amount:quantity}});
+  title.value='';message.value='';amount.value='';secret.value='';
+  status.textContent='우편을 발송했어.';
+ });
+}
+async function renderMailbox(){
+ const panel=$('mailItems'),status=$('mailStatus');
+ panel.replaceChildren();status.textContent='';
+ if(testMode){status.textContent='원래 세이브에서 우편함을 열 수 있어.';return;}
+ if(!servicesOnline){status.textContent='계정 서버에 연결되면 우편을 확인할 수 있어.';return;}
+ if(new URLSearchParams(location.search).get('admin')==='1')renderAdminMail(panel,status);
+ if(!account.code){status.textContent='내 우편을 읽으려면 계정에서 기록을 연동해.';return;}
+ try{
+  const {items}=await gameApi('mail');
+  if(!items.length)status.textContent='받은 우편이 없어.';
+  for(const item of items){
+   const card=document.createElement('article');card.className='item';panel.append(card);
+   paragraph(card,item.title,'section-label');
+   paragraph(card,item.message);
+   paragraph(card,rewardText(item.reward));
+   serviceAction(card,status,item.claimed?'수령 완료':'보상 받기',async()=>{
+    const saved=await pushAccountSave();
+    const updated=await gameApi('claim',{body:{id:item.id,revision:saved.revision}});
+    updateAccount(updated);
+    Object.assign(save,updated.save);persist();renderMenu();await renderMailbox();
+    status.textContent='보상을 받았어.';
+   },Boolean(item.claimed));
+  }
+ }catch(error){status.textContent=error.message;}
+}
+function openServiceDialog(id){
+ $('gameMenu').close();$(id).showModal();
+}
+$('openSettings').onclick=()=>$('gameMenu').showModal();
+$('menuSettings').onclick=()=>openServiceDialog('settings');
+$('menuNotices').onclick=()=>openServiceDialog('noticesDialog');
+$('menuAccount').onclick=async()=>{
+ openServiceDialog('accountDialog');$('accountStatus').textContent='연결 확인 중…';
+ await checkServices();renderAccountDialog();
+};
+$('menuMail').onclick=async()=>{
+ openServiceDialog('mailDialog');$('mailStatus').textContent='연결 확인 중…';
+ await checkServices();await renderMailbox();
+};
 renderMenu();requestAnimationFrame(frame);
 </script>
 <script>
