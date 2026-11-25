@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="4.0.0">
+<meta name="game-build" content="5.0.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -173,7 +173,7 @@ details .item{margin-bottom:8px}
 </dialog>
 <dialog id="noticesDialog" class="service-dialog" aria-labelledby="noticeTitle">
  <h2 id="noticeTitle">공지</h2>
- <p>4.0.0 · 마지막 교신</p>
+ <p>5.0.0 · 구조대 캠페인</p>
  <p>폐광에서 구조 신호가 도착했어. 전투 홈의 마지막 교신에서 작전을 선택해.</p>
  <form method="dialog"><button>닫기</button></form>
 </dialog>
@@ -508,8 +508,29 @@ function readSave(name){
   return value&&typeof value==='object'&&!Array.isArray(value)?value:null;
  }catch{return null;}
 }
+const regions=['버려진 선로','광맥 중계기','침수 연구소','지하 환승역','마지막 교신'];
+const orders=[
+ ['선로 통과','정거장 전원 복구','운반차 호위','선로 분쇄기'],
+ ['수정문 통과','중계 회로 연결','채굴 장비 회수','광맥 포식자'],
+ ['배수로 돌파','감압 밸브 개방','잠수정 호위','절연 갑각'],
+ ['분기점 진입','환승역 전력 배분','구조반 호송','격리군주'],
+ ['지상선 확보','관제실 신호 전환','막차 호위','심전 장어']
+];
+const fieldGuns={rifle:'돌격소총',shotgun:'산탄총',sniper:'저격소총',smg:'기관단총',rail:'충전포'};
+const campaignKey='signal-campaign-v5';
+function campaignSave(){
+ let data;try{data=JSON.parse(localStorage.getItem(campaignKey));}catch{}
+ return Object.assign({clear:0,credits:0,parts:0,gun:'rifle',guns:['rifle'],choice:0,level:0},data||{});
+}
+function storeCampaign(s){localStorage.setItem(campaignKey,JSON.stringify(s));}
+function campaignUrl(n){return 'shooter.html?mission='+n;}
+
+const mainParams=new URLSearchParams(location.search);
+if(!['legacy','admin','op','mission'].some(k=>mainParams.has(k)))location.replace('signal.html');
+const mission=mainParams.has('mission')?Math.min(campaignSave().clear,19,Math.max(0,parseInt(mainParams.get('mission'))||0)):-1;
+const stageForMission=[0,1,3,1,5,8,6,9,10,11,13,14,12,16,17,15,18,17,16,19];
 const dispatchCode=(new URLSearchParams(location.search).get('op')||'').toUpperCase();
-const dispatchMatch=/^Q(1|9|14)-([0-9A-Z]{1,7})$/.exec(dispatchCode);
+const dispatchMatch=mission>=0?[null,stageForMission[mission],String(mission+1)]:/^Q(1|9|14)-([0-9A-Z]{1,7})$/.exec(dispatchCode);
 const testSnapshot=dispatchMatch?null:readSave(testKey);
 const testMode=testSnapshot!==null;
 
@@ -677,7 +698,7 @@ function upgradeSkill(id){
 }
 let lastSupply=null,pendingSupply=null,supplyOddsOpen=false,supplyPreviewStage=null;
 const save={operator:'ranger',operators:{},salvaged:{},copies:{},ascension:{},skillLevels:{},milestoneTheme:null,xp:null,materials:{},trainingPerks:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
-const snapshot=dispatchMatch?{cleared:20,xp:900,levels:{rifle:12},equipped:{gun:'rifle'}}:testSnapshot||readSave(key)||{};
+const snapshot=dispatchMatch?{cleared:20,xp:900,levels:{[mission>=0?campaignSave().gun:'rifle']:12},equipped:{gun:mission>=0?campaignSave().gun:'rifle'}}:testSnapshot||readSave(key)||{};
 for(const [name,value] of Object.entries(save)){
  const stored=snapshot[name];
  if(value&&typeof value==='object'&&(!stored||typeof stored!=='object'||Array.isArray(stored)))continue;
@@ -3351,6 +3372,8 @@ function squadSpawn(g,tier,x,y){
  return e;
 }
 function campaignTick(g){
+ if(g.route&&mission%4!==3){routeTick(g);return;}
+
  if(g.bossEntered){spawnBossAdds(g);return;}
  const quota=sectorQuota(g.index,g.sector);
  if(g.sectorKills>=quota){
@@ -3468,6 +3491,7 @@ function step(dt,refreshHud=true){
  for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent','skillStride','dashMomentum'])p[key]=Math.max(0,(p[key]||0)-dt);
  if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;p.firstRound=hasTrainingPerk('firstRound')||hasTrainingPerk('returnFire');}}
  hazards();
+ if(g.route)missionDevice(g,dt);
  if(g.mod)modTick(g,dt);
  const input=movement();
  updateDevices(g,dt);
@@ -3509,7 +3533,7 @@ function step(dt,refreshHud=true){
  }
  if(g.dungeon)dungeonTick(g);
  else if(g.bossHunt)spawnBossAdds(g);
- else if(g.campaign)campaignTick(g);
+ else if(g.campaign){campaignTick(g);if(g.over||g.paused)return;}
  else if(g.t>=g.nextSpawn){
   g.nextSpawn=g.t+(g.mode==='range'?.65:g.mode==='clear'?1.45:3.25);
   if(g.mode==='range'&&g.enemies.length<4){
@@ -3619,6 +3643,7 @@ function updateHud(){
  meter.setAttribute('aria-valuemax',p.max);
  const recovering=p.hp>0&&p.hp<p.max&&g.t>p.regenAt;
  meter.lastElementChild.textContent='HP '+hp+' / '+p.max+(recovering?' · 회복 중':'');meter.setAttribute('aria-valuenow',hp);
+ if(g.route&&mission%4!==3)$('objective').textContent=orders[Math.floor(mission/4)][mission%4]+' · '+Math.min(3,g.route.step+1)+'/3 · '+['청록 표식 통과','원 안에서 장치 가동','운반차 곁에서 호위'][mission%4];
  $('combatStats').textContent=(p.reload>0?'재장전 중':p.ammo+'/'+p.stat.mag)+' · '+Math.ceil(Math.max(0,(g.special==='rush'?600:g.dungeon?150:g.mode==='range'?75:300)-g.t))+'초'+(g.debuff?' · '+g.debuff.name:'');
  const skillButton=$('dash'),skillName=skills[g.skill].name;
  const reserve=$('reserveSkill');reserve.disabled=g.secondaryCd>0||g.paused||g.over;
@@ -4986,6 +5011,45 @@ function modKill(g,e){
   if(next){next.sleepUntil=g.t+2.6;skillFlash('volley',e,18,next);}
  }
 }
+function missionDevice(g,dt){
+ const r=g.route,op=r.device,c=Math.floor(mission/4);
+ if(!op)return;
+ const on=dist(g.p,op)<52;
+ if(on&&!op.held&&g.t>=op.ready){op.active=g.t+5;op.ready=g.t+8;
+  if(c===1){op.wall={x:475,y:270,w:30,h:140};if(![g.p,...g.enemies].some(e=>Math.abs(e.x-490)<55&&Math.abs(e.y-340)<103))g.walls.push(op.wall);}
+  if(c===3)op.light=!op.light;
+  op.lane=Math.abs(g.p.y-220)<Math.abs(g.p.y-475)?220:475;
+ }
+ op.held=on;
+ if(op.wall&&g.t>=op.active){g.walls=g.walls.filter(w=>w!==op.wall);op.wall=null;}
+ if(op.active<=g.t)return;
+ if(c===0||c===4){
+  const x=(5-(op.active-g.t))*280-55;
+  for(const e of g.enemies)if(Math.abs(e.y-op.lane)<50&&Math.abs(e.x-x)<55&&e.cartHit!==op.active){e.cartHit=op.active;e.hp-=e.type==='boss'?300:100;e.stun=1;}
+ }else if(c===2){for(const e of g.enemies)if(e.type!=='boss'&&Math.abs(e.y-op.lane)<90)move(e,dt*90,0);g.p.vent=1;}
+ else if(c===3){for(const e of g.enemies)if(dist(e,op)<(op.light?240:130)){if(op.light)e.chillUntil=g.t+.2;else e.hp-=dt*24;}}
+}
+function drawMissionDevice(g){
+ const op=g.route.device,c=Math.floor(mission/4);
+ disc(op.x,op.y,26,g.t>=op.ready?'#efc178':'#917c62');
+ ctx.fillStyle='#142a2d';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(['신호','문','밸브','전력','선로'][c],op.x,op.y+5);
+ if(op.active>g.t&&(c===0||c===4||c===2)){ctx.fillStyle=c===2?'#82cfff45':'#f1b74642';ctx.fillRect(0,op.lane-30,W,60);
+ if(c!==2){ctx.fillStyle='#f6b35e';ctx.fillRect((5-(op.active-g.t))*280-100,op.lane-18,90,36);}}
+}
+
+function routeTick(g){
+ const r=g.route,spot=r.points[Math.min(2,r.step)],near=dist(g.p,spot)<65;
+ if(mission%4===2){
+  if(near){const target=r.ends[r.step],d=dist(spot,target),a=angle(spot,target);
+   spot.x+=Math.cos(a)*.72;spot.y+=Math.sin(a)*.72;if(d<3)r.charge=1;}
+ }else if(near)r.charge+=1/(mission%4===1?220:48);
+ if(r.charge>=1){
+  r.step++;r.charge=0;
+  if(r.step===3){finish(true,'');return;}
+  modPick(g);return;
+ }
+ if(g.t>=g.nextSpawn&&liveAdds(g)<5){squadSpawn(g,(g.spawned++)%3);g.nextSpawn=g.t+2.8;}
+}
 function modTick(g,dt){
  const m=g.mod,p=g.p;
  if(g.t>=m.sample){m.history.push({x:p.x,y:p.y});if(m.history.length>21)m.history.shift();m.sample=g.t+.1;}
@@ -5021,6 +5085,11 @@ function modTick(g,dt){
 }
 function drawMod(g){
  const m=g.mod;if(!m)return;
+ if(g.route)drawMissionDevice(g);
+ if(g.route&&mission%4!==3&&g.route.step<3){
+ const r=g.route,at=r.points[r.step];disc(at.x,at.y,58,'#67e2c955');disc(at.x,at.y,11,'#98ffd6');
+ ctx.strokeStyle='#ffe2a0';ctx.lineWidth=5;ctx.beginPath();ctx.arc(at.x,at.y,54,0,TAU*r.charge);ctx.stroke();
+ }
  for(const a of m.marks){
   const color={ice:'#82dfff',mushroom:'#ffa9dc',knot:'#ffd98a'}[a.kind];
   disc(a.x,a.y,a.r,color+'55');disc(a.x,a.y,6,color);
@@ -5034,6 +5103,16 @@ function drawMod(g){
 }
 function modResult(g,won,row){
  const m=g.mod,site=new URLSearchParams(location.search).get('site');
+ if(mission>=0){
+ const s=campaignSave(),first=won&&s.clear===mission;
+ const mastered=won&&g.hits<=3&&!s.mastery?.[mission];
+ if(mastered){s.mastery??={};s.mastery[mission]=true;s.parts+=2;}
+ if(won){if(first)s.clear++;s.credits+=first?45:12;s.parts+=first?2:1;if(first&&mission%4===3)s.choice++;storeCampaign(s);}
+ $('resultTitle').textContent=won?(mission===19?'막차 귀환 성공':'작전 성공'):'작전 실패';
+ $('resultText').textContent=orders[Math.floor(mission/4)][mission%4]+' · '+Math.round(g.t)+'초'+(won?(first?' · 45크레딧 · 부품 2':' · 12크레딧 · 부품 1'):'')+(first&&mission%4===3?' · 총기 선택권 1':'')+(mastered?' · 정밀 돌파 달성! 부품 +2':'');
+ row.append(button('기지로',()=>location.href='signal.html'),button(won&&mission<19?'다음 작전':'다시 도전',()=>location.href=campaignUrl(won?Math.min(19,mission+1):mission)));
+ $('result').hidden=false;return;
+ }
  const recordKey='signal-best-'+m.code;
  const time=Math.round(g.t*10)/10,old=readSave(recordKey);
  let record='';
@@ -5051,6 +5130,13 @@ renderMenu();
 if(dispatchMatch){
  start(Number(dispatchMatch[1]));
  game.mod={code:dispatchCode,seed:parseInt(dispatchMatch[2],36),random:parseInt(dispatchMatch[2],36),history:[],marks:[],sample:0};
+ if(mission>=0){
+  const layout=mission%4===0?[[275,190],[740,450],[925,185]]:mission%4===1?[[330,365],[660,185],[895,490]]:[[230,330],[440,485],[760,475]];
+  const points=layout.map(([x,y])=>{while(blocked(x,y,26)&&y<H-50)y+=18;return {x,y};});
+  const ends=[{x:440,y:485},{x:760,y:475},{x:945,y:360}];
+  game.route={step:0,points,ends,charge:0,device:{x:355,y:mission%2?475:220,ready:0,active:0,lane:220}};game.p.stat.damage*=1+.08*campaignSave().level;
+  if(mission%4===3){game.sector=2;game.sectorKills=sectorQuota(game.index,2);campaignTick(game);modPick(game);}
+ }
  // Issue the same field armor to every participant on this frequency.
  const fieldHealth=game.index===1?240:game.index===9?390:460;
  game.p.hp=game.p.max=fieldHealth;
