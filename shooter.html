@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.14">
+<meta name="game-build" content="2.0.15">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -392,6 +392,12 @@ const contracts=[
 const contractBands=Array.from({length:10},(_,i)=>({min:1+i*10,max:10+i*10}));
 const maxCharacterLevel=100;
 const characterLevel=()=>testMode?save.testLevel:Math.min(maxCharacterLevel,1+Math.floor(save.xp/100));
+function experienceText(){
+ if(testMode)return '테스트 레벨';
+ if(characterLevel()>=maxCharacterLevel)return '최고 레벨';
+ const progress=save.xp%100;
+ return '경험치 '+progress+'/100 · 다음 레벨까지 '+(100-progress)+' XP';
+}
 const operators={
  ranger:{name:'정찰병',icon:'◎',color:'#8cebd9',price:0,description:'균형형 · 기본 능력치'},
  bulwark:{name:'방패병',icon:'⬟',color:'#8bbcff',price:550,hp:80,defense:.12,move:.86,description:'최대 체력 +80 · 받는 피해 −12% · 이동 속도 −14%'},
@@ -824,12 +830,7 @@ const mobArts={
 const mobArtByType={gunner:'fan',spitter:'fan',crawler:'ring',armor:'ring',blast:'ring',runner:'mend',flanker:'mend'};
 function squadBrief(parent,index){
  const squad=stageSquads[index];
- paragraph(parent,squad.units.map((unit,i)=>(i+1)+'R '+unit.name+(mobArtByType[unit.type]?' ('+mobArts[mobArtByType[unit.type]].name+')':'')).join(' → '));
- if(squad.units.some(unit=>unit.type==='gunner'))paragraph(parent,'신호사수가 1R부터 합류해. 분홍 점선이 멈추면 옆으로 피해.');
- paragraph(parent,squad.trait+' · '+traitGuide[squad.trait]+' · 보스전 잡몹 최대 2마리');
- const operator=operators[selectedOperator()];
- paragraph(parent,Number(recoveryDelay(operator).toFixed(1))+'초 동안 피해를 피하면 최대 체력의 '+Number((.5*(operator.recovery||1)*(hasTrainingPerk('recovery')?1.2:1)*(1+expansionBonuses().sustain/100)).toFixed(2))+'%씩 매초 회복해.');
- paragraph(parent,'바닥의 주황 원은 폭격 예고야. 같은 자리에 머무르면 집중 포격이 강해져.');
+ paragraph(parent,'잡몹 '+squad.trait+' · '+traitGuide[squad.trait]);
 }
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
 function rollSupply(random,tiers){
@@ -1255,6 +1256,7 @@ function renderGrowth(previousScroll){
  const growth=panel('플레이어 스킬 트리');
  growth.classList.add('tree-panel');
  growth.prepend(button('‹ 전투 홈',()=>openPage('campaign')));
+ paragraph(growth,experienceText());
  const filled=Object.keys(training).reduce((total,branch)=>total+trainingLevel(branch)+
   [0,1,2,3,4,5].filter(index=>hasTrainingPerk(trainingPerk(branch,index).id)).length,0);
  paragraph(growth,filled+' / '+(Object.keys(training).length*trainingNodes.length)+' 습득 · 한 손가락으로 이동 · 두 손가락으로 확대·축소');
@@ -1453,7 +1455,7 @@ function renderMenu(next=page){
   info.append(largeEntry('캐릭터 선택',operators[selectedOperator()].name,()=>openPage('operators')));
   const progressValue=testMode?0:characterLevel()===maxCharacterLevel?100:save.xp%100;
   const operatorEntry=largeEntry('캐릭터 Lv. '+characterLevel(),
-   testMode?'테스트 레벨 · 스킬 트리':characterLevel()===maxCharacterLevel?'최고 레벨 · 스킬 트리':'경험치 '+progressValue+' / 100 · 스킬 트리',()=>openPage('growth'));
+   experienceText()+' · 스킬 트리',()=>openPage('growth'));
   const meter=document.createElement('progress');meter.className='operator-xp';meter.max=100;meter.value=progressValue;
   meter.setAttribute('aria-label','현재 레벨 경험치');
   if(testMode){
@@ -1592,7 +1594,7 @@ function renderMenu(next=page){
  }
  if(page==='contracts'){
   const p=panel('던전');
-  paragraph(p,'캐릭터 Lv. '+characterLevel()+' · 최대 체력 '+characterMaxHp()+(testMode?' · 테스트 레벨':characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
+  paragraph(p,'캐릭터 Lv. '+characterLevel()+' · 최대 체력 '+characterMaxHp()+' · '+experienceText());
   const list=document.createElement('div');list.className='dungeon-cards';p.append(list);
   for(const [i,c] of contracts.entries()){
    const band=selectedBands[i],range=contractBands[band],difficulty=contractLevel(band);
@@ -1624,7 +1626,7 @@ function renderMenu(next=page){
   return;
  }
  if(itemView===null){
-  ticketPanel();renderEquipmentBoard();
+  ticketPanel();renderEquipmentBoard();renderActiveEffects();
   const salvage=panel('무기 분해');salvage.append(button('분해할 무기 선택',()=>openPage('salvage')));
   const workshop=panel('전술 정비');workshop.append(largeEntry('스킬 장착 및 강화',skills[equippedSkill()].name+' · 전술 데이터 '+resourceLabel(balance('skillData')),()=>openPage('skills')));
   renderSets();
@@ -1643,11 +1645,15 @@ function renderMenu(next=page){
    paragraph(card,item.name+' +'+level(id)+' / +'+max+(equipped?' · 장착 중':''),'');
    paragraph(card,item.desc+(slot==='gun'?' · 기본 피해 '+Math.round(item.damage*gearPower(id)*(1+.038*gradeBonus(id))):''));
    if(slot==='gun'||slot==='armor')paragraph(card,elementNames[itemElement(id)]+(slot==='gun'?' 속성탄 · 같은 속성의 적에게 추가 피해 +8%':' 저항 · 해당 속성 피해 20% 감소'));
-   if(item.theme)paragraph(card,themes[item.theme].name+' 세트');
-   const advancedLabel={head:'받는 피해 감소',armor:'받는 피해 감소',gloves:'재장전 속도 증가',boots:'이동 속도 증가',charm:'스킬 재사용 시간 감소'};
+   if(item.theme){
+    const count=setBonuses(save.equipped).counts[item.theme]||0;
+    paragraph(card,themes[item.theme].name+' 세트 · '+count+'/6 장착');
+    paragraph(card,'현재 세트 효과 · '+(count>=3?setEffectText(item.theme,count):'3부위 장착 시 활성화'),'section-label');
+   }
+   
    if(slot!=='gun'&&max>5){
     const percent=Number((advancedLevel(id)*advancedPerLevel[slot]).toFixed(2));
-    paragraph(card,'+5 이후 강화 1당 '+advancedLabel[slot]+' '+advancedPerLevel[slot]+'% · 현재 '+percent+'%');
+    paragraph(card,'+5 이후 강화 1당 '+advancedStatNames[slot]+' '+advancedPerLevel[slot]+'% · 현재 '+percent+'%');
    }
    const row=document.createElement('div');row.className='big-actions';card.append(row);
    row.append(button(equipped?'장착 중':'장착',()=>equipItem(id),equipped));
@@ -1668,7 +1674,7 @@ function renderMenu(next=page){
    }
    if(slot==='gun')paragraph(card,'고유 탄종 · '+item.mods[intrinsicGunMod[gearFamily(id)]]);
    if(level(id)>=5&&slot!=='gun'){
-    const mods=item.mods||(slot==='boots'?['긴 대시','빠른 회복']:slot==='gloves'?['재장전 가속','정밀 조준']:['효과 증폭','비상 보호막']);
+    const mods=equipmentModNames(item);
     mods.forEach((mod,i)=>row.append(button(mod,()=>{save.mods[id]=i;persist();renderMenu();},(save.mods[id]||0)===i)));
    }
    if(slot==='gun'&&level(id)>=10)paragraph(card,'특수 효과 · 대시 후 첫 사격 피해 증가');
@@ -1998,9 +2004,64 @@ function renderTranscendence(parent,id){
  }
  paragraph(section,'초월 단계는 장비 등급을 올려도 유지돼. 장비 등급이 높을수록 초월 효과가 커져.');
 }
+const advancedStatNames={head:'받는 피해 감소',armor:'받는 피해 감소',gloves:'재장전 속도 증가',boots:'이동 속도 증가',charm:'스킬 재사용 시간 감소'};
+function equipmentModNames(item){
+ return item.mods||(item.slot==='boots'?['긴 대시','빠른 회복']:item.slot==='gloves'?['재장전 가속','정밀 조준']:['효과 증폭','비상 보호막']);
+}
+function setEffectText(id,count){
+ return (count>=6?'6세트 · ':'3세트 · ')+themes[id].text[count>=6?1:0];
+}
+function showActiveSets(parent){
+ const active=Object.entries(setBonuses(save.equipped).counts).filter(([,count])=>count>=3);
+ if(!active.length)paragraph(parent,'적용 중인 세트 효과 없음 · 같은 테마 3부위부터 활성화');
+ for(const [id,count] of active)paragraph(parent,themes[id].name+' · '+setEffectText(id,count));
+}
+function renderActiveEffects(){
+ const shell=panel('현재 적용 효과');
+ const details=disclosure(shell,'장비·세트·캐릭터·스킬 트리 효과 보기');
+ paragraph(details,'최대 체력 '+characterMaxHp()+' · '+experienceText(),'section-label');
+ paragraph(details,'캐릭터 · '+operators[selectedOperator()].name,'section-label');
+ paragraph(details,operators[selectedOperator()].description);
+ const recovery=(operators[selectedOperator()].recovery||1)*(hasTrainingPerk('recovery')?1.2:1)*(1+expansionBonuses().sustain/100);
+ paragraph(details,'자동 회복 · 피격 후 '+Number(recoveryDelay(operators[selectedOperator()]).toFixed(2))+'초부터 초당 최대 체력 '+Number((.5*recovery).toFixed(2))+'%');
+ paragraph(details,'세트 효과','section-label');showActiveSets(details);
+ paragraph(details,'장착 장비','section-label');
+ for(const [slot,id] of Object.entries(save.equipped)){
+  const item=gear[id];if(!item||!own(id))continue;
+  paragraph(details,slots[slot]+' · '+grade(id)+'성 '+item.name+' +'+level(id),'section-label');
+  paragraph(details,item.desc);
+  if(slot==='gun'){
+   paragraph(details,'기본 피해 '+Math.round(item.damage*gearPower(id)*(1+.038*gradeBonus(id)))+' · '+elementNames[itemElement(id)]+' 속성탄 · '+item.mods[intrinsicGunMod[gearFamily(id)]]);
+   if(level(id)>=10)paragraph(details,'대시 후 첫 사격 피해 증가');
+  }else{
+   if(slot==='armor')paragraph(details,elementNames[itemElement(id)]+' 피해 20% 감소');
+   if(level(id)>=5)paragraph(details,'적용 특성 · '+equipmentModNames(item)[modOf(id)]);
+   if(advancedLevel(id))paragraph(details,'고급 강화 · '+advancedStatNames[slot]+' '+Number((advancedLevel(id)*advancedPerLevel[slot]).toFixed(2))+'%');
+  }
+  if(transcendLevel(id))paragraph(details,transcendAbilities[slot](transcendPower(id)).join(' · '));
+ }
+ paragraph(details,'전투 스킬','section-label');
+ for(const id of [equippedSkill(),secondarySkill()]){
+  paragraph(details,skills[id].name+' Lv. '+skillLevel(id)+' · '+skills[id].description);
+  if(skillLevel(id)>1)paragraph(details,skillUpgradeText(id,skillLevel(id)));
+ }
+ paragraph(details,'습득한 스킬 트리','section-label');
+ let trained=false;
+ for(const [id,stat] of Object.entries(training)){
+  const rank=trainingLevel(id);
+  const perks=Array.from({length:6},(_,index)=>trainingPerk(id,index)).filter(perk=>hasTrainingPerk(perk.id));
+  if(!rank&&!perks.length)continue;
+  trained=true;
+  if(rank)paragraph(details,stat.name+' '+rank+'단계 · '+(stat.benefit||stat.name+' 증가')+' '+Number((rank*stat.percent).toFixed(2))+'%');
+  for(const perk of perks)paragraph(details,perk.name+' · '+perk.effect+(majorNodeBonuses[perk.id]?' · '+majorNodeBonuses[perk.id]:''));
+ }
+ if(!trained)paragraph(details,'습득한 노드 없음');
+}
 function renderSets(){
  const shell=panel('장비 세트');
  const bonuses=setBonuses(save.equipped);
+ paragraph(shell,'현재 세트 효과','section-label');
+ showActiveSets(shell);
  const details=disclosure(shell,'테마 5개 · 3세트와 6세트 효과');
  if(save.cleared>=19&&!save.milestoneTheme)details.open=true;
  for(const [id,theme] of Object.entries(themes)){
@@ -2585,13 +2646,10 @@ function huntAttack(e,p,dt){
  return true;
 }
 function bossBrief(parent,index){
- const [name]=stageBosses[index], [pattern,kind]=bossSignatures[index];
+ const [name]=stageBosses[index],[pattern,kind]=bossSignatures[index];
  paragraph(parent,name+' · '+pattern,'section-label');
- paragraph(parent,battlePatterns[kind]+' 준비 중인 보스에게 충격파를 맞히면 시전이 끊겨.');
- const additional=chapterBossMoves[index]||[bossSecondMoves[index]];
- const thresholds=campaignBossPhases(index).map(value=>value+'%').join('·');
- paragraph(parent,'일반 전투 체력 '+thresholds+' 이하에서 패턴 전환 · '+additional.map(([name])=>name).join(' / '));
- paragraph(parent,'넓은 주황 경고가 나타나면 두 구역 사이의 빈 통로로 이동해. 늦었으면 보호막이나 대시를 써.');
+ paragraph(parent,battlePatterns[kind]);
+ paragraph(parent,'주황 경고가 뜨면 빈 통로로 이동해.');
 }
 function coverDetour(e,target){
  const margin=e.r+9;
