@@ -19,6 +19,30 @@ database.exec(`
  CREATE INDEX IF NOT EXISTS mail_recipient ON mail(account_id, sent_at);
 `);
 
+database.exec(`
+ CREATE TABLE IF NOT EXISTS ranking (
+  account_id TEXT PRIMARY KEY REFERENCES accounts(id),
+  alias TEXT NOT NULL UNIQUE, cleared INTEGER NOT NULL, stars INTEGER NOT NULL,
+  alpha INTEGER NOT NULL, level INTEGER NOT NULL
+ );
+ CREATE TABLE IF NOT EXISTS reports (
+  account_id TEXT PRIMARY KEY REFERENCES accounts(id), message TEXT NOT NULL,
+  build TEXT NOT NULL, page TEXT NOT NULL, sent_at TEXT NOT NULL
+ );
+`);
+const rankingOrder='cleared DESC, stars DESC, alpha DESC, level DESC';
+const rankedRows=database.prepare(`SELECT account_id, alias, cleared, stars, alpha, level,
+ RANK() OVER(ORDER BY ${rankingOrder}) AS position FROM ranking`);
+const clampInt=(number,max)=>Number.isInteger(number)?Math.max(0,Math.min(max,number)):0;
+function rankingProgress(save){
+ const stars=Array.from({length:20},(_,index)=>clampInt(save.stars?.[index],3)).reduce((a,b)=>a+b,0);
+ const cleared=clampInt(save.cleared,20);
+ const alpha=cleared===20?Array.from({length:10},(_,index)=>clampInt(save.challengeStars?.['alpha'+index],3)).filter(Boolean).length:0;
+ return [cleared,stars,alpha,Math.floor(clampInt(save.xp,9900)/100)+1];
+}
+function refreshRanking(accountId,save){
+ database.prepare('UPDATE ranking SET cleared=?, stars=?, alpha=?, level=? WHERE account_id=?').run(...rankingProgress(save),accountId);
+}
 const hash = value => createHash('sha256').update(value).digest('hex');
 const lookupCode = database.prepare('SELECT * FROM accounts WHERE code_hash=?');
 const lookupAccount = database.prepare('SELECT * FROM accounts WHERE id=?');
@@ -98,7 +122,14 @@ const server=createServer(async (request,response)=>{
   if(!path.startsWith('/api/game/'))return send(404,{error:'주소를 찾을 수 없어.'});
   const route=path.slice('/api/game/'.length);
   if(request.method==='GET'&&route==='status')return send(200,{online:true});
-  if(request.method==='POST'){
+  if(request.method==='GET'&&route==='ranking'){
+   const account=request.headers.authorization?player(request):null;
+   const rows=rankedRows.all().sort((a,b)=>a.position-b.position||a.alias.localeCompare(b.alias));
+   const publicRow=({alias,cleared,stars,alpha,level,position})=>({alias,cleared,stars,alpha,level,position});
+   const own=account&&rows.find(row=>row.account_id===account.id);
+   return send(200,{items:rows.slice(0,25).map(publicRow),own:own?publicRow(own):null,optedIn:Boolean(own)});
+  }
+ if(request.method==='POST'){
    if(!request.headers['content-type']?.startsWith('application/json'))fail(415,'JSON 요청만 지원해.');
    const body=await readBody(request);
    if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'요청 형식이 올바르지 않아.');
@@ -125,13 +156,38 @@ const server=createServer(async (request,response)=>{
    const account=player(request);
    if(route==='save'){
     if(body.revision!==account.revision)fail(409,'다른 기기에서 기록이 바뀌었어. 서버 기록을 먼저 확인해.');
-    if(!saveUpdate.run(saveText(body.save),account.id,account.revision).changes)fail(409,'다른 기기에서 기록이 바뀌었어.');
+    transaction(()=>{
+     if(!saveUpdate.run(saveText(body.save),account.id,account.revision).changes)fail(409,'다른 기기에서 기록이 바뀌었어.');
+     refreshRanking(account.id,body.save);
+    });
     return send(200,playerRecord(lookupAccount.get(account.id)));
+   }
+   if(route==='ranking'){
+    if(typeof body.optIn!=='boolean')fail(400,'공개 설정을 확인해.');
+    if(body.optIn){
+     const alias='탐사대 '+randomBytes(5).toString('hex').toUpperCase();
+     database.prepare('INSERT OR IGNORE INTO ranking(account_id,alias,cleared,stars,alpha,level) VALUES(?,?,?,?,?,?)')
+      .run(account.id,alias,...rankingProgress(JSON.parse(account.save)));
+    }else database.prepare('DELETE FROM ranking WHERE account_id=?').run(account.id);
+    return send(200,{optIn:body.optIn});
+   }
+   if(route==='report'){
+    const message=typeof body.message==='string'?body.message.trim():'';
+    if(message.length<4||message.length>700||typeof body.build!=='string'||!/^\d+\.\d+\.\d+$/.test(body.build)||
+       typeof body.page!=='string'||!/^[a-z]{1,20}$/.test(body.page))fail(400,'제보 형식을 확인해.');
+    database.prepare('INSERT INTO reports(account_id,message,build,page,sent_at) VALUES(?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET message=excluded.message,build=excluded.build,page=excluded.page,sent_at=excluded.sent_at')
+     .run(account.id,message,body.build,body.page,new Date().toISOString());
+    return send(201,{received:true});
    }
    if(route==='claim'){
     if(typeof body.id!=='string')fail(400,'우편을 선택해.');
     return send(200,claim(account,body.id,body.revision));
    }
+  }
+  if(request.method==='GET'&&route==='admin/reports'){
+   requireAdmin(request);
+   const items=database.prepare('SELECT message,build,page,sent_at FROM reports ORDER BY sent_at DESC LIMIT 50').all();
+   return send(200,{items});
   }
   if(request.method==='GET'&&route==='account')return send(200,playerRecord(player(request)));
   if(request.method==='GET'&&route==='mail'){
