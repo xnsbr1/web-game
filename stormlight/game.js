@@ -105,13 +105,13 @@ function spawn(kind){
  g.en.push(e);return e;
 }
 function bossSpawn(){
- const b=spawn(2);Object.assign(b,{boss:true,hp:1160,max:1160,speed:58,r:31,color:'#e4aa72',next:g.t+4,exposed:0,charge:0});
- g.boss=b;notice('닻등 게 출현 · 붉은 돌진 경로를 피하세요',5);beep(220,.25);
+ const b=spawn(2);Object.assign(b,{boss:true,hp:1680,max:1680,speed:58,r:31,color:'#e4aa72',next:g.t+4,exposed:0,charge:0});
+ g.boss=b;notice('닻등 게 출현 · 돌진 뒤 껍질이 열려요',5);beep(220,.25);
 }
 function fx(type,x,y,color,extra={}){g.fx.push({type,x,y,color,life:.34,max:.34,...extra});if(g.fx.length>135)g.fx.shift()}
 function hit(e,n){
  if(e.hp<=0)return;
- e.hp-=n*(e.boss&&e.exposed>g.t?1.55:1);e.hit=.12;
+ e.hp-=n*(e.boss?(e.exposed>g.t?1.55:.48):1);e.hit=.12;
  if(e.hp<=0){
   g.kills++;fx('burst',e.x,e.y,e.color,{r:e.r+10});
   if(!e.boss){g.gems.push({x:e.x,y:e.y,v:e.kind===2?2:1});if(g.gems.length>210){g.gems[1].v+=g.gems[0].v;g.gems.shift()}}
