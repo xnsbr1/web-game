@@ -104,7 +104,13 @@ function enemy(dt){
 function render(){
  const w=canvas.clientWidth,h=canvas.clientHeight,d=Math.min(devicePixelRatio||1,2);
  if(canvas.width!==Math.round(w*d)||canvas.height!==Math.round(h*d)){canvas.width=Math.round(w*d);canvas.height=Math.round(h*d)}
- scale=Math.max(16,Math.min(36,w/19,h/15));cx=clamp(p.x-w/scale*.45,0,Math.max(0,W-w/scale));cy=clamp(p.y-h/scale*.54,-10,Math.max(-10,H-h/scale));
+ const landscape=w>h;
+ const underground=p.y>surface(Math.floor(p.x))+2;
+ scale=landscape?Math.max(13,Math.min(28,h/(underground?16:13))):Math.max(16,Math.min(36,w/19,h/15));
+ const horizontalAnchor=landscape?(p.face<0?.61:.39):.45;
+ const verticalAnchor=landscape?(underground?.38:.54):.54;
+ cx=clamp(p.x-w/scale*horizontalAnchor,0,Math.max(0,W-w/scale));
+ cy=clamp(p.y-h/scale*verticalAnchor,-10,Math.max(-10,H-h/scale));
  ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,w,h);ctx.fillStyle='rgba(7,18,31,'+clamp(.13+(p.y-12)*.04,.13,.82)+')';ctx.fillRect(0,0,w,h);
  ctx.scale(scale/T,scale/T);ctx.translate(-cx*T,-cy*T);
  const rect=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h)};
