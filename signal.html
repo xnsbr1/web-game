@@ -9,7 +9,7 @@
 <div id="field" class="play" hidden><canvas id="battle" width="600" height="440"></canvas><button class="dash" id="cdash">대시</button></div><p id="guide" class="hint" hidden>전장을 끌어 이동 · 자동 사격 · 황색 선로는 위험 · 쓰러진 친구 곁에서 구조</p><button id="leave" hidden class="quiet">방 나가기</button></section>
 <section id="map" hidden><h2>폐광 노선도</h2><p id="journal"></p><canvas id="atlas" width="600" height="380" aria-label="탐사 지도. 눌러서 이동"></canvas><p class="hint">가고 싶은 땅을 누르면 이동해. 시설에 가까이 가면 조사할 수 있어.</p><div class="row"><button id="inspect">기지 조사</button><button class="quiet" id="base">기지 귀환</button><select id="fast" aria-label="빠른 이동"><option>빠른 이동</option></select></div><p id="story" class="status" role="status"></p></section>
 <button id="back" class="quiet" hidden>‹ 구조대 기지</button></main>
-<script>
+<script src="field-art.js"></script><script>
 const regions=['버려진 선로','광맥 중계기','침수 연구소','지하 환승역','마지막 교신'];
 const orders=[
  ['선로 통과','정거장 전원 복구','운반차 호위','선로 분쇄기'],
@@ -124,9 +124,9 @@ function paintMap(dt){
  const c=$('atlas').getContext('2d');terrain(c,600,380);
  if(dest){const dx=dest.x-trek.x,dy=dest.y-trek.y,d=Math.hypot(dx,dy),step=Math.min(d,dt*160);if(d>1){trek.x+=dx/d*step;trek.y+=dy/d*step;}else{dest=null;saveMap();mapHud();}}
  for(const route of [[0,1,2,4],[1,3,5],[2,3]]){const points=route.map(i=>places[i].slice(2,4));path(c,points,'#0c1c1c',12);path(c,points,'#67827c',3);}
- for(const [id,name,x,y] of places){dot(c,x,y,13,done(id)?'#7cf5bd':trek.found.includes(id)?'#e4b873':'#688b8c');c.font='bold 16px sans-serif';c.fillStyle='#f4ece0';c.textAlign='center';c.fillText(name,x,y+32);}
+ for(const [id,name,x,y] of places){FieldArt.prop(c,({base:'med',station:'cart',rescue:'door',sample:'ward',cave:'signal',lab:'valve'})[id],x,y,22,done(id));c.font='bold 16px sans-serif';c.fillStyle='#f4ece0';c.textAlign='center';c.fillText(name,x,y+32);}
  const ev=eventToday();dot(c,ev[1],ev[2],8,'#d6a5ff');c.fillStyle='#eacaff';c.fillText(ev[0],ev[1],ev[2]-13);
- dot(c,trek.x,trek.y,7,'#fff');if(dest)dot(c,dest.x,dest.y,4,'#ffcb72');
+ FieldArt.pilot(c,trek.x,trek.y,14,dest?Math.atan2(dest.y-trek.y,dest.x-trek.x):0,'ranger','#84eacb','rifle');if(dest)dot(c,dest.x,dest.y,4,'#ffcb72');
 }
 window.addEventListener('pagehide',saveMap);
 let room=null,state=null,busy=false,pendingDash=false,stick=null,axis={x:0,y:0},lastReady=false;
@@ -177,12 +177,12 @@ function paintBattle(){
   for(const yy of [y-6,y+6])path(c,[[0,yy],[600,yy]],'#80928b',3);
  }
  const b=state.boss;if(b?.rail){c.fillStyle=b.locked?'#e98d4666':'#fcca4a60';c.fillRect(0,b.lane-32,600,64);}
- dot(c,64,220,28,'#e9af5d');c.fillStyle='#182429';c.textAlign='center';c.font='bold 13px sans-serif';c.fillText('신호기',64,225);
- if(b){c.save();c.translate(b.x,b.y);c.fillStyle=b.weak>state.t?'#ffcd71':'#c66742';c.fillRect(-26,-16,52,32);for(const x of [-18,0,18])dot(c,x,17,7,'#74848e');c.restore();}
+ FieldArt.prop(c,'signal',64,220,30,!!b?.locked,state.t);
+ if(b)FieldArt.prop(c,'cart',b.x,b.y,45,b.weak>state.t,state.t);
  for(const e of state.mobs){dot(c,e.x,e.y,9,'#eb8392');dot(c,e.x+3,e.y-2,2,'#ffeac9');}
  state.players.forEach((p,i)=>{
   if(p.ray?.until>state.t)path(c,[[p.x,p.y],[p.ray.x,p.ray.y]],'#ffdf8b',2);
-  dot(c,p.x,p.y,12,p.hp?(i===room.index?'#68edca':'#a9afff'):'#666e78');
+  FieldArt.pilot(c,p.x,p.y,18,p.ray?Math.atan2(p.ray.y-p.y,p.ray.x-p.x):0,i?'tech':'ranger',p.hp?(i===room.index?'#68edca':'#a9afff'):'#666e78','rifle');
   c.fillStyle='#fff';c.textAlign='center';c.fillText(!p.hp?'구조 '+Math.round(p.revive/1.7*100)+'%':i===room.index?'나':'동료',p.x,p.y-17);
  });
  if(stick){dot(c,stick.x,stick.y,24,'#ffffff38');dot(c,stick.x+Math.max(-1,Math.min(1,axis.x))*18,stick.y+Math.max(-1,Math.min(1,axis.y))*18,8,'#fff');}
