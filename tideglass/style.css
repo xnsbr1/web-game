@@ -152,3 +152,10 @@ footer button:active {
   -webkit-touch-callout: none;
   touch-action: none;
 }
+
+html.playing, html.playing body {
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
