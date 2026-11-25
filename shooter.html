@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.10">
+<meta name="game-build" content="2.0.11">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -391,7 +391,7 @@ const contracts=[
 ];
 const contractBands=Array.from({length:10},(_,i)=>({min:1+i*10,max:10+i*10}));
 const maxCharacterLevel=100;
-const characterLevel=()=>Math.min(maxCharacterLevel,1+Math.floor(save.xp/100));
+const characterLevel=()=>testMode?save.testLevel:Math.min(maxCharacterLevel,1+Math.floor(save.xp/100));
 const operators={
  ranger:{name:'정찰병',icon:'◎',color:'#8cebd9',price:0,description:'균형형 · 기본 능력치'},
  bulwark:{name:'방패병',icon:'⬟',color:'#8bbcff',price:550,hp:80,defense:.12,move:.86,description:'최대 체력 +80 · 받는 피해 −12% · 이동 속도 −14%'},
@@ -417,7 +417,10 @@ function chooseOperator(id){
 const selectedBands=contracts.map(()=>0);
 function contractLevel(band){
  const range=contractBands[band];
- return range&&characterLevel()>=range.min?Math.min(characterLevel(),range.max):null;
+ if(!range)return null;
+ const level=characterLevel();
+ if(testMode)return clamp(level,range.min,range.max);
+ return level>=range.min?Math.min(level,range.max):null;
 }
 function contractReward(contract,band){
  if(contract.reward==='xp')return {xp:95+band*12};
@@ -628,6 +631,7 @@ if(testMode){
  for(const id of Object.keys(currencies))unlimited(save,id);
  for(const id of Object.keys(materialNames))if(id!=='xp')unlimited(save.materials,id);
  stages.forEach((_,index)=>unlimited(save.bossMaterials,index));
+ save.testLevel=Number.isInteger(save.testLevel)?clamp(save.testLevel,1,maxCharacterLevel):maxCharacterLevel;
  save.xp=(maxCharacterLevel-1)*100;
 }
 const resourceLabel=value=>testMode&&value===Number.MAX_SAFE_INTEGER?'∞':value;
@@ -642,7 +646,7 @@ function installTestControls(){
  const form=$('testModeForm'),exit=$('testModeExit'),status=$('testModeStatus');
  form.hidden=testMode;exit.hidden=!testMode;
  $('privateTest').open=testMode;
- if(testMode)status.textContent='테스트 중 · Lv. 100 · 재화와 재료 무제한 · 던전 전 단계 해금. 종료하면 테스트 기록을 지우고 원래 세이브로 돌아가.';
+ if(testMode)status.textContent='테스트 중 · 전투 준비에서 Lv. 1~100 변경 · 재화와 재료 무제한 · 던전 전 단계 해금. 종료하면 원래 세이브로 돌아가.';
  form.onsubmit=async event=>{
   event.preventDefault();
   if(testMode)return;
@@ -1407,11 +1411,30 @@ function renderMenu(next=page){
   hero.append(button(complete?'최종 스테이지 재도전':'출격',()=>start(current),false,'primary'));
   const info=panel('전투 준비');
   info.append(largeEntry('캐릭터 선택',operators[selectedOperator()].name,()=>openPage('operators')));
-  const progressValue=characterLevel()===maxCharacterLevel?100:save.xp%100;
+  const progressValue=testMode?0:characterLevel()===maxCharacterLevel?100:save.xp%100;
   const operatorEntry=largeEntry('캐릭터 Lv. '+characterLevel(),
-   characterLevel()===maxCharacterLevel?'최고 레벨 · 스킬 트리':'경험치 '+progressValue+' / 100 · 스킬 트리',()=>openPage('growth'));
+   testMode?'테스트 레벨 · 스킬 트리':characterLevel()===maxCharacterLevel?'최고 레벨 · 스킬 트리':'경험치 '+progressValue+' / 100 · 스킬 트리',()=>openPage('growth'));
   const meter=document.createElement('progress');meter.className='operator-xp';meter.max=100;meter.value=progressValue;
-  meter.setAttribute('aria-label','현재 레벨 경험치');operatorEntry.append(meter);info.append(operatorEntry);
+  meter.setAttribute('aria-label','현재 레벨 경험치');
+  if(testMode){
+   const controls=document.createElement('div');
+   controls.className='test-level-controls';
+   for(const [label,delta] of [['−',-1],['+',1]]){
+    const next=characterLevel()+delta;
+    const control=button(label,()=>{
+     save.testLevel=clamp(characterLevel()+delta,1,maxCharacterLevel);
+     persist();renderMenu();
+     $(delta<0?'testLevelMinus':'testLevelPlus')?.focus?.({preventScroll:true});
+    },next<1||next>maxCharacterLevel);
+    control.id=delta<0?'testLevelMinus':'testLevelPlus';
+    control.setAttribute('aria-label',delta<0?'테스트 레벨 1 낮추기':'테스트 레벨 1 높이기');
+    controls.append(control);
+   }
+   controls.insertBefore(operatorEntry,controls.lastElementChild);
+   info.append(controls);
+  }else{
+   operatorEntry.append(meter);info.append(operatorEntry);
+  }
   const gun=save.equipped.gun||'pistol';
   info.append(largeEntry(gear[gun].name+' +'+level(gun),'현재 총기 · 장비 열기',()=>openPage('gear')));
   const intel=panel('보스 정찰');
@@ -1524,7 +1547,7 @@ function renderMenu(next=page){
  }
  if(page==='contracts'){
   const p=panel('던전');
-  paragraph(p,'캐릭터 Lv. '+characterLevel()+' · 최대 체력 '+characterMaxHp()+(characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
+  paragraph(p,'캐릭터 Lv. '+characterLevel()+' · 최대 체력 '+characterMaxHp()+(testMode?' · 테스트 레벨':characterLevel()<maxCharacterLevel?' · 경험치 '+save.xp%100+'/100':' · 최고 레벨'));
   const list=document.createElement('div');list.className='dungeon-cards';p.append(list);
   for(const [i,c] of contracts.entries()){
    const band=selectedBands[i],range=contractBands[band],difficulty=contractLevel(band);
@@ -3691,6 +3714,7 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 #menu .daily-weapon{margin-top:10px;border-color:var(--weapon-rank);color:var(--weapon-rank)}
 .guide-home{padding:4px 12px}.guide-home>details{margin:0}.guide-home>details>summary{padding:10px 0;font-size:16px;font-weight:800;cursor:pointer}
 .guide-actions{display:flex;flex-wrap:wrap;gap:8px}.guide-mission{margin-top:8px}.guide-mission .section-label{margin-top:0}
+#menu .test-level-controls{display:grid;grid-template-columns:46px minmax(0,1fr) 46px;gap:6px;align-items:stretch;margin:8px 0}#menu .test-level-controls>button:not(.large-entry){font-size:23px;padding:0}
 </style>
 </body></html>
 
