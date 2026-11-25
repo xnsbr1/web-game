@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="3.2.1">
+<meta name="game-build" content="3.2.2">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -173,8 +173,8 @@ details .item{margin-bottom:8px}
 </dialog>
 <dialog id="noticesDialog" class="service-dialog" aria-labelledby="noticeTitle">
  <h2 id="noticeTitle">공지</h2>
- <p>3.2.1 · 보스 원거리 패턴 조정</p>
- <p>먼 곳까지 닿는 지면 균열, 방패 충격파, 증기 분출을 조심해.</p>
+ <p>3.2.2 · 잡몹 증원</p>
+ <p>일반 구간의 적이 늘고, 보스전에서도 증원이 더 일찍 여러 마리씩 들어와.</p>
  <form method="dialog"><button>닫기</button></form>
 </dialog>
 <dialog id="rankingDialog" class="service-dialog" aria-labelledby="rankingTitle">
@@ -3300,13 +3300,29 @@ function drawBossWarning(a,color){
  }
  ctx.restore();return true;
 }
-const sectorQuota=(index,sector=0)=>3+Number(index>=10)+Number(sector===2);
+const sectorQuota=(index,sector=0)=>4+Number(index>=3)+Number(index>=10)+Number(index>=16)+Number(sector===2);
 const campaignBossHp=[
  1750,2100,2100,2480,2500,2290,2500,3050,3450,3860,
  4030,4300,4030,4440,3770,4670,4100,4610,4770,4850
 ];
 const liveAdds=g=>g.enemies.filter(e=>e.type!=='boss'&&e.hp>0).length;
-const bossAddCap=2;
+function bossAddCap(g){
+ if(g.campaign&&g.index===9&&g.special!=='alpha'){
+  const boss=g.enemies.find(e=>e.type==='boss'&&e.hp>0);
+  return boss&&campaignBossPhase(boss)===2?4:2;
+ }
+ return Math.min(5,3+Number(g.index>=5)+Number(g.index>=15)+Number(g.special==='alpha'));
+}
+function spawnBossAdds(g){
+ if(g.t<g.nextSpawn||!g.enemies.some(e=>e.type==='boss'&&e.hp>0))return;
+ const count=Math.min(2,bossAddCap(g)-liveAdds(g));
+ if(count<=0)return;
+ for(let i=0;i<count;i++){
+  squadSpawn(g,g.spawned%2);
+  g.spawned++;
+ }
+ g.nextSpawn=g.t+(g.special==='alpha'||g.index>=10?6.5:7.5);
+}
 function squadSpawn(g,tier,x,y){
  const squad=stageSquads[g.index],unit=squad.units[tier];
  spawn(unit.type,x,y);
@@ -3325,13 +3341,14 @@ function squadSpawn(g,tier,x,y){
  return e;
 }
 function campaignTick(g){
+ if(g.bossEntered){spawnBossAdds(g);return;}
  const quota=sectorQuota(g.index,g.sector);
- if(!g.bossEntered&&g.sectorKills>=quota){
+ if(g.sectorKills>=quota){
   g.sectorKills=0;
   g.p.hp=Math.min(g.p.max,g.p.hp+(g.index===0?10:5));
   if(g.sector===2){
    g.p.hp=Math.min(g.p.max,g.p.hp+7);
-   g.bossEntered=true;g.nextSpawn=g.t+11;playEffect('boss');
+   g.bossEntered=true;g.nextSpawn=g.t+5;playEffect('boss');
    if(!g.practice){
     save.bossSeen??={};save.bossSeen[(g.special==='alpha'?'alpha':'stage')+g.index]=true;persist();
    }
@@ -3347,19 +3364,16 @@ function campaignTick(g){
   }
   g.sector++;g.roundSpawn=0;g.nextSpawn=g.t;
  }
- // Spawn only enough enemies to fill the round quota. The escort starts with the boss.
- const cap=g.bossEntered&&g.index===9&&g.special!=='alpha'?Number(g.enemies.some(e=>e.type==='boss'&&e.hp<e.max*.36)):g.bossEntered?bossAddCap:sectorQuota(g.index,g.sector)-g.sectorKills;
- const alive=liveAdds(g);
- if(alive>=cap||g.t<g.nextSpawn)return;
- const packSize=g.index===0&&g.spawned>0?3:4;
- const count=Math.min(cap-alive,g.bossEntered?1:packSize);
+ const packSize=g.index<3?4:g.index<10?5:6;
+ const count=Math.min(sectorQuota(g.index,g.sector)-g.sectorKills-liveAdds(g),packSize-liveAdds(g));
+ if(count<=0||g.t<g.nextSpawn)return;
  for(let i=0;i<count;i++){
   const n=g.roundSpawn||0;
   const earlyScout=g.sector===0&&stageSquads[g.index].units[1].type==='gunner'&&n%6===2;
-  const tier=g.bossEntered?g.spawned%2:g.sector===0?Number(earlyScout):g.sector===1?(n%3===2?0:1):[2,1,2,0][n%4];
+  const tier=g.sector===0?Number(earlyScout):g.sector===1?(n%3===2?0:1):[2,1,2,0][n%4];
   squadSpawn(g,tier);g.spawned++;g.roundSpawn=n+1;
  }
- g.nextSpawn=g.t+(g.bossEntered?(g.special==='alpha'&&g.index>=5?9.5:12):1.8);
+ g.nextSpawn=g.t+1.5;
 }
 function trackMovement(g,dx,dy,dt){
  if(g.p.dash>0||Math.hypot(dx,dy)<70*dt){
@@ -3482,11 +3496,7 @@ function step(dt,refreshHud=true){
   if(a.hp>0&&b.hp>0&&dist(a,b)<360&&clearShot(a,b)){shootEnemy(a,p);shootEnemy(b,p);}
  }
  if(g.dungeon)dungeonTick(g);
- else if(g.bossHunt){
-  if(g.t>=g.nextSpawn&&liveAdds(g)<bossAddCap){
-   squadSpawn(g,g.spawned%2);g.spawned++;g.nextSpawn=g.t+7.5;
-  }
- }
+ else if(g.bossHunt)spawnBossAdds(g);
  else if(g.campaign)campaignTick(g);
  else if(g.t>=g.nextSpawn){
   g.nextSpawn=g.t+(g.mode==='range'?.65:g.mode==='clear'?1.45:3.25);
@@ -3555,7 +3565,7 @@ function step(dt,refreshHud=true){
   (['survive','defend'].includes(g.mode)&&g.t>=g.n);
  if(p.hp<=0||(g.mode==='defend'&&g.objects[0].hp<=0))finish(false,'임무 중 쓰러졌어.');
  else if(won&&g.special==='rush'&&g.index<g.rushEnd){
-  g.index++;g.element=g.index%5;g.enemies=[];g.warnings=[];g.bolts=[];g.shots=[];g.link=null;
+  g.index++;g.element=g.index%5;g.enemies=[];g.warnings=[];g.bolts=[];g.shots=[];g.link=null;g.nextSpawn=g.t+5;
   g.p.hp=Math.min(g.p.max,g.p.hp+18);
   spawn('boss',g.p.x>W/2?95:W-95,H/2);const boss=g.enemies.at(-1);
   const [name,pattern,intensity,tempo]=stageBosses[g.index];g.name=name;
