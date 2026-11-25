@@ -50,3 +50,71 @@ footer button:active {
 @media (orientation: landscape) and (max-height: 450px) {
   #toast { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 68px); }
 }
+
+.touch-controls {
+  --nav-size: clamp(70px, 20vw, 100px);
+  --jump-size: clamp(80px, 23vw, 112px);
+  --use-size: clamp(56px, 15vw, 74px);
+  --tools-height: 48px;
+  --pad-gap: clamp(5px, 1.6vw, 10px);
+  align-items: end;
+}
+.touch-controls div {
+  display: flex;
+  align-items: end;
+  width: auto;
+  gap: var(--pad-gap);
+}
+.touch-controls button {
+  border-radius: 16px;
+}
+.touch-controls .move-controls button {
+  width: var(--nav-size);
+  height: var(--nav-size);
+  font-size: clamp(26px, 7.5vw, 38px);
+}
+.touch-controls button[data-key="act"] {
+  width: var(--use-size);
+  height: var(--nav-size);
+}
+.touch-controls button[data-key="jump"] {
+  display: grid;
+  place-content: center;
+  gap: 3px;
+  width: var(--jump-size);
+  height: var(--jump-size);
+  font-size: clamp(30px, 9vw, 44px);
+  line-height: 1;
+  background: #287872;
+  border-color: #a3e9d1;
+}
+.touch-controls button[data-key="jump"] small {
+  font-size: 13px;
+  color: #fff2d8;
+}
+.touch-controls button[data-key="jump"]:active {
+  background: #3e9990;
+}
+.touch-controls .tool-controls {
+  position: absolute;
+  right: max(6px, env(safe-area-inset-right));
+  bottom: calc(var(--jump-size) + 8px);
+}
+.touch-controls .tool-controls button {
+  min-height: var(--tools-height);
+  min-width: 60px;
+  padding: 0 10px;
+  border-radius: 10px;
+}
+#game:has(.touch-controls) #toast {
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + clamp(80px, 23vw, 112px) + 64px);
+}
+@media (orientation: landscape) and (max-height: 450px) {
+  .touch-controls {
+    --nav-size: 72px;
+    --jump-size: 84px;
+  }
+  #game:has(.touch-controls) #toast {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 148px);
+  }
+}
