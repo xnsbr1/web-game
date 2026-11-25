@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.4">
+<meta name="game-build" content="2.0.5">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -859,15 +859,95 @@ function dailyShop(){
  weapon.style.setProperty('--weapon-rank',rankColors[rank-1]);
  p.append(weapon);
 }
+const stageGuideTips=[
+ '왼쪽 조이스틱으로 움직이면 가까운 적에게 자동으로 사격해. 곡괭이턱이 돌진을 준비할 때는 옆으로 피하고, 오른쪽 대시는 경고선에서 빠져나올 때 써.',
+ '적에게 둘러싸이기 전에 빈 통로로 빠져. 선로 분쇄기의 평행 경고선이 뜨면 선 사이의 빈 공간으로 이동해.',
+ '포자낭 폭충이 접근하면 거리를 벌려. 포자 여왕이 부채꼴 탄을 쏘면 탄 사이로 지나가거나 충격파로 지워.',
+ '박격포가 발밑을 노리니 경고 원이 생기면 바로 움직여. 흑철 방패충의 고리에는 빈 공간이나 대시를 이용해.',
+ '철턱은 연달아 돌진해. 첫 돌진을 피한 뒤에도 바로 멈추지 말고, 마지막 돌진 뒤에 거리를 좁혀.',
+ '빠른 적을 한쪽으로 모아 이동로를 확보해. 협곡 송곳니의 탄막은 충격파를 남겨 두면 피하기 쉬워. 중간 보스 보상은 장비 탭에서 확인해.',
+ '바닥에 낙석 예고가 여러 개 뜨면 멀리 돌아가기보다 가장 가까운 바깥쪽으로 빠져. 청록색 발판으로 이동 속도를 높일 수 있어.',
+ '폭발하는 잡몹 가까이에서 길이 막히지 않게 넓게 돌아. 잿불 어미가 바닥을 여러 곳 찍을 때는 안전한 방향을 먼저 골라.',
+ '승강기 파수꾼은 경고선이 교차하니 첫 줄을 피한 뒤 다음 줄도 확인해. 체력이 부족하면 초록색 회복 발판을 찾아.',
+ '광맥 포식자의 이중 고리 사이에서 대시 타이밍을 잡아. 클리어 후 장비 탭에서 4성 무기 선택권을 확인해.',
+ '침수 연구소부터는 잡몹 스킬도 확인해. 로비 포식충의 긴 돌진은 뒤로 달리기보다 옆으로 빠져.',
+ '작살사수의 시야를 벽으로 끊고, 배수로 촉수가 넓게 펼치는 경고선 사이로 진입해.',
+ '방전 구역이 연달아 생길 때 같은 방향으로 계속 달리면 갇힐 수 있어. 첫 방전을 피한 뒤 다음 경고의 위치를 보고 방향을 정해.',
+ '폭발하는 영양낭을 피해 넓은 쪽으로 움직여. 표본 07은 부채꼴 탄 사이가 좁으니 거리를 두거나 충격파를 써.',
+ '중갑충과 증기 포충을 동시에 상대할 때는 먼저 빈 통로를 확보해. 절연 갑각의 고리가 가까우면 대시나 보호막을 사용해.',
+ '박격포와 측면에서 오는 적 때문에 벽 모서리에 오래 머물지 마. 격리군주의 경고선은 두 차례를 보고 움직여. 클리어 후 5성 무기 선택권을 확인해.',
+ '관측교 잠복자의 세 번 돌진이 끝날 때까지 옆으로 피해. 좁은 곳에는 몰리기 전에 먼저 빠져나와.',
+ '역류 아귀의 연쇄 폭발은 경고 원들이 겹쳐. 원 하나의 가장자리에서 멈추지 말고 바깥 안전지대로 이동해.',
+ '첫 탄막을 피한 뒤에도 다음 발이 올 때까지 빈 공간을 유지해. 얻은 5성 장비 세트 선택권은 장비 탭에서 확인해.',
+ '심전 장어는 고리 공격을 반복해. 대시와 보호막을 번갈아 쓰고, 두 스킬이 모두 쿨타임일 때는 빈틈을 따라 이동해.'
+];
+const levelGuideTips=[
+ [5,1,'처음에는 1–10레벨 경험치 던전으로 레벨을 올려. 합금과 크레딧을 모아 장착 총부터 +1 강화해.'],
+ [10,5,'스킬 트리에서 기본 강화 2단계가 열려. 공격력이 부족하면 공격력, 자주 쓰러지면 체력부터 올려.'],
+ [20,9,'경험치 던전을 11–20레벨 단계로 올려. 기본 강화 2단계를 배우면 Lv.18 곁가지 능력에 투자할 수 있어.'],
+ [30,15,'Lv.25부터 기본 강화 3단계가 열려. 필요한 장비별 재료는 장비 재료 던전에서 수급해.'],
+ [40,19,'Lv.35 특수 노드는 기본 강화 3단계가 필요해. 장비 탭의 스킬 정비에서는 전술 데이터로 스킬을 강화해.'],
+ [50,19,'Lv.45 기본 강화 4단계와 Lv.50 두 번째 곁가지에 도전해. 곁가지의 선행 노드를 먼저 구매해.'],
+ [60,19,'장비를 같은 테마로 맞춰 세트 효과를 활용해. 알파는 일반 스테이지 클리어 뒤 스테이지 선택에서 열려.'],
+ [70,19,'Lv.65 기본 강화 5단계를 준비해. 5성 무기는 최대 +25까지 올릴 수 있으니 자주 쓰는 총에 재료를 집중해.'],
+ [80,19,'Lv.75부터 기본 강화 6단계와 세 번째 곁가지가 열려. 부족한 보스 코어는 스테이지 상세에서 보스 도전으로 모아.'],
+ [90,19,'Lv.85 기본 강화 7단계와 두 번째 특수 노드를 확인해. 초월에 필요한 동일 등급 총기 복제본은 분해 전에 확인해.'],
+ [100,19,'Lv.95에서 기본 강화 8단계, Lv.100에서 9단계와 최종 특수 노드가 열려. 최종 특수 노드는 같은 계열의 선행 특수 능력 두 개가 필요해.']
+];
 function guidePanel(){
- const missions=['1-1에서 보스를 쓰러뜨려.','장비 뽑기에서 테마 장비를 얻어.','장비 하나를 +1 이상 강화해.','스테이지 1-6 중간 보스를 격파해.','1-10을 클리어하고 장비 탭에서 무기 선택권을 사용해.'];
- const index=save.guideStep||0;
- if(index>=missions.length)return;
- const p=panel('진행 가이드 '+(index+1)+' / '+missions.length);paragraph(p,missions[index]);
- const done=[save.cleared>=1,Object.keys(save.levels).some(id=>gear[id]?.theme),Object.values(save.levels).some(l=>l>=1),save.cleared>=6,save.cleared>=10&&!save.gunTickets?.length][index];
- const reward=index===3?{credits:120,core3:1}:{credits:50+index*20};
- p.append(button('보상 수령 · '+rewardText(reward),()=>{if(!done||(save.guideStep||0)!==index)return;addFunds(reward);save.guideStep=index+1;persist();renderMenu();},!done));
+ const missions=[];
+ const oldStageRewards={0:1,5:4,9:5};
+ for(const [index,[name]] of stages.entries()){
+  missions.push({
+   id:'stage-'+index,title:stageId(index)+' '+name,tip:stageGuideTips[index],
+   done:save.cleared>index,legacy:(save.guideStep||0)>=(oldStageRewards[index]??Infinity),
+   reward:{credits:50+index*5,...([5,9,15,19].includes(index)?{['core'+coreRank(index)]:1}:{})},
+   open:()=>{
+    chapterView=Math.floor(index/10);stageView=index;renderMenu('stages');
+   },link:'스테이지 상세'
+  });
+  for(const [level,after,tip] of levelGuideTips.filter(entry=>entry[1]===index)){
+   missions.push({
+    id:'level-'+level,title:'캐릭터 Lv. '+level+' 달성',tip,
+    done:characterLevel()>=level,reward:{credits:60+level,skillData:Math.ceil(level/20)},
+    open:()=>{
+     const xpDungeon=contracts.findIndex(contract=>contract.reward==='xp');
+     selectedBands[xpDungeon]=Math.floor((characterLevel()-1)/10);
+     openPage('contracts');
+    },link:'던전으로'
+   });
+  }
+ }
+ const claimed=mission=>mission.legacy||save.guideClaims?.[mission.id]===true;
+ const count=missions.filter(claimed).length;
+ const current=missions.find(mission=>!claimed(mission));
+ const p=panel('진행 가이드 · '+count+' / '+missions.length);
+ if(count===0)paragraph(p,'전투는 자동 조준·사격이야. 왼쪽으로 이동하고 오른쪽 버튼으로 스킬을 써. 생존이 어렵다면 장비 탭에서 장착과 강화를 확인해.');
+ function showMission(parent,mission){
+  const complete=claimed(mission);
+  paragraph(parent,mission.title+(complete?' · 보상 수령':mission.done?' · 달성':''),'section-label');
+  paragraph(parent,mission.tip);
+  if(complete)return;
+  const actions=document.createElement('div');actions.className='guide-actions';parent.append(actions);
+  actions.append(button(mission.link,mission.open));
+  actions.append(button((mission.done?'받기':'보상')+' · '+rewardText(mission.reward),()=>{
+   if(!mission.done||claimed(mission))return;
+   save.guideClaims??={};save.guideClaims[mission.id]=true;
+   addFunds(mission.reward);persist();renderMenu();
+  },!mission.done,'primary'));
+ }
+ if(current)showMission(p,current);
+ else paragraph(p,'일반 스테이지 20개와 레벨 100 가이드를 모두 완료했어.');
+ const list=disclosure(p,'전체 가이드 · 스테이지와 레벨 보상');
+ list.open=guideListOpen;
+ list.ontoggle=()=>{guideListOpen=list.open;};
+ for(const mission of missions){
+  if(mission===current)continue;
+  const item=document.createElement('article');item.className='item guide-mission';list.append(item);
+  showMission(item,mission);
+ }
 }
+let guideListOpen=false;
 function farmPanel(){
  const p=panel('보급 기지');
  if(!save.farmSince){save.farmSince=Date.now();persist();}
@@ -3236,6 +3316,7 @@ body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env
 .stage-chapters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
 .salvage-row{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}.salvage-row input{width:20px;height:20px;flex:none}
 #menu .daily-weapon{margin-top:10px;border-color:var(--weapon-rank);color:var(--weapon-rank)}
+.guide-actions{display:flex;flex-wrap:wrap;gap:8px}.guide-mission{margin-top:8px}.guide-mission .section-label{margin-top:0}
 </style>
 </body></html>
 
