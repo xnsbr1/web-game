@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.13">
+<meta name="game-build" content="2.0.14">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -462,11 +462,11 @@ const testSnapshot=readSave(testKey);
 const testMode=testSnapshot!==null;
 
 const skills={
- volley:{name:'속사 탄막',description:'가까운 적 최대 3마리에 55 피해 · 5초',cooldown:5,color:'#ffb955'},
- charge:{name:'전투 장전',description:'즉시 장전하고 다음 탄에 피해 증가 및 적 1명 추가 관통 · 6초',cooldown:6,color:'#9ed9ff'},
+ volley:{name:'연쇄 도탄',description:'가까운 적에게 95 피해. 175 이내의 적에게 최대 3번 튕기며 도탄 피해는 매번 18% 감소 · 6초',cooldown:6,color:'#ffb955'},
+ charge:{name:'자력 지뢰',description:'발밑에 지뢰 설치. 0.35초 후 무장하며 적이 밟거나 4초가 지나면 폭발해 범위 피해 145 · 9초',cooldown:9,color:'#9ed9ff'},
  heal:{name:'응급 주사',description:'최대 체력의 18% 회복 · 16초',cooldown:16,color:'#83ffc3'},
  storm:{name:'전자 폭풍',description:'반경 240 안의 적에게 100 피해와 경직 · 14초',cooldown:14,color:'#c498ff'},
- dash:{name:'대시',description:'짧게 돌진하며 피해를 피함. 신발에 따라 재사용 시간 감소.'},
+ dash:{name:'대시',description:'이동 방향으로 빠르게 돌진. 신발에 따라 재사용 시간 감소.'},
  shield:{name:'보호막',description:'1.4초간 피해 무효 · 재사용 12초',cooldown:12,color:'#62e0ff'},
  pulse:{name:'충격파',description:'주변 적탄 제거 및 적에게 피해와 경직 · 재사용 10초',cooldown:10,color:'#e7a8ff'},
  overdrive:{name:'가속 장치',description:'3초간 이동 속도 +35%, 장전 속도 2배 · 재사용 11초',cooldown:11,color:'#8ef3ba'}
@@ -487,7 +487,7 @@ const training={
 const trainingUnlockLevels=[1,10,25,45,65,75,85,95,100];
 const expansionStats={
  defense:'받는 피해 감소',lowHealthDefense:'체력 35% 이하에서 받는 피해 감소',electricDefense:'전기 피해 감소',
- mobility:'이동 속도 증가',dashCover:'대시 무적 시간 연장',movingReload:'재장전 중 이동 속도 증가',
+ mobility:'이동 속도 증가',dashSpeed:'대시 이동 속도 증가',movingReload:'재장전 중 이동 속도 증가',
  tactics:'스킬 재사용 시간 감소',skillDamage:'공격 스킬 피해 증가',shieldTime:'보호막 지속 시간 연장',
  sustain:'자동 회복량 증가',regenDelay:'자동 회복 대기 시간 단축',firstAid:'응급 주사 회복량 증가'
 };
@@ -497,8 +497,8 @@ const treeExpansion={
   ['combatGuard','방탄 자세','defense',1],['lastStandDrill','최후 방어','lowHealthDefense',4],['reactivePlate','반응 장갑','lowHealthDefense',6]
  ]},
  mobility:{symbol:'»',color:'#a0f1f0',perks:[
-  ['marchTempo','가속 보행','mobility',2],['dashTiming','회피 타이밍','dashCover',.10],['sprintDrill','돌파 기동','mobility',3],
-  ['lightStep','가벼운 발걸음','mobility',1],['fieldReload','기동 장전','movingReload',5],['evasionDrill','회피 교범','dashCover',.14]
+  ['marchTempo','가속 보행','mobility',2],['dashTiming','회피 타이밍','dashSpeed',10],['sprintDrill','돌파 기동','mobility',3],
+  ['lightStep','가벼운 발걸음','mobility',1],['fieldReload','기동 장전','movingReload',5],['evasionDrill','회피 교범','dashSpeed',14]
  ]},
  tactics:{symbol:'ϟ',color:'#ddaaff',perks:[
   ['fieldTactics','전술 준비','tactics',2],['amplifier','스킬 증폭','skillDamage',8],['perfectCycle','전술 순환','tactics',3],
@@ -509,7 +509,7 @@ const treeExpansion={
   ['deepBreath','심호흡','regenDelay',.25],['medicalDrill','회복 교범','regenDelay',.40],['advancedAid','응급 강화','firstAid',15]
  ]}
 };
-const durationStats=['dashCover','shieldTime','regenDelay'];
+const durationStats=['shieldTime','regenDelay'];
 for(const config of Object.values(treeExpansion)){
  config.perks=config.perks.map(([id,name,stat,value])=>({
   id,name,stat,value,effect:expansionStats[stat]+' '+value+(durationStats.includes(stat)?'초':'%')
@@ -550,7 +550,7 @@ const trainingSideBranches={
  move:[
   {id:'footwork',name:'전술 보폭',effect:'이동 속도 추가 +2%'},
   {id:'reloadStride',name:'이동 장전',effect:'재장전 중 이동 속도 +12%'},
-  {id:'dashGuard',name:'회피 엄호',effect:'대시 사용 시 무적 시간이 0.18초 늘어나'}
+  {id:'dashGuard',name:'회피 엄호',effect:'대시 이동 속도 +12%'}
  ],
  reload:[
   {id:'magPouch',name:'확장 탄창',effect:'장착한 총의 탄창 용량 +1발'},
@@ -625,7 +625,21 @@ function upgradeSkill(id){
 }
 let lastSupply=null,pendingSupply=null,supplyOddsOpen=false,supplyPreviewStage=null;
 const save={operator:'ranger',operators:{},salvaged:{},copies:{},ascension:{},skillLevels:{},milestoneTheme:null,xp:null,materials:{},trainingPerks:{},training:{},skill:'dash',credits:100,alloy:4,parts:0,cores:0,cleared:0,stars:{},levels:{pistol:0},equipped:{gun:'pistol'},mods:{},bossRuns:0,claims:{},bossMaterials:{},ranks:{}};
-Object.assign(save,testSnapshot||readSave(key));
+const snapshot=testSnapshot||readSave(key)||{};
+for(const [name,value] of Object.entries(save)){
+ const stored=snapshot[name];
+ if(value&&typeof value==='object'&&(!stored||typeof stored!=='object'||Array.isArray(stored)))continue;
+ if(Object.hasOwn(snapshot,name))save[name]=stored;
+}
+for(const [name,value] of Object.entries(snapshot)){
+ if(!Object.hasOwn(save,name)&&name!=='__proto__')save[name]=value;
+}
+save.cleared=Number.isInteger(save.cleared)?clamp(save.cleared,0,stages.length):0;
+save.levels.pistol??=0;
+for(const [slot,id] of Object.entries(save.equipped)){
+ if(gear[id]?.slot!==slot||!Object.hasOwn(save.levels,id))delete save.equipped[slot];
+}
+save.equipped.gun??='pistol';
 if(testMode){
  const unlimited=(obj,id)=>Object.defineProperty(obj,id,{enumerable:true,get:()=>Number.MAX_SAFE_INTEGER,set:()=>{}});
  for(const id of Object.keys(currencies))unlimited(save,id);
@@ -1205,6 +1219,16 @@ function trainingPerk(branch,index){
  if(index>=3)return trainingSideBranches[branch]?.[index-3];
  return index===2?config?.master:config?.perks[index];
 }
+const majorNodeBonuses={
+ fireMaster:'6번째 사격마다 총기 피해 +20%',
+ moveMaster:'체력이 35% 아래로 떨어지면 4초간 이동 속도 +12% · 전투당 1회',
+ reloadMaster:'빈 탄창 재장전 시간 절반 · 16초에 한 번',
+ projectileMaster:'치명타 탄환이 적 1명 추가 관통 · 산탄총은 중앙 탄환에 적용',
+ fortressDrill:'첫 피격 피해를 25% 더 감소 · 18초마다 다시 준비',
+ sprintDrill:'대시가 끝난 뒤 1.5초간 이동 속도 +12%',
+ perfectCycle:'스킬을 쓰면 다른 슬롯 스킬의 남은 쿨타임 0.6초 감소',
+ steadyRecovery:'체력이 35% 아래로 떨어지면 자동 회복 즉시 시작 · 전투당 1회'
+};
 function trainingPerkStatus(branch,index){
  const perk=trainingPerk(branch,index),tier=index>=3?trainingSideTiers[index-3]:trainingPerkTiers[index];
  const required=index===2?trainingBranches[branch].perks:index>=4?[trainingPerk(branch,index-1)]:[];
@@ -1388,6 +1412,7 @@ function renderTrainingDetail(parent){
  if(entry.perk!==3)card.classList.add('tree-perk');
  paragraph(card,perk.name+(entry.perk===2?' · 최종 특수 능력':entry.perk===3?' · 곁가지 강화':' · 특수 능력'),'section-label');
  paragraph(card,perk.effect);
+ if(majorNodeBonuses[perk.id])paragraph(card,'고유 효과 · '+majorNodeBonuses[perk.id],'section-label');
  if(!learned)paragraph(card,'필요 Lv. '+tier.level+' · 기본 강화 '+tier.requires+'단계'+(missing.length?' · 선행 '+missing.join(', '):''));
  card.append(button(learned?'습득 완료':priceText(tier.price),()=>{
   if(buyTrainingPerk(branch,entry.perk))renderMenu();
@@ -2027,7 +2052,7 @@ function measureArenaInsets(){
  topSpace=Math.max(90,Math.ceil(hud.bottom-bounds.top)+8);
  bottomSpace=Math.max(78,Math.ceil(bounds.bottom-skill.top)+8);
 }
-const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
+function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x));}
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angle=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
 const points=[[145,140],[445,120],[750,140],[140,440],[455,445],[745,445]];
@@ -2159,12 +2184,17 @@ function move(body,dx,dy){
 function triggerSkill(slot){
  const g=game;if(!g||g.paused||g.over)return;
  const p=g.p;
- if(!slot){if(p.cd>0)return;activateSkill();g.primaryDuration=p.cd;return;}
+ if(!slot){
+  if(p.cd>0)return;
+  activateSkill();g.primaryDuration=p.cd;
+  if(hasTrainingPerk('perfectCycle'))g.secondaryCd=Math.max(0,g.secondaryCd-.6);
+  return;
+ }
  if(g.secondaryCd>0)return;
  const [primary,extra,cd]=[g.skill,g.skillExtra,p.cd];
  g.skill=g.secondary;g.skillExtra=(skillLevel(g.skill)-1)*.7;p.cd=0;
  activateSkill();g.secondaryDuration=g.secondaryCd=p.cd;
- g.skill=primary;g.skillExtra=extra;p.cd=cd;
+ g.skill=primary;g.skillExtra=extra;p.cd=Math.max(0,cd-(hasTrainingPerk('perfectCycle')?.6:0));
 }
 function activateSkill(){
  if(!skillReady())return;
@@ -2179,12 +2209,21 @@ function activateSkill(){
   const power=1+extra*.02;
   const skillDamage=1+g.tree.skillDamage/100;
   const effectRadius=g.skill==='pulse'?radius:g.skill==='storm'?240:68;
-  skillFlash(g.skill,p,effectRadius);
+  if(g.skill!=='charge'&&g.skill!=='volley')skillFlash(g.skill,p,effectRadius);
   if(g.skill==='volley'){
-   const near=g.enemies.filter(e=>e.hp>0&&dist(e,p)<420&&clearShot(p,e)).sort((a,b)=>dist(a,p)-dist(b,p));
-   for(const e of near.slice(0,3)){e.hp-=55*power*skillDamage;skillFlash('volley',p,26,e);}
+   let source=p,reach=400,damage=95*power*skillDamage;
+   const visited=new Set();
+   for(let i=0;i<4;i++){
+    const target=g.enemies.filter(e=>e.hp>0&&!visited.has(e)&&dist(e,source)<=reach&&clearShot(source,e))
+     .sort((a,b)=>dist(a,source)-dist(b,source))[0];
+    if(!target)break;
+    target.hp-=damage;visited.add(target);skillFlash('volley',source,26,target);
+    source=target;reach=175;damage*=.82;
+   }
   }
-  if(g.skill==='charge'){p.reload=0;p.ammo=p.stat.mag;p.chargedShot=1+(1.35*power-1)*skillDamage;p.chargedPierce=1;}
+  if(g.skill==='charge'){
+   g.mine={x:p.x,y:p.y,armed:g.t+.35,expires:g.t+4,r:135+extra*2,damage:145*power*skillDamage};
+  }
   if(g.skill==='heal')p.hp=Math.min(p.max,p.hp+p.max*.18*power*(1+g.tree.firstAid/100));
   if(g.skill==='storm')for(const e of g.enemies)if(dist(e,p)<240){e.hp-=100*power*skillDamage;e.stun=Math.max(e.stun,.7);skillFlash('storm',p,24,e);}
 
@@ -2208,7 +2247,8 @@ function activateSkill(){
  p.cd=2.15+((family==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots))*recovery;
  if(hasTrainingPerk('dashCycle'))p.cd*=.90;
  p.cd*=g.debuff?.cooldown??1;
- p.inv=p.dash+.1+(hasTrainingPerk('dashGuard')?.18:0)+g.tree.dashCover;p.afterDash=1.1;
+ p.afterDash=1.1;
+ if(hasTrainingPerk('sprintDrill'))p.dashMomentum=p.dash+1.5;
 }
 function movement(){
  const x=walk.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0);
@@ -2224,7 +2264,12 @@ function reload(){
  if(gloves&&level(gloves)>=5&&modOf(gloves)===0)p.reload*=.8;
  p.reload*=(1-.028*gradeBonus(gloves))/(1+advancedLevel(gloves)*.005);
  if(p.hp<=p.max*.35&&hasTrainingPerk('combatReload'))p.reload/=1.15;
- if(p.ammo===0)p.reload/=1+game.transcendStats.gloves*.01;
+ if(p.ammo===0){
+  p.reload/=1+game.transcendStats.gloves*.01;
+  if(hasTrainingPerk('reloadMaster')&&game.t>=(p.nextRapidReload||0)){
+   p.reload*=.5;p.nextRapidReload=game.t+16;
+  }
+ }
 }
 function shotLifetime(id,mod){
  if(id==='shotgun')return .58;
@@ -2274,9 +2319,9 @@ function shoot(){
  p.firstRound=false;
  const volleyBonus=game.shotsFired%5===0?1+game.transcendStats.gun*.015:1;
  const critical=Math.random()<.04+trainingLevel('reload')*.01?1.45+trainingLevel('projectile')*.04:1;
- const damage=critical*trainingFactor('fire')*(p.chargedShot||1)*g.damage*(id==='rail'&&mod===1?1.15:1)*firstRound*volleyBonus*(gearPower(equipped)+boost)*(1+.038*gradeBonus(equipped))*(1+game.bonuses.damage)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
- const extraPierce=p.chargedPierce||0;
- p.chargedShot=0;p.chargedPierce=0;
+ const signatureShot=hasTrainingPerk('fireMaster')&&game.shotsFired%6===0?1.20:1;
+ const damage=signatureShot*critical*trainingFactor('fire')*g.damage*(id==='rail'&&mod===1?1.15:1)*firstRound*volleyBonus*(gearPower(equipped)+boost)*(1+.038*gradeBonus(equipped))*(1+game.bonuses.damage)*(id==='pistol'&&mod===0?1.22:1)*(precise?1.08:1);
+ const extraPierce=critical>1&&hasTrainingPerk('projectileMaster')?1:0;
  for(let i=0;i<count;i++){
   const d=p.dir+(i-(count-1)/2)*spread;
   game.shots.push({x:p.x+Math.cos(d)*18,y:p.y+Math.sin(d)*18,vx:Math.cos(d)*g.speed,vy:Math.sin(d)*g.speed,life:shotLifetime(id,mod)*g.travelTimeScale,damage,id,mod,seen:new Set(),pierce:(id==='rail'?(mod===0?5:2):Number(id==='revolver'&&mod===0))+(i===Math.floor(count/2)?extraPierce:0)});
@@ -2311,10 +2356,21 @@ function hurt(damage,origin,electric=false){
  const tree=game.tree;
  const defense=tree.defense+(healthRatio<=.35?tree.lowHealthDefense:0);
  damage*=(1-defense/100)*(electric?1-tree.electricDefense/100:1);
+ if(hasTrainingPerk('fortressDrill')&&game.t>=(p.nextFortress||0)){
+  damage*=.75;p.nextFortress=game.t+18;
+ }
  const loss=Math.round(damage*(1-game.bonuses.defense)*(1-(game.operator.defense||0))*scale);
  if(loss>0){p.regenAt=game.t+recoveryDelay(game.operator,tree);p.medicBoostUntil=game.operator===operators.medic?p.regenAt+2:0;}
  const previousHp=p.hp;
  p.hp-=loss;game.hits++;playEffect('hurt');p.inv=.52;
+ if(p.hp>0&&previousHp>=p.max*.35&&p.hp<p.max*.35){
+  if(hasTrainingPerk('moveMaster')&&!p.usedRally){
+   p.usedRally=true;p.dashMomentum=4;
+  }
+  if(hasTrainingPerk('steadyRecovery')&&!p.usedRecovery){
+   p.usedRecovery=true;p.regenAt=game.t;
+  }
+ }
  if(!p.secondWindUsed&&previousHp>=p.max*.25&&p.hp>0&&p.hp<p.max*.25&&hasTrainingPerk('secondWind')){
   p.hp+=p.max*.12;p.secondWindUsed=true;
   game.effects.push({x:p.x,y:p.y,r:42,color:'#8afc92',life:.4,ring:true});
@@ -2845,16 +2901,26 @@ function step(dt,refreshHud=true){
  g.t+=dt;g.secondaryCd=Math.max(0,g.secondaryCd-dt);
  if(g.operator.leech)p.leechCredit=Math.min(3,p.leechCredit+3*dt);
  recoverHealth(p,g.t,dt);
- for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent','skillStride'])p[key]=Math.max(0,p[key]-dt);
+ for(const key of ['cool','inv','cd','afterDash','dash','shield','overdrive','vent','skillStride','dashMomentum'])p[key]=Math.max(0,(p[key]||0)-dt);
  if(p.reload>0){p.reload-=dt*(p.overdrive>0?2:1);if(p.reload<=0){p.reload=0;p.ammo=p.stat.mag;p.firstRound=hasTrainingPerk('firstRound')||hasTrainingPerk('returnFire');}}
  hazards();
  const input=movement();
  updateDevices(g,dt);
+ const mine=g.mine;
+ if(mine&&g.t>=mine.armed&&(g.t>=mine.expires||g.enemies.some(e=>e.hp>0&&dist(e,mine)<=48+e.r))){
+  for(const e of g.enemies){
+   if(e.hp>0&&dist(e,mine)<=mine.r+e.r&&clearShot(mine,e))e.hp-=mine.damage;
+  }
+  skillFlash('charge',mine,mine.r);g.mine=null;
+ }
  const speed=p.vent>0?242:g.wet&&gearFamily(save.equipped.boots)!=='grip'?125:183;
  const previousX=p.x,previousY=p.y;
- if(p.dash>0)move(p,Math.cos(p.dashDir)*360*dt,Math.sin(p.dashDir)*360*dt);
+ if(p.dash>0){
+  const dashSpeed=360*(1+g.tree.dashSpeed/100+(hasTrainingPerk('dashGuard')?.12:0));
+  move(p,Math.cos(p.dashDir)*dashSpeed*dt,Math.sin(p.dashDir)*dashSpeed*dt);
+ }
  else {
-  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1)*(p.skillStride>0?1+g.transcendStats.boots*.006:1)*(p.reload>0?1+(hasTrainingPerk('reloadStride')?.12:0)+g.tree.movingReload/100:1);
+  const movementSpeed=speed*g.moveFactor*(p.dashMomentum>0?1.12:1)*(p.overdrive>0?1.35:1)*(p.skillStride>0?1+g.transcendStats.boots*.006:1)*(p.reload>0?1+(hasTrainingPerk('reloadStride')?.12:0)+g.tree.movingReload/100:1);
   move(p,input.x*movementSpeed*dt,input.y*movementSpeed*dt);
  }
  trackMovement(g,p.x-previousX,p.y-previousY,dt);
@@ -3359,7 +3425,7 @@ function drawSkillFlash(effect,p){
    }
    ctx.stroke();
   }
- }else if(skill==='dash'||skill==='charge'||skill==='overdrive'){
+ }else if(skill==='dash'||skill==='overdrive'){
   const a=skill==='overdrive'?p.dir+Math.PI:dir;
   for(let i=-2;i<=2;i++){
    const sx=x+Math.sin(a)*i*7,sy=y-Math.cos(a)*i*7;
@@ -3382,7 +3448,7 @@ function drawSkillFlash(effect,p){
  }else{
   const radius=16+(r-16)*t;
   ring(radius);
-  if(skill==='pulse'){ctx.lineWidth=2;ring(Math.max(6,radius-12));}
+  if(skill==='pulse'||skill==='charge'){ctx.lineWidth=2;ring(Math.max(6,radius-12));}
   if(skill==='storm'){
    for(let i=0;i<8;i++){
     const a=i*TAU/8+t*.5;
@@ -3452,6 +3518,11 @@ function draw(){
  if(['switch','escape'].includes(g.mode)){
   const ready=g.objects.every(o=>o.done);disc(g.exit.x,g.exit.y,28,ready?'#69d9a5':'#666d62');
   ctx.textAlign='center';ctx.font='bold 14px system-ui';ctx.fillStyle='#152621';ctx.save();ctx.translate(g.exit.x,g.exit.y);if(portrait)ctx.rotate(-Math.PI/2);ctx.fillText('출구',0,5);ctx.restore();
+ }
+ if(g.mine){
+  const mine=g.mine;
+  disc(mine.x,mine.y,11,g.t>=mine.armed?'#9ed9ff':'#526579');
+  ctx.strokeStyle='#9ed9ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(mine.x,mine.y,48,0,TAU);ctx.stroke();
  }
  for(const a of g.warnings){
   const color=a.time>0?(a.safeLane?'#f59a484d':'#f4b35d50'):'#ff6334aa';
@@ -3602,6 +3673,16 @@ function frame(now){
  requestAnimationFrame(frame);
 }
 renderMenu();requestAnimationFrame(frame);
+</script>
+<script>
+window.addEventListener('load',()=>{
+ const menu=document.getElementById('menu');
+ if(menu.children.length)return;
+ const retry=document.createElement('a');
+ retry.href='shooter.html?refresh='+Date.now();
+ retry.textContent='화면이 멈췄다면 게임 다시 열기';
+ menu.append(retry);
+});
 </script>
 <style>
 
