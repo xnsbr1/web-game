@@ -5051,6 +5051,9 @@ renderMenu();
 if(dispatchMatch){
  start(Number(dispatchMatch[1]));
  game.mod={code:dispatchCode,seed:parseInt(dispatchMatch[2],36),random:parseInt(dispatchMatch[2],36),history:[],marks:[],sample:0};
+ // Issue the same field armor to every participant on this frequency.
+ const fieldHealth=game.index===1?240:game.index===9?390:460;
+ game.p.hp=game.p.max=fieldHealth;
  game.skill='dash';game.skillExtra=0;$('reserveSkill').style.display='none';
  $('combatHint').textContent='구조대 공용 장비 · 1구간을 돌파하면 회로 선택';
 }
