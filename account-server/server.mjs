@@ -1,3 +1,4 @@
+import {coop} from './coop.mjs';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -119,6 +120,9 @@ const server=createServer(async (request,response)=>{
    response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'}).end(content);
    return;
   }
+  if(request.method==='GET'&&path==='/signal.html'){
+   response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'}).end(await readFile(new URL('../signal.html',import.meta.url)));return;
+  }
   if(!path.startsWith('/api/game/'))return send(404,{error:'주소를 찾을 수 없어.'});
   const route=path.slice('/api/game/'.length);
   if(request.method==='GET'&&route==='status')return send(200,{online:true});
@@ -133,6 +137,7 @@ const server=createServer(async (request,response)=>{
    if(!request.headers['content-type']?.startsWith('application/json'))fail(415,'JSON 요청만 지원해.');
    const body=await readBody(request);
    if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'요청 형식이 올바르지 않아.');
+   if(route.startsWith('coop/'))return send(200,coop(route.slice(5),body));
    if(route==='account'){
     const name=typeof body.name==='string'?body.name.normalize('NFKC').trim():'';
     if(!/^[\p{L}\p{N} _-]{2,20}$/u.test(name))fail(400,'이름은 2~20자의 글자, 숫자, 공백, _ 또는 -로 만들어.');
