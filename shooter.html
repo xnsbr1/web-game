@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="3.1.0">
+<meta name="game-build" content="3.2.0">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -173,8 +173,8 @@ details .item{margin-bottom:8px}
 </dialog>
 <dialog id="noticesDialog" class="service-dialog" aria-labelledby="noticeTitle">
  <h2 id="noticeTitle">공지</h2>
- <p>3.1.0 · 정비소와 초보자 가이드</p>
- <p>장비와 뽑기 화면에 하위 메뉴가 생겼어. 보스 페이즈 연습과 피격 기록도 추가됐어.</p>
+ <p>3.2.0 · 보스 패턴 개편</p>
+ <p>폐광과 침수 연구소의 보스마다 고유한 공격과 회피 방법이 생겼어.</p>
  <form method="dialog"><button>닫기</button></form>
 </dialog>
 <dialog id="rankingDialog" class="service-dialog" aria-labelledby="rankingTitle">
@@ -1019,28 +1019,7 @@ function dailyShop(){
  weapon.style.setProperty('--weapon-rank',rankColors[rank-1]);
  p.append(weapon);
 }
-const stageGuideTips=[
- '왼쪽 조이스틱으로 움직이면 가까운 적에게 자동으로 사격해. 곡괭이턱이 돌진을 준비할 때는 옆으로 피하고, 오른쪽 대시는 경고선에서 빠져나올 때 써.',
- '적에게 둘러싸이기 전에 빈 통로로 빠져. 선로 분쇄기의 평행 경고선이 뜨면 선 사이의 빈 공간으로 이동해.',
- '포자낭 폭충이 접근하면 거리를 벌려. 포자 여왕이 부채꼴 탄을 쏘면 탄 사이로 지나가거나 충격파로 지워.',
- '박격포가 발밑을 노리니 경고 원이 생기면 바로 움직여. 흑철 방패충의 고리에는 빈 공간이나 대시를 이용해.',
- '철턱은 연달아 돌진해. 첫 돌진을 피한 뒤에도 바로 멈추지 말고, 마지막 돌진 뒤에 거리를 좁혀.',
- '빠른 적을 한쪽으로 모아 이동로를 확보해. 협곡 송곳니의 탄막은 충격파를 남겨 두면 피하기 쉬워. 중간 보스 보상은 장비 탭에서 확인해.',
- '바닥에 낙석 예고가 여러 개 뜨면 멀리 돌아가기보다 가장 가까운 바깥쪽으로 빠져. 청록색 발판으로 이동 속도를 높일 수 있어.',
- '폭발하는 잡몹 가까이에서 길이 막히지 않게 넓게 돌아. 잿불 어미가 바닥을 여러 곳 찍을 때는 안전한 방향을 먼저 골라.',
- '승강기 파수꾼은 경고선이 교차하니 첫 줄을 피한 뒤 다음 줄도 확인해. 체력이 부족하면 초록색 회복 발판을 찾아.',
- '광맥 포식자의 이중 고리 사이에서 대시 타이밍을 잡아. 클리어 후 장비 탭에서 4성 무기 선택권을 확인해.',
- '침수 연구소부터는 잡몹 스킬도 확인해. 로비 포식충의 긴 돌진은 뒤로 달리기보다 옆으로 빠져.',
- '작살사수의 시야를 벽으로 끊고, 배수로 촉수가 넓게 펼치는 경고선 사이로 진입해.',
- '방전 구역이 연달아 생길 때 같은 방향으로 계속 달리면 갇힐 수 있어. 첫 방전을 피한 뒤 다음 경고의 위치를 보고 방향을 정해.',
- '폭발하는 영양낭을 피해 넓은 쪽으로 움직여. 표본 07은 부채꼴 탄 사이가 좁으니 거리를 두거나 충격파를 써.',
- '중갑충과 증기 포충을 동시에 상대할 때는 먼저 빈 통로를 확보해. 절연 갑각의 고리가 가까우면 대시나 보호막을 사용해.',
- '박격포와 측면에서 오는 적 때문에 벽 모서리에 오래 머물지 마. 격리군주의 경고선은 두 차례를 보고 움직여. 클리어 후 5성 무기 선택권을 확인해.',
- '관측교 잠복자의 세 번 돌진이 끝날 때까지 옆으로 피해. 좁은 곳에는 몰리기 전에 먼저 빠져나와.',
- '역류 아귀의 연쇄 폭발은 경고 원들이 겹쳐. 원 하나의 가장자리에서 멈추지 말고 바깥 안전지대로 이동해.',
- '첫 탄막을 피한 뒤에도 다음 발이 올 때까지 빈 공간을 유지해. 얻은 5성 장비 세트 선택권은 장비 탭에서 확인해.',
- '심전 장어는 고리 공격을 반복해. 대시와 보호막을 번갈아 쓰고, 두 스킬이 모두 쿨타임일 때는 빈틈을 따라 이동해.'
-];
+function stageGuideTip(index){return (index===0?'왼쪽 조이스틱으로 움직이면 가까운 적을 자동 사격해. ':'')+bossKits[index].hint;}
 const levelGuideTips=[
  [5,1,'처음에는 1–10레벨 경험치 던전으로 레벨을 올려. 합금과 크레딧을 모아 장착 총부터 +1 강화해.'],
  [10,5,'스킬 트리에서 기본 강화 2단계가 열려. 공격력이 부족하면 공격력, 자주 쓰러지면 체력부터 올려.'],
@@ -1114,7 +1093,7 @@ function guidePanel(){
  const oldStageRewards={0:1,5:4,9:5};
  for(const [index,[name]] of stages.entries()){
   main.push({
-   id:'stage-'+index,title:stageId(index)+' '+name,tip:stageGuideTips[index],
+   id:'stage-'+index,title:stageId(index)+' '+name,tip:stageGuideTip(index),
    done:save.cleared>index,legacy:(save.guideStep||0)>=(oldStageRewards[index]??Infinity),
    reward:{credits:50+index*5,...([5,9,15,19].includes(index)?{['core'+coreRank(index)]:1}:{})},
    open:()=>openStage(index),link:'스테이지 상세'
@@ -1122,7 +1101,7 @@ function guidePanel(){
   const stars=save.stars[index]||0;
   mastery.push({
    id:'stars-'+index,title:stageId(index)+' '+name+' · 별 3개',
-   tip:'일반 스테이지에서 4회 이하로 피격되고 클리어해. '+stageGuideTips[index],
+   tip:'일반 스테이지에서 4회 이하로 피격되고 클리어해. '+stageGuideTip(index),
    progress:stars+' / 3점',done:stars>=3,reward:{credits:35+index*3,alloy:1+Math.floor(index/10)},
    open:()=>openStage(index),link:'스테이지 상세'
   });
@@ -2640,6 +2619,7 @@ function damageEnemy(e,b){
  if(e.hp<=e.max*.25&&hasTrainingPerk('finisher'))d*=1.08;
  if(e.type==='armor'&&e.stun<=0&&Math.cos(e.dir-Math.atan2(-b.vy,-b.vx))>.25)d*=b.id==='sniper'&&b.mod===0?.76:b.id==='rifle'&&b.mod===1?.58:.16;
  if(e.type==='boss'&&e.stun<=0&&!(b.id==='sniper'&&b.mod===0))d*=e.pattern?.82:.63;
+ if(e.guardUntil>game.t&&Math.cos(e.guardDirection-angle(e,game.p))>.63)d*=.25;
  if(b.id==='smg'&&b.mod===1){d*=1+Math.min(5,e.mark)*.13;e.mark++;}
  if(e.trait==='갑피'&&!e.shellBroken){d*=.8;e.shellBroken=true;}
  const p=game.p;
@@ -2662,39 +2642,78 @@ function shootEnemy(e,target){
   game.bolts.push({x:e.x+Math.cos(d+spread)*e.r,y:e.y+Math.sin(d+spread)*e.r,a:d+spread,life:3,steers:target===game.p,turnUsed:0,hit:e.type==='boss'?16:e.hit});
  }
 }
-const bossSignatures=[
- ['직선 추격','charge',1,1],['엇갈린 선로','line',3,1],['포자 부채','fan',5,1],['갑각 공명','ring',1,1],
- ['되돌이 돌진','charge',2,1],['협곡 분기탄','fan',3,2],['낙석 삼각진','strike',3,1],['잿불 포위','strike',4,1],
- ['승강로 교차','line',2,2],['광맥 이중 파동','ring',2,1],['수문 급습','charge',1,2],['배수로 역류','line',4,1],
- ['교대 방전','strike',3,2],['표본 분열탄','fan',7,1],['압력 반전','ring',1,2],['격리 경계선','line',3,2],
- ['관측교 지그재그','charge',3,1],['펌프 연쇄 폭발','strike',5,2],['암전 엇박 탄막','fan',5,2],['심전 수축파','ring',2,2]
+// Ordered attacks per phase. Each attack belongs to one stage boss.
+const bossKits=[
+ {hint:'돌진선을 옆으로 피하고, 마지막에 갈라지는 두 사선을 확인해.',phases:[
+  [['곡괭이 직진','pickRush']], [['쌍날 갈라치기','pickFork'],['곡괭이 직진','pickRush']]
+ ]},
+ {hint:'철로가 차례로 지나가. 한 선로가 지난 자리를 따라 건너.',phases:[
+  [['순환 광차','railTrain']], [['탈선 객차','railDerail'],['순환 광차','railTrain']]
+ ]},
+ {hint:'포자 씨앗이 남긴 원은 한동안 위험해. 포자가 피기 전에 다른 곳으로 옮겨.',phases:[
+  [['포자 정원','sporeGarden']], [['번식 고리','sporeSpread'],['포자 정원','sporeGarden']]
+ ]},
+ {hint:'정면 방벽이 사격을 막아. 옆이나 뒤로 돌아가면서 방패 반격을 피해.',phases:[
+  [['흑철 방벽','shieldFace']], [['방패 되치기','shieldCounter'],['흑철 방벽','shieldFace']]
+ ]},
+ {hint:'철턱이 뛰면 착지점에서 벗어나. 턱이 닫히기 전에 가까운 쪽 틈을 골라.',phases:[
+  [['도약 착지','jawLeap']], [['철턱 협공','jawClamp'],['도약 착지','jawLeap']]
+ ]},
+ {hint:'협곡 송곳니가 있던 자리를 봐. 양쪽에서 공격할 때는 협곡의 세로 틈으로 빠져.',phases:[
+  [['측면 매복','fangAmbush'],['협곡 갈퀴','fangRake']],
+  [['바위 사이 반동','fangRicochet'],['협곡 포위','fangPincer']],
+  [['송곳니 추격 흔적','fangTrail'],['협곡 갈퀴','fangRake'],['측면 매복','fangAmbush']]
+ ]},
+ {hint:'낙석 그늘이 이어지는 방향을 봐. 바위가 굴러간 자리로 들어가.',phases:[
+  [['천장 붕괴','rockFall']], [['굴러가는 거석','rollingRock'],['천장 붕괴','rockFall']]
+ ]},
+ {hint:'불씨가 튄 자리는 천천히 번져. 불이 번지기 전에 넓은 공간을 확보해.',phases:[
+  [['불씨 부화','emberEgg']], [['번지는 잿불','emberFront'],['불씨 부화','emberEgg']]
+ ]},
+ {hint:'승강판이 켜질 때는 불이 꺼진 칸으로 이동해. 격자가 바뀔 때 경계선을 확인해.',phases:[
+  [['교대 승강판','liftTiles']], [['정지층 셔터','liftShutters'],['교대 승강판','liftTiles']]
+ ]},
+ {hint:'수정벽 사이 빈 틈을 먼저 찾아. 막판에는 수정이 깨지며 다른 틈을 열어.',phases:[
+  [['수정벽 통로','crystalGate'],['갈라지는 광맥','crystalVein']],
+  [['수정쐐기','crystalWedge'],['수정벽 통로','crystalGate'],['광맥 발진','crystalNodes']],
+  [['엇갈린 수정문','crystalMaze'],['결정 붕괴','crystalCollapse'],['수정벽 통로','crystalGate']]
+ ]},
+ {hint:'바닥 물살은 이동 방향을 바꿔. 빨려가는 쪽으로 바로 서지 마.',phases:[
+  [['흡입 수문','lobbySuction']], [['역류 밀물','lobbyPush'],['흡입 수문','lobbySuction']]
+ ]},
+ {hint:'촉수가 고정한 방향으로 작살이 와. 가까이 있으면 옆으로, 멀리 있으면 발사선 바깥으로.',phases:[
+  [['고정 작살','drainHarpoon']], [['촉수 가로채기','drainHook'],['고정 작살','drainHarpoon']]
+ ]},
+ {hint:'전극 두 점 사이에 전류가 흘러. 전극 사이를 가로지르지 말고 끝으로 돌아가.',phases:[
+  [['전극 연결','coilBridge']], [['순환 방전','coilCircuit'],['전극 연결','coilBridge']]
+ ]},
+ {hint:'젤이 묻은 바닥에서 느려져. 반대쪽으로 나온 분신과 본체의 연결을 피해야 해.',phases:[
+  [['끈끈한 표본','specimenGel']], [['분신 연결','specimenMirror'],['끈끈한 표본','specimenGel']]
+ ]},
+ {hint:'증기가 높은 쪽을 피하고, 갑각이 제자리에서 압력을 모으면 거리를 벌려.',phases:[
+  [['감압 분출','pressureJet']], [['갑각 압력파','pressureShell'],['감압 분출','pressureJet']]
+ ]},
+ {hint:'검역 구역이 작아질수록 공간이 줄어. 잠기는 문을 보고 격리실을 옮겨.',phases:[
+  [['검역 경계','isoQuarantine'],['격리 셔터','isoAirlock']],
+  [['오염 격실','isoChambers'],['출입 봉쇄','isoLock']],
+  [['격리 해제 역류','isoPurge'],['오염 격실','isoChambers'],['검역 경계','isoQuarantine']]
+ ]},
+ {hint:'관측교 아래 그림자에 서 있지 마. 유리 반사점에서 오는 두 번째 사선도 봐.',phases:[
+  [['교각 아래 급습','bridgeLurk']], [['유리 반사','bridgeGlass'],['교각 아래 급습','bridgeLurk']]
+ ]},
+ {hint:'펌프가 물을 끌거나 내보낼 때 바닥 화살표 방향을 읽고 안전한 옆으로 빠져.',phases:[
+  [['펌프 회전 흡입','pumpIntake']], [['역압 분발','pumpRelease'],['펌프 회전 흡입','pumpIntake']]
+ ]},
+ {hint:'조명이 좁아지면 표시된 빛 속으로 가. 조명이 옮겨갈 방향을 보고 따라가.',phases:[
+  [['비상등 사각지대','darkLamp']], [['꺼지는 조명','darkBlackout'],['비상등 사각지대','darkLamp']]
+ ]},
+ {hint:'물이 번쩍이면 청록색 접지 발판을 찾아. 발판이 바뀌는 순서를 보고 옮겨.',phases:[
+  [['수면 감전과 접지','eelGround'],['수위 상승','eelTide']],
+  [['도전성 물길','eelChannels'],['접지 이동','eelRelay'],['수위 상승','eelTide']],
+  [['수조 연쇄 접지','eelCascade'],['심전기 마비','eelSurge'],['도전성 물길','eelChannels']]
+ ]}
 ];
-// Regular bosses gain a second move. Chapter bosses have their own ordered phase rotations.
-const bossSecondMoves=[
- ['갱도 낙진','pursuit',2,1],['선로 파편','fan',5,2],['포자 수축','ring',2,2],['갑각 돌진','charge',2,1],
- ['되돌이 지진','cross',2,1],null,['낙석 단층','sweep',3,1],['불씨 탄막','fan',7,2],
- ['승강장 압착','ring',2,2],null,['수문 연쇄포','pursuit',3,2],['배수관 파열','cross',2,2],
- ['교차 전류','sweep',4,2],['표본 포획진','strike',5,2],['증기 분출','fan',7,2],null,
- ['교각 압착','cross',2,2],['펌프 압력차','ring',2,2],['정전 추적포','pursuit',4,1],null
-];
-const chapterBossMoves={
- 5:[
-  ['협곡 측벽 붕괴','sweep',3,1],['송곳니 세 번 돌진','charge',3,1],
-  ['맞물린 낙석','cross',2,1],['협곡 출구 봉쇄','pursuit',3,2]
- ],
- 9:[
-  ['광맥 단층 이동','sweep',4,1],['포식자의 돌진','charge',2,2],
-  ['격자 수정벽','cross',3,2],['광맥 연쇄 붕괴','pursuit',4,1],['수정 파편 이중탄','fan',9,2]
- ],
- 15:[
-  ['격리 벽면 분출','fan',7,2],['격벽 연쇄 폭발','pursuit',4,1],
-  ['격리실 수축','ring',2,2],['격벽 셔터','sweep',4,2]
- ],
- 19:[
-  ['심전 왕복 전류','sweep',4,2],['심전 역류탄','fan',9,2],
-  ['침수 교차 방전','cross',3,1],['심해 추적 낙뢰','pursuit',4,2],['장어의 긴 돌진','charge',3,2]
- ]
-};
+
 function campaignBossPhases(index){
  if(index%10===9)return [72,36];
  if(index%10===5)return [68,32];
@@ -2706,144 +2725,322 @@ function campaignBossPhase(e,alpha=false){
  return Math.min(thresholds.length,phase+Number(alpha));
 }
 function campaignBossPattern(e){
- const index=e.signature,chapter=chapterBossMoves[index];
- const primary=bossSignatures[index];
  const phase=campaignBossPhase(e,game.special==='alpha');
- const attacks=chapter?(phase===0?[primary,chapter[0]]:phase===1?[chapter[1],primary,chapter[2]]:[chapter[3],chapter[4]||chapter[0],chapter[2],primary]):phase===0?[primary]:[bossSecondMoves[index],primary];
+ const attacks=bossKits[e.signature].phases[phase];
  const turn=e.patternPhase===phase?e.patternTurn:0;
  e.patternPhase=phase;e.patternTurn=turn+1;
  return attacks[turn%attacks.length];
 }
-const battlePatterns={
- charge:'대시로 돌진선을 벗어나거나 보호막으로 버틴 뒤 반격해.',
- line:'경고선 사이를 지나가. 늦었다면 대시나 보호막을 써.',
- fan:'탄 사이를 지나가거나 충격파로 탄을 지워.',
- ring:'고리 사이 빈 공간으로 이동해. 대시나 보호막으로 통과할 수도 있어.',
- strike:'바닥 예고가 겹치기 전에 가속 장치로 안전한 쪽으로 빠져.',
- sweep:'쓸고 지나간 띠 뒤로 이동해.',
- cross:'가로와 세로 경고가 겹치기 전에 대각선으로 비켜.',
- pursuit:'연달아 찍히는 경고 원을 같은 자리에 겹치지 않게 유도해.'
-};
-const corridorDamage=[22,20,24,30,35,30,33,44,40,33,37,29,45,32,35,31,32,39,36,38];
-function bossSafeLane(e,p,phase){
- const g=game;
- const final=e.signature%10===9,middle=e.signature%10===5;
- const column=e.laneTurn%2===e.signature%2;
- const limit=column?W:H;
- const position=column?p.x:p.y;
- const direction=position>limit/2?-1:1;
- const intro=e.signature===9&&g.special!=='alpha'&&phase<2;
- const normalGap=intro?285:e.signature===9&&g.special!=='alpha'?214:final?176:middle?205:e.signature<4?222:199;
- const gap=g.special==='alpha'?normalGap-22:normalGap;
- const distance=intro?155:e.signature===9&&g.special!=='alpha'?192:final?220:middle?196:e.signature<4?180:194;
- const center=clamp(position+direction*distance,gap*.5+26,limit-gap*.5-26);
- const time=intro?1.65:final?1.38:middle?1.29:1.17;
- function zone(from,to,delay){
-  const mid=(from+to)/2;
-  g.warnings.push({x:column?mid:p.x,y:column?p.y:mid,column,cart:!column,
-   r:(to-from)/2,time:delay,active:.25,safeLane:true,damageName:'안전 통로 밖',damage:(intro?18:e.signature===9?28:corridorDamage[e.signature])+(g.special==='alpha'?5:0)});
- }
- zone(0,center-gap/2,time);
- zone(center+gap/2,limit,time);
- e.laneTurn++;
- const alphaTempo=g.special==='alpha'?(e.signature<5?.9:alphaBalance.patternInterval):1;
- e.nextLane=g.t+((final?5.35:middle?6.1:6.5)-phase*.45)*alphaTempo;
+
+function bossBrief(parent,index){
+ const kit=bossKits[index];
+ paragraph(parent,stageBosses[index][0]+' · '+kit.phases[0][0][0],'section-label');
+ paragraph(parent,kit.hint);
 }
-function huntAttack(e,p,dt){
- const tutorial=game.campaign&&e.signature===9&&game.special!=='alpha'&&campaignBossPhase(e)<2;
- if(tutorial&&game.t>=e.nextLane&&!e.bossCast){
-  if(game.warnings.length)return true;
-  bossSafeLane(e,p,campaignBossPhase(e));
-  e.laneRecovery=game.t+2.25;
-  e.nextLane=game.t+10;
+
+function resolveBossMove(e,cast){
+ const g=game,{x,y,dir,kind,name}=cast;
+ const target={x,y};
+ const major=e.signature%10===9||e.signature%10===5;
+ const pressure=g.special==='alpha'?1.27:1;
+ const scale=major?1.10:1;
+ const point=(origin,angleValue,length)=>({
+  x:clamp(origin.x+Math.cos(angleValue)*length,24,W-24),y:clamp(origin.y+Math.sin(angleValue)*length,24,H-24)
+ });
+ const warn=(shape,time=.78,active=.24,damage=24)=>g.warnings.push({
+  time,active,damage:Math.round(damage*scale*pressure),damageName:name,...shape
+ });
+ const circle=(origin,r,time,active,extra={})=>warn({x:origin.x,y:origin.y,r,...extra},time,active);
+ const beam=(a,b,r,time,active,extra={})=>warn({shape:'beam',x:a.x,y:a.y,end:b,r,...extra},time,active);
+ const box=(x,y,w,h,time,active,extra={})=>warn({shape:'box',x,y,w,h,r:Math.min(w,h)/2,...extra},time,active);
+ const safe=(pads,time,active,damage=32)=>warn({shape:'shelter',x:W/2,y:H/2,r:0,pads},time,active,damage);
+ const sector=(origin,angleValue,r,half,time,active)=>warn({shape:'sector',x:origin.x,y:origin.y,dir:angleValue,r,half},time,active);
+ const shots=(origin,angles,delay=0,speed=245)=>angles.forEach(a=>g.bolts.push({
+  x:origin.x,y:origin.y,a,delay,speed,life:2.8,hit:Math.round(15*pressure),damageName:name
+ }));
+ const pads=(positions,r)=>positions.map(([px,py])=>({x:px,y:py,r}));
+ const margin=46;
+ const side=target.x>W/2?0:W;
+ const laneX=clamp(target.x,190,W-190),laneY=clamp(target.y,160,H-160);
+ switch(kind){
+ case 'pickRush':
+  beam(e,point(e,dir,290),27,.48,.12);
+  e.wind=.48;e.chain=1;e.chargeDuration=.62;return;
+ case 'pickFork':
+  for(const direction of [-.38,.38])beam(e,point(e,dir+direction,380),22,.74,.3);
+  break;
+ case 'railTrain':
+  for(let i=0;i<3;i++){
+   const y=H*(.26+i*.24);
+   beam({x:10,y},{x:W-10,y},34,.60+i*.48,.31);
+  }
+  break;
+ case 'railDerail':
+  beam({x:side,y:80},{x:W-side,y:H-80},31,.90,.42);
+  beam({x:side,y:H-80},{x:W-side,y:80},24,1.42,.22);
+  break;
+ case 'sporeGarden':
+  for(const offset of [-1,0,1])circle(point(target,dir+offset*1.4,offset?105:0),53,.81,1.35,{spore:true,tone:'gel'});
+  break;
+ case 'sporeSpread':
+  circle(target,45,.62,.6);
+  for(let i=0;i<5;i++)circle(point(target,dir+i*TAU/5,92),38,1.05+i*.08,1.25,{spore:true,tone:'gel'});
+  break;
+ case 'shieldFace':
+  e.guardUntil=g.t+2.5;e.guardDirection=dir;
+  sector(e,dir,165,.72,.62,.32);
+  break;
+ case 'shieldCounter':
+  e.guardUntil=g.t+2;e.guardDirection=dir;
+  sector(e,dir,223,.43,.59,.25);
+  sector(e,dir+Math.PI,112,1.12,1.16,.20);
+  break;
+ case 'jawLeap': {
+  const landing=point(e,dir,Math.min(245,dist(e,target)));
+  circle(landing,83,.92,.22,{landing,boss:e});
+  break;
  }
- if(tutorial&&game.t<e.laneRecovery)return true;
- if(!tutorial&&game.campaign&&game.t>=e.nextLane){
-  bossSafeLane(e,p,campaignBossPhase(e));
+ case 'jawClamp':
+  for(const side of [-1,1])sector(point(target,dir+side*Math.PI/2,115),dir-side*Math.PI/2,145,.61,.97,.25);
+  break;
+ case 'fangAmbush': {
+  const start={x:side,y:laneY};
+  beam(start,{x:W-side,y:laneY},32,.81,.27);
+  shots(start,[side===0?0:Math.PI],.87,470);
+  break;
  }
+ case 'fangRake':
+  for(let i=0;i<3;i++)beam({x:side,y:160+i*162},{x:W-side,y:235+i*120},25,.7+i*.16,.23);
+  break;
+ case 'fangRicochet':
+  beam({x:60,y:65},{x:W-60,y:H-65},27,.68,.23);
+  beam({x:W-60,y:H-65},{x:77,y:H-95},27,1.18,.23);
+  break;
+ case 'fangPincer':
+  for(const y of [laneY-98,laneY+98]){
+   beam({x:0,y},{x:W,y},32,.83,.31);
+  }
+  box(laneX-57,laneY-49,114,98,1.46,.24);
+  break;
+ case 'fangTrail':
+  for(let j=0;j<4;j++)circle(point(target,dir+Math.PI*.5+j*.52,45+j*48),43,.62+j*.27,.64);
+  break;
+ case 'rockFall':
+  for(let i=0;i<3;i++)circle(point(target,dir+i*2.08,i*71),45+i*8,.68+i*.22,.5);
+  break;
+ case 'rollingRock':
+  for(let i=0;i<7;i++){
+   const position={x:side+(W-2*side)*(i+1)/8,y:laneY+(i-3)*25};
+   circle(position,58,.54+i*.25,.48);
+  }
+  break;
+ case 'emberEgg':
+  for(const a of [-1.35,.20,1.75])circle(point(target,dir+a,76),65,.82,1.5,{tone:'ember'});
+  break;
+ case 'emberFront':
+  for(let i=0;i<4;i++)circle(point(e,dir+(i%2?.14:-.14),105+i*63),49,.59+i*.25,1.2,{tone:'ember'});
+  break;
+ case 'liftTiles':
+  for(let row=0;row<3;row++)for(let col=0;col<4;col++){
+   if((row+col+e.patternTurn)%2===0)box(col*270+5,row*(H/3)+5,260,H/3-10,1.02,.37);
+  }
+  break;
+ case 'liftShutters':
+  for(let col=0;col<4;col++)if(col!==(e.patternTurn%4))box(col*270+4,0,262,H,1.2,.28);
+  break;
+ case 'crystalGate': {
+  const column=e.patternTurn%2===0,span=column?W:H;
+  const mid=column?laneX:laneY;
+  const phase=campaignBossPhase(e,g.special==='alpha'),gap=phase===2?114:144;
+  const delay=phase===2?1.37:1.63;
+  const marker={safeLane:true,damageName:'수정 통로 밖'};
+  if(column){box(0,0,mid-gap,H,delay,.24,marker);box(mid+gap,0,span-mid-gap,H,delay,.24,marker);}
+  else{box(0,0,W,mid-gap,delay,.24,marker);box(0,mid+gap,W,span-mid-gap,delay,.24,marker);}
+  break;
+ }
+ case 'crystalVein':
+  for(let i=0;i<5;i++){
+   const start=point(target,dir+Math.PI/2,i*50);
+   beam(start,point(start,dir+Math.PI*.84,218),13,.66+i*.12,.2);
+  }
+  break;
+ case 'crystalWedge':
+  for(const side of [-1,1])sector(point(e,dir+side*1.3,120),dir+side*.32,236,.58,.83+side*.14,.24);
+  break;
+ case 'crystalNodes':
+  for(const offset of [-1,0,1]){
+   const center=point(target,dir+offset*1.75,offset?135:38);
+   circle(center,44,.69,1.0);shots(center,[dir-Math.PI/3,dir,dir+Math.PI/3],1.31,215);
+  }
+  break;
+ case 'crystalMaze':
+  for(const side of [-1,1]){
+   beam({x:laneX+side*106,y:0},{x:laneX+side*106,y:H},30,.85,.59);
+   beam({x:0,y:laneY+side*90},{x:W,y:laneY+side*90},30,1.43,.47);
+  }
+  break;
+ case 'crystalCollapse':
+  circle(e,177,.68,.3,{inner:112});circle(e,112,1.12,.33);
+  break;
+ case 'lobbySuction':
+  circle(target,150,.64,1.0,{current:.21,tone:'water'});
+  circle(target,47,1.55,.27);
+  break;
+ case 'lobbyPush':
+  circle(e,227,.62,.70,{current:-.28,tone:'water'});
+  break;
+ case 'drainHarpoon':
+  beam(e,point(e,dir,760),14,.67,.19);
+  shots(e,[dir],.69,570);
+  break;
+ case 'drainHook':
+  for(const side of [-1,1]){
+   const anchor=point(target,dir+side*Math.PI/2,220);
+   beam(anchor,point(anchor,dir+side*.29,560),16,.61+(side+1)*.18,.24);
+  }
+  break;
+ case 'coilBridge': {
+  const a=point(target,dir+Math.PI/2,184),b=point(target,dir-Math.PI/2,184);
+  beam(a,b,28,.92,.82,{tone:'electric'});
+  circle(a,39,1.3,.32);circle(b,39,1.3,.32);
+  break;
+ }
+ case 'coilCircuit': {
+  const corners=pads([[laneX-150,laneY-110],[laneX+150,laneY-110],[laneX+150,laneY+110],[laneX-150,laneY+110]],0);
+  for(let j=0;j<4;j++)beam(corners[j],corners[(j+1)%4],23,.65+j*.29,.34,{tone:'electric'});
+  break;
+ }
+ case 'specimenGel':
+  for(const offset of [-.8,0,.8])circle(point(e,dir+offset,156),54,.65,1.8,{slow:true,tone:'gel'});
+  break;
+ case 'specimenMirror': {
+  const clone={x:W-e.x,y:H-e.y};
+  beam(e,clone,26,1.03,.35,{tone:'gel'});
+  shots(clone,[angle(clone,target)-.11,angle(clone,target)+.11],1.03);
+  break;
+ }
+ case 'pressureJet':
+  for(const i of [0,1,2])sector({x:W-96,y:105+i*235},Math.PI,282,.36,.83+i*.26,.53);
+  break;
+ case 'pressureShell':
+  circle(e,188,1.12,.30);e.guardUntil=g.t+1.1;e.guardDirection=dir;
+  break;
+ case 'isoQuarantine':
+  warn({shape:'safeBox',x:laneX-155,y:laneY-110,w:310,h:220,r:0,tone:'gel'},1.5,.4);
+  break;
+ case 'isoAirlock':
+  for(const x of [210,540,870])box(x-43,0,86,H,.79+(x/1100)*.38,.61);
+  break;
+ case 'isoChambers':
+  box(40,50,450,250,.91,.63,{tone:'gel'});
+  box(585,H-306,450,250,1.50,.65,{tone:'gel'});
+  break;
+ case 'isoLock':
+  box(0,0,W,H*.28,1.14,.48);box(0,H*.72,W,H*.28,1.14,.48);
+  box(W*.39,H*.28,W*.22,H*.44,1.65,.34);
+  break;
+ case 'isoPurge':
+  beam({x:0,y:H/2},{x:W,y:H/2},48,.73,.49);
+  for(const x of [W*.25,W*.75])beam({x,y:0},{x,y:H},32,1.48,.48);
+  break;
+ case 'bridgeLurk': {
+  const entry={x:side,y:laneY+60};
+  sector(entry,angle(entry,target),475,.31,.88,.42);
+  break;
+ }
+ case 'bridgeGlass': {
+  const mirror={x:side===0?W-margin:margin,y:clamp(target.y+155,52,H-52)};
+  beam(e,mirror,16,.77,.28);
+  beam(mirror,point(mirror,angle(mirror,target),535),19,1.24,.34);
+  break;
+ }
+ case 'pumpIntake':
+  for(let i=0;i<3;i++)circle(point(e,dir+i*TAU/3,136),90,.72+i*.25,1.0,{current:.28,tone:'water'});
+  break;
+ case 'pumpRelease':
+  for(const offset of [-.55,.55])sector(e,dir+offset,350,.24,.85+offset*.3,.58);
+  break;
+ case 'darkLamp':
+  safe(pads([[laneX+(target.x<W/2?110:-110),laneY]],132),1.55,.65,28);
+  break;
+ case 'darkBlackout':
+  safe(pads([[W*.31,H*.32],[W*.69,H*.68]],110),1.50,.30);
+  safe(pads([[W*.31,H*.32],[W*.69,H*.68]],78),2.08,.37);
+  break;
+ case 'eelGround':
+  safe(pads([[laneX-96,laneY+55],[laneX+96,laneY-55]],108),1.6,.41);
+  break;
+ case 'eelTide':
+  box(0,0,W,H*.36,1.06,.64,{tone:'electric'});box(0,H*.64,W,H*.36,1.06,.64,{tone:'electric'});
+  break;
+ case 'eelChannels':
+  for(const x of [W*.18,W*.5,W*.82])beam({x,y:0},{x,y:H},30,.73+(x/W)*.69,.61,{tone:'electric'});
+  break;
+ case 'eelRelay': {
+  const x=target.x<W/2?W*.29:W*.71;
+  safe(pads([[x,laneY]],115),1.46,.31);
+  safe(pads([[W-x,laneY]],142),2.86,.36);
+  break;
+ }
+ case 'eelCascade':
+  safe(pads([[W*.29,H*.28],[W*.70,H*.71]],107),1.55,.28);
+  safe(pads([[W*.29,H*.71],[W*.70,H*.28]],115),2.52,.34);
+  break;
+ case 'eelSurge': {
+  const a={x:0,y:laneY},b={x:W,y:laneY};
+  beam(a,b,32,.73,.17,{tone:'electric',slow:true});
+  for(const y of [laneY-103,laneY+103])beam({x:0,y},{x:W,y},34,1.32,.39,{tone:'electric'});
+  break;
+ }
+ }
+ e.stun=major?.65:.86;
+}
+function scriptedBossAttack(e,p,dt){
  if(!e.bossCast){
   if(e.clock>0)return false;
-  const campaign=game.campaign&&bossSignatures[e.signature];
-  const attack=campaign?campaignBossPattern(e):bossSignatures[e.signature];
-  const [name,kind,count,variant]=attack||['',e.pattern==='burst'?'fan':e.pattern==='summon'?'ring':e.pattern,3,1];
-  const elite=campaign&&Boolean(chapterBossMoves[e.signature]);
-  const windup=elite?.87:1;
-  e.bossCast={name,kind,count,variant,x:p.x,y:p.y,dir:angle(e,p),left:windup,windup};
-  e.clock=campaign?(elite?Math.max(1.65,2.6-e.patternPhase*.35):Math.max(1.95,3.05-e.patternPhase*.45)):Math.max(2.6,4.4*e.tempo);
-  if(game.special==='alpha')e.clock*=e.signature<5?.9:alphaBalance.patternInterval;
+  const [name,kind]=campaignBossPattern(e);
+  const alpha=game.special==='alpha';
+  const windup=alpha?.68:.86;
+  e.bossCast={name,kind,x:p.x,y:p.y,dir:angle(e,p),left:windup,windup};
+  const major=bossKits[e.signature].phases.length===3;
+  e.clock=(major?3.8:3.45)-e.patternPhase*.26;
+  if(alpha)e.clock*=.92;
  }
  const cast=e.bossCast;
  cast.left-=dt;
  if(cast.left>0)return true;
- const {kind,count,variant,x,y,dir}=cast;
- e.bossCast=null;
- e.dir=dir;
- const tuned=game.campaign&&bossSignatures[e.signature];
- const major=tuned&&chapterBossMoves[e.signature];
- const pressure=tuned?(e.signature%10===9?1.43:e.signature%10===5?1.32:1.24):1;
- const hit=damage=>Math.round(damage*pressure*(game.special==='alpha'?alphaBalance.damage:1));
- const warn=(shape)=>game.warnings.push({time:.65,active:.22,damage:hit(tuned?18:14),damageName:cast.name||'보스 패턴',...shape});
- if(tuned&&(e.patternTurn%2===0||game.special==='alpha'&&e.patternPhase>=1)){
-  const lead=major?112:75;
-  const heading=game.movementTime>.2?game.movementHeading:dir;
-  warn({x:clamp(x+Math.cos(heading)*lead,40,W-40),y:clamp(y+Math.sin(heading)*lead,40,H-40),
-   r:major?82:67,time:major?1.05:.94,damage:hit(20)});
-  if(major&&e.patternPhase>0){
-   warn({x,y,r:e.signature%10===9?96:76,time:1.47,damage:hit(22)});
-  }
- }
- if(kind==='charge'){
-  e.wind=.32;e.chain=count;e.chargeDuration=variant===2?.77:.56;
-  return true;
- }
- if(kind==='sweep'){
-  const column=variant===1;
-  const center=column?x:y,limit=column?W:H;
-  const direction=center>limit/2?-1:1;
-  for(let i=0;i<count;i++){
-   const pos=clamp(center+(i-1)*direction*62,28,limit-28);
-   warn({x:column?pos:x,y:column?y:pos,r:29,column,cart:!column,time:.58+i*.31});
-  }
- }else if(kind==='cross'){
-  for(let i=0;i<count;i++){
-   const offset=(i-(count-1)/2)*112;
-   warn({x:clamp(x+offset,28,W-28),y,r:26,column:true,time:.64+i*.24});
-   warn({x,y:clamp(y+(variant===2?-offset:offset),28,H-28),r:26,cart:true,time:.92+i*.24});
-  }
- }else if(kind==='pursuit'){
-  const heading=game.movementTime>.12?game.movementHeading:dir;
-  for(let i=0;i<count;i++){
-   const lead=i*72;
-   warn({x:clamp(x+Math.cos(heading)*lead,26,W-26),y:clamp(y+Math.sin(heading)*lead,26,H-26),r:variant===2?83:77,time:.63+i*.34});
-  }
- }else if(kind==='line'){
-  for(let i=0;i<count;i++){
-   const offset=(i-(count-1)/2)*92;
-   if(variant===2)warn({x:clamp(x+offset,24,W-24),y,r:22,column:true,time:.68+i*.17});
-   warn({x,y:clamp(y+offset,24,H-24),r:21,cart:true,time:(variant===2?1.22:.68)+i*.17});
-  }
- }else if(kind==='fan'){
-  for(let i=0;i<count;i++){
-   const a=dir+(i-(count-1)/2)*.25;
-   game.bolts.push({x:e.x,y:e.y,a,life:2.2,damageName:cast.name,hit:hit(tuned?14:12)});
-   if(variant===2)game.bolts.push({x:e.x,y:e.y,a:a+.125,life:2.1,damageName:cast.name,hit:hit(tuned?12:10),delay:.4});
-  }
- }else if(kind==='ring'){
-  for(let i=0;i<count;i++)warn({x:e.x,y:e.y,r:variant===2?(tuned?260-i*90:195-i*73):(tuned?170+i*100:122+i*70),inner:variant===2?(tuned?200-i*90:146-i*73):(tuned?110+i*100:79+i*70),time:.72+i*.48});
- }else{
-  for(let i=0;i<count;i++){
-   const a=dir+i*2.39,r=i?105:0;
-   warn({x:clamp(x+r*Math.cos(a),26,W-26),y:clamp(y+r*Math.sin(a),26,H-26),r:variant===2?64:48,time:.65+i*(variant===2?.32:.22)});
-  }
- }
- e.stun=major?.45:tuned?.62:1.15;
+ e.bossCast=null;e.dir=cast.dir;
+ resolveBossMove(e,cast);
  return true;
 }
-function bossBrief(parent,index){
- const [name]=stageBosses[index],[pattern,kind]=bossSignatures[index];
- paragraph(parent,name+' · '+pattern,'section-label');
- paragraph(parent,battlePatterns[kind]);
- paragraph(parent,'주황 경고가 뜨면 빈 통로로 이동해.');
+
+// Material dungeons use their own shared pattern classes.
+function huntAttack(e,p,dt){
+ if(bossKits[e.signature])return scriptedBossAttack(e,p,dt);
+ if(!e.bossCast){
+  if(e.clock>0)return false;
+  const kind=e.pattern==='burst'?'fan':e.pattern==='summon'?'ring':e.pattern;
+  e.bossCast={kind,x:p.x,y:p.y,dir:angle(e,p),left:1,windup:1};
+  e.clock=Math.max(2.6,4.4*e.tempo);
+ }
+ const cast=e.bossCast;
+ cast.left-=dt;
+ if(cast.left>0)return true;
+ const {kind,x,y,dir}=cast;
+ e.bossCast=null;e.dir=dir;
+ const warn=(shape)=>game.warnings.push({time:.65,active:.22,damage:14,damageName:'던전 보스 공격',...shape});
+ if(kind==='charge'){
+  e.wind=.32;e.chain=3;e.chargeDuration=.56;
+  return true;
+ }
+ for(let i=0;i<3;i++){
+  if(kind==='line')warn({x,y:clamp(y+(i-1)*92,24,H-24),r:21,cart:true,time:.68+i*.17});
+  else if(kind==='fan')game.bolts.push({x:e.x,y:e.y,a:dir+(i-1)*.25,life:2.2,hit:12});
+  else if(kind==='ring')warn({x:e.x,y:e.y,r:122+i*70,inner:79+i*70,time:.72+i*.48});
+  else warn({x:clamp(x+(i?105:0)*Math.cos(dir+i*2.39),26,W-26),y:clamp(y+(i?105:0)*Math.sin(dir+i*2.39),26,H-26),r:48,time:.65+i*.22});
+ }
+ e.stun=1.15;
+ return true;
 }
 function coverDetour(e,target){
  const margin=e.r+9;
@@ -2981,13 +3178,13 @@ function hazards(dt){
   const water=g.hazard==='tide'?135+75*Math.sin(g.t*.68):100;
   g.wet=p.y<water||p.y>H-water;
  }else g.wet=false;
- if(g.hazard==='tide'&&g.wet&&Math.sin(g.t*.68)>.66){
+ if(g.hazard==='tide'&&g.wet&&!g.bossEntered&&!g.bossHunt&&Math.sin(g.t*.68)>.66){
   const surge=Math.floor(g.t*.68/TAU);
   if(g.lastTideSurge!==surge){
    g.lastTideSurge=surge;hurt(10,null,true,'침수 구역 감전');
   }
  }
- if(g.index===9&&g.bossEntered&&g.campaign&&g.special!=='alpha')return;
+ if((g.campaign&&g.bossEntered)||g.bossHunt)return;
  if(!['rock','shock','cart','tide'].includes(g.hazard)||g.t<g.nextHazard)return;
  const enraged=g.mode==='boss'&&g.enemies.some(e=>e.hp<e.max/2);
  const earlyShock=g.dungeon&&g.hazard==='shock'&&g.dungeonLevel<=20;
@@ -3008,13 +3205,67 @@ function pressureStrike(g){
  }
  g.nextBarrage=g.t+Math.max(3.5,(late?6.2:7.5)-g.focusFire);
 }
+function warningContains(a,p){
+ if(a.shape==='shelter')return !a.pads.some(pad=>dist(pad,p)<pad.r);
+ if(a.shape==='safeBox')return !(p.x>a.x&&p.x<a.x+a.w&&p.y>a.y&&p.y<a.y+a.h);
+ if(a.shape==='box')return p.x>=a.x&&p.x<a.x+a.w&&p.y>=a.y&&p.y<a.y+a.h;
+ if(a.shape==='beam'){
+  const dx=a.end.x-a.x,dy=a.end.y-a.y;
+  const u=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1),0,1);
+  return Math.hypot(p.x-a.x-u*dx,p.y-a.y-u*dy)<a.r;
+ }
+ const distance=a.cart?Math.abs(p.y-a.y):a.column?Math.abs(p.x-a.x):dist(a,p);
+ if(a.shape==='sector'&&Math.cos(angle(a,p)-a.dir)<Math.cos(a.half))return false;
+ return distance<a.r&&distance>=(a.inner||0);
+}
 function updateWarnings(dt){
+ const p=game.p;
  for(const a of game.warnings){
   a.time-=dt;
-  const distance=a.cart?Math.abs(game.p.y-a.y):a.column?Math.abs(game.p.x-a.x):dist(a,game.p);
-  if(a.time<=0&&distance<a.r&&distance>=(a.inner||0))hurt(a.damage??18,a,!a.safeLane&&(game.hazard==='shock'||game.hazard==='tide'));
+  if(a.time>0||a.time<=-a.active)continue;
+  if(a.landing&&!a.landed){
+   a.landed=true;
+   if(a.boss.hp>0&&!blocked(a.x,a.y,a.boss.r)){a.boss.x=a.x;a.boss.y=a.y;}
+  }
+  if(!warningContains(a,p))continue;
+  if(a.current){
+   const dir=angle(p,a),distance=dt*210*a.current;
+   move(p,Math.cos(dir)*distance,Math.sin(dir)*distance);
+  }
+  if(a.slow)p.bossSlowUntil=game.t+.72;
+  if(a.spore)p.regenAt=Math.max(p.regenAt,game.t+1.1);
+  hurt(a.damage??18,a,a.tone==='electric'||!a.safeLane&&(game.hazard==='shock'||game.hazard==='tide'));
  }
  game.warnings=game.warnings.filter(a=>a.time>-a.active);
+}
+function drawBossWarning(a,color){
+ if(!a.shape)return false;
+ ctx.save();
+ ctx.fillStyle=color;ctx.strokeStyle=color;
+ if(a.shape==='beam'){
+  ctx.lineWidth=a.r*2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(a.end.x,a.end.y);ctx.stroke();
+ }else if(a.shape==='box'){
+  ctx.fillRect(a.x,a.y,a.w,a.h);
+  if(a.safeLane&&a.time>0){
+   ctx.strokeStyle='#ffa872';ctx.lineWidth=2;ctx.setLineDash([10,7]);ctx.strokeRect(a.x,a.y,a.w,a.h);
+  }
+ }else if(a.shape==='sector'){
+  ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.arc(a.x,a.y,a.r,a.dir-a.half,a.dir+a.half);ctx.closePath();ctx.fill();
+ }else{
+  ctx.beginPath();ctx.rect(0,0,W,H);
+  if(a.shape==='safeBox'){
+   ctx.rect(a.x,a.y,a.w,a.h);ctx.fill('evenodd');
+   ctx.strokeStyle='#79efe2';ctx.lineWidth=4;ctx.strokeRect(a.x,a.y,a.w,a.h);
+  }else{
+   for(const pad of a.pads){ctx.moveTo(pad.x+pad.r,pad.y);ctx.arc(pad.x,pad.y,pad.r,0,TAU);}
+   ctx.fill('evenodd');
+   for(const pad of a.pads){
+    ctx.beginPath();ctx.arc(pad.x,pad.y,pad.r,0,TAU);
+    ctx.strokeStyle='#79efe2';ctx.lineWidth=4;ctx.stroke();
+   }
+  }
+ }
+ ctx.restore();return true;
 }
 const sectorQuota=(index,sector=0)=>3+Number(index>=10)+Number(sector===2);
 const campaignBossHp=[
@@ -3054,7 +3305,7 @@ function campaignTick(g){
    spawn('boss',g.p.x>W/2?95:W-95,H/2);
    const e=g.enemies.at(-1),[,pattern,intensity,tempo]=stageBosses[g.index];
    Object.assign(e,{pattern,intensity,tempo,signature:g.index,color:bossColors[pattern]});
-   e.nextLane=g.t+(g.index===9&&g.special!=='alpha'?0:4);e.laneTurn=0;
+
    const baseHealth=g.index%10===9?1.57:g.index===5?1.33:1.23;
    const alpha=g.special==='alpha';
    e.hp=e.max=Math.round(campaignBossHp[g.index]*baseHealth*(alpha?alphaBalance.bossHealth:1));
@@ -3168,7 +3419,7 @@ function step(dt,refreshHud=true){
   }
   skillFlash('charge',mine,mine.r);g.mine=null;
  }
- const speed=p.vent>0?242:g.wet&&gearFamily(save.equipped.boots)!=='grip'?125:183;
+ const speed=(p.vent>0?242:g.wet&&gearFamily(save.equipped.boots)!=='grip'?125:183)*(p.bossSlowUntil>g.t?.68:1);
  const previousX=p.x,previousY=p.y;
  if(p.dash>0){
   const dashSpeed=360*(1+g.tree.dashSpeed/100+(hasTrainingPerk('dashGuard')?.12:0));
@@ -3240,7 +3491,8 @@ function step(dt,refreshHud=true){
  for(const b of g.bolts){
   if(b.delay>0){b.delay-=dt;continue;}
   steerBolt(b,g,dt);
-  b.x+=Math.cos(b.a)*245*dt;b.y+=Math.sin(b.a)*245*dt;b.life-=dt;
+  const travel=(b.speed||245)*dt;
+  b.x+=Math.cos(b.a)*travel;b.y+=Math.sin(b.a)*travel;b.life-=dt;
   if(blocked(b.x,b.y,4))b.life=0;
   if(b.life>0&&dist(b,p)<p.r+5){hurt(b.hit,b,false,b.damageName||'적 탄환');b.life=0;}
   if(b.life>0&&g.mode==='defend'&&dist(b,g.objects[0])<30){g.objects[0].hp-=b.hit*.55;b.life=0;}
@@ -3486,7 +3738,7 @@ const bossLooks=[
 function drawBoss(e,g){
  const [metal,shadow,light,body]=bossLooks[e.signature]||['#b5789d','#43274d','#ffdfa0',[[19,0],[8,16],[-11,16],[-20,0],[-11,-16],[8,-16]]];
  const index=e.signature;
- const kind=e.bossCast?.kind||bossSignatures[index]?.[1];
+ const kind=e.bossCast?.kind;
  const active=Boolean(e.bossCast||e.wind>0||e.rush>0);
  const accent=e.stun>0?'#ffdda0':light;
  const plate=(fill,points)=>polygon(ctx,fill,points);
@@ -3823,7 +4075,9 @@ function draw(){
   ctx.strokeStyle='#9ed9ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(mine.x,mine.y,48,0,TAU);ctx.stroke();
  }
  for(const a of g.warnings){
-  const color=a.time>0?(a.safeLane?'#f59a484d':'#f4b35d50'):'#ff6334aa';
+  const tones={electric:'#e9c65068',gel:'#c48aff69',water:'#77bffc68',ember:'#ff913968'};
+  const color=a.time>0?(tones[a.tone]||(a.safeLane?'#f59a484d':'#f4b35d50')):'#ff6334aa';
+  if(drawBossWarning(a,color))continue;
   if(a.cart){ctx.fillStyle=color;ctx.fillRect(0,a.y-a.r,W,a.r*2);}
   else if(a.column){ctx.fillStyle=color;ctx.fillRect(a.x-a.r,0,a.r*2,H);}
   else if(a.inner){
@@ -3844,7 +4098,7 @@ function draw(){
    const cast=e.bossCast;
    ctx.strokeStyle='#ffd099';ctx.lineWidth=5;ctx.beginPath();
    ctx.arc(e.x,e.y,e.r+10,-Math.PI/2,-Math.PI/2+TAU*(1-cast.left/cast.windup));ctx.stroke();
-   if(cast.kind==='charge'||cast.kind==='fan'){
+   if(['charge','fan','pickRush','pickFork','drainHarpoon','bridgeGlass'].includes(cast.kind)){
     ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+320*Math.cos(cast.dir),e.y+320*Math.sin(cast.dir));ctx.stroke();
    }
   }
@@ -3856,6 +4110,10 @@ function draw(){
    ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.cos(e.dir)*250,e.y+Math.sin(e.dir)*250);ctx.lineWidth=13;ctx.strokeStyle='#ff956568';ctx.stroke();
   }
   drawEnemy(e,g);
+  if(e.guardUntil>g.t){
+   ctx.strokeStyle='#79efe2';ctx.lineWidth=4;ctx.beginPath();
+   ctx.arc(e.x,e.y,e.r+8,e.guardDirection-.89,e.guardDirection+.89);ctx.stroke();
+  }
   if(e.type==='armor'||e.type==='boss'||e.hp<e.max)bar(e.x,e.y-e.r-9,e.hp,e.max,e.r*2);
  }
  for(const b of g.shots){
@@ -3878,7 +4136,7 @@ function draw(){
   }
  }
  for(const a of g.warnings){
-  if(!a.safeLane||a.time<=0)continue;
+  if(!a.safeLane||a.shape||a.time<=0)continue;
   ctx.save();ctx.strokeStyle='#ffb37c';ctx.lineWidth=3;ctx.setLineDash([12,8]);ctx.beginPath();
   if(a.column){
    const edge=a.x<W/2?a.x+a.r:a.x-a.r;
