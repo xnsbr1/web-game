@@ -2667,7 +2667,7 @@ const bossKits=[
  {hint:'낙석 그늘이 이어지는 방향을 봐. 바위가 굴러간 자리로 들어가.',phases:[
   [['천장 붕괴','rockFall']], [['굴러가는 거석','rollingRock'],['천장 붕괴','rockFall']]
  ]},
- {hint:'불씨가 튄 자리는 천천히 번져. 불이 번지기 전에 넓은 공간을 확보해.',phases:[
+ {hint:'날아오는 불씨 사이로 비켜. 지그재그로 뻗는 불길은 첫 방향을 보고 돌아가.',phases:[
   [['불씨 부화','emberEgg']], [['번지는 잿불','emberFront'],['불씨 부화','emberEgg']]
  ]},
  {hint:'승강판이 켜질 때는 불이 꺼진 칸으로 이동해. 격자가 바뀔 때 경계선을 확인해.',phases:[
@@ -2704,8 +2704,8 @@ const bossKits=[
  {hint:'펌프가 물을 끌거나 내보낼 때 바닥 화살표 방향을 읽고 안전한 옆으로 빠져.',phases:[
   [['펌프 회전 흡입','pumpIntake']], [['역압 분발','pumpRelease'],['펌프 회전 흡입','pumpIntake']]
  ]},
- {hint:'조명이 좁아지면 표시된 빛 속으로 가. 조명이 옮겨갈 방향을 보고 따라가.',phases:[
-  [['비상등 사각지대','darkLamp']], [['꺼지는 조명','darkBlackout'],['비상등 사각지대','darkLamp']]
+ {hint:'탐조등이 비춘 부채꼴은 옆으로 빠져. 정전 직후에는 마지막으로 밟은 지점에 공격이 몰려.',phases:[
+  [['탐조등 소탕','darkLamp']], [['잔상 추격','darkBlackout'],['비상등 사각지대','darkLamp']]
  ]},
  {hint:'물이 번쩍이면 청록색 접지 발판을 찾아. 발판이 바뀌는 순서를 보고 옮겨.',phases:[
   [['수면 감전과 접지','eelGround'],['수위 상승','eelTide']],
@@ -2835,10 +2835,10 @@ function resolveBossMove(e,cast){
   }
   break;
  case 'emberEgg':
-  for(const a of [-1.35,.20,1.75])circle(point(target,dir+a,76),65,.82,1.5,{tone:'ember'});
+  for(let i=0;i<3;i++)shots(e,[-.60,-.30,0,.30,.60].map(offset=>dir+offset+(i-1)*.10),.42+i*.28,170+i*30);
   break;
  case 'emberFront':
-  for(let i=0;i<4;i++)circle(point(e,dir+(i%2?.14:-.14),105+i*63),49,.59+i*.25,1.2,{tone:'ember'});
+  for(let i=0;i<4;i++)beam(point(e,dir+(i%2?.32:-.32),75+i*73),point(e,dir+(i%2?-.32:.32),148+i*73),21,.65+i*.27,1.1,{tone:'ember'});
   break;
  case 'liftTiles':
   for(let row=0;row<3;row++)for(let col=0;col<4;col++){
@@ -2961,11 +2961,14 @@ function resolveBossMove(e,cast){
   for(const offset of [-.55,.55])sector(e,dir+offset,350,.24,.85+offset*.3,.58);
   break;
  case 'darkLamp':
-  safe(pads([[laneX+(target.x<W/2?110:-110),laneY]],132),1.55,.65,28);
+  for(let i=0;i<3;i++)sector(e,dir+(i-1)*.48,470,.24,.68+i*.32,.22);
   break;
  case 'darkBlackout':
-  safe(pads([[W*.31,H*.32],[W*.69,H*.68]],110),1.50,.30);
-  safe(pads([[W*.31,H*.32],[W*.69,H*.68]],78),2.08,.37);
+  circle(target,69,.79,.33);
+  for(const offset of [0,TAU/3,2*TAU/3]){
+   const origin=point(target,dir+offset,235);
+   shots(origin,[angle(origin,target)],.93,260);
+  }
   break;
  case 'eelGround':
   safe(pads([[laneX-96,laneY+55],[laneX+96,laneY-55]],108),1.6,.41);
