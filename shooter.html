@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.9">
+<meta name="game-build" content="2.0.10">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -1396,11 +1396,7 @@ function renderMenu(next=page){
   const hero=panel(stageId(current)+' '+name);
   hero.classList.add('deployment');
   hero.classList.toggle('flooded',current>=10);
-  const progressValue=characterLevel()===maxCharacterLevel?100:save.xp%100;
-  const operatorEntry=largeEntry(operators[selectedOperator()].name+' · Lv. '+characterLevel(),
-   characterLevel()===maxCharacterLevel?'최고 레벨 · 스킬 트리':'경험치 '+progressValue+' / 100 · 스킬 트리',()=>openPage('growth'));
-  const meter=document.createElement('progress');meter.className='operator-xp';meter.max=100;meter.value=progressValue;
-  meter.setAttribute('aria-label','현재 레벨 경험치');operatorEntry.append(meter);hero.append(operatorEntry);
+  hero.append(largeEntry('스테이지 선택',save.cleared+' / '+stages.length+' 클리어 · 챕터와 보스 도전 보기',()=>openPage('stages')));
   paragraph(hero,complete?'모든 스테이지 완료':'구역 돌파 · 보스 격파');
   if(save.cleared>=19&&!save.milestoneTheme)hero.append(button('2-9 보상 · 방어구 고르기',()=>openPage('gear')));
 
@@ -1409,10 +1405,13 @@ function renderMenu(next=page){
    paragraph(hero,rewardPreview(current));
   }
   hero.append(button(complete?'최종 스테이지 재도전':'출격',()=>start(current),false,'primary'));
-  const operator=largeEntry('캐릭터 선택',operators[selectedOperator()].name,()=>openPage('operators'));
-  operator.classList.add('operator-access');$('menu').append(operator);
   const info=panel('전투 준비');
-  info.append(largeEntry('스테이지 선택',save.cleared+' / '+stages.length+' 클리어 · 챕터와 보스 도전 보기',()=>openPage('stages')));
+  info.append(largeEntry('캐릭터 선택',operators[selectedOperator()].name,()=>openPage('operators')));
+  const progressValue=characterLevel()===maxCharacterLevel?100:save.xp%100;
+  const operatorEntry=largeEntry('캐릭터 Lv. '+characterLevel(),
+   characterLevel()===maxCharacterLevel?'최고 레벨 · 스킬 트리':'경험치 '+progressValue+' / 100 · 스킬 트리',()=>openPage('growth'));
+  const meter=document.createElement('progress');meter.className='operator-xp';meter.max=100;meter.value=progressValue;
+  meter.setAttribute('aria-label','현재 레벨 경험치');operatorEntry.append(meter);info.append(operatorEntry);
   const gun=save.equipped.gun||'pistol';
   info.append(largeEntry(gear[gun].name+' +'+level(gun),'현재 총기 · 장비 열기',()=>openPage('gear')));
   const intel=panel('보스 정찰');
@@ -3676,7 +3675,6 @@ body:not(.fighting){--surface:#203a61;--line:#385981;--muted:#c0d3ee;--teal:#70e
 
 body.stage-screen:not(.fighting) header,body.stage-screen #dock{display:none}
 body.stage-screen:not(.fighting) main{min-height:100dvh;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom))}
-#menu .operator-access{margin-bottom:14px;border-color:#e5ae68;background:linear-gradient(120deg,#392f4f,#263f67)}
 .dock-icon.growth{border:2px solid;border-radius:50%;box-shadow:0 -5px 0 -3px currentColor,5px 3px 0 -3px currentColor,-5px 3px 0 -3px currentColor}
 .tree-scroll{height:clamp(290px,54dvh,640px);overflow:auto;overscroll-behavior:contain;border:1px solid #436080;border-radius:14px;background:#142238;margin-top:10px}
 .tree-bounds{overflow:hidden;margin-inline:auto}.tree-legend output{align-self:center;min-width:4ch;text-align:center}
