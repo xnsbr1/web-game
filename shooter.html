@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="3.2.0">
+<meta name="game-build" content="3.2.1">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -173,8 +173,8 @@ details .item{margin-bottom:8px}
 </dialog>
 <dialog id="noticesDialog" class="service-dialog" aria-labelledby="noticeTitle">
  <h2 id="noticeTitle">공지</h2>
- <p>3.2.0 · 보스 패턴 개편</p>
- <p>폐광과 침수 연구소의 보스마다 고유한 공격과 회피 방법이 생겼어.</p>
+ <p>3.2.1 · 보스 원거리 패턴 조정</p>
+ <p>먼 곳까지 닿는 지면 균열, 방패 충격파, 증기 분출을 조심해.</p>
  <form method="dialog"><button>닫기</button></form>
 </dialog>
 <dialog id="rankingDialog" class="service-dialog" aria-labelledby="rankingTitle">
@@ -2644,8 +2644,8 @@ function shootEnemy(e,target){
 }
 // Ordered attacks per phase. Each attack belongs to one stage boss.
 const bossKits=[
- {hint:'돌진선을 옆으로 피하고, 마지막에 갈라지는 두 사선을 확인해.',phases:[
-  [['곡괭이 직진','pickRush']], [['쌍날 갈라치기','pickFork'],['곡괭이 직진','pickRush']]
+ {hint:'곡괭이가 땅을 찍으면 균열이 쉬었다 이어져. 경고선 옆으로 빠지고 돌진 때 앞에서 물러나.',phases:[
+  [['광맥 균열','pickFault'],['곡괭이 직진','pickRush']], [['광맥 균열','pickFault'],['곡괭이 직진','pickRush']]
  ]},
  {hint:'철로가 차례로 지나가. 한 선로가 지난 자리를 따라 건너.',phases:[
   [['순환 광차','railTrain']], [['탈선 객차','railDerail'],['순환 광차','railTrain']]
@@ -2653,10 +2653,10 @@ const bossKits=[
  {hint:'포자 씨앗이 남긴 원은 한동안 위험해. 포자가 피기 전에 다른 곳으로 옮겨.',phases:[
   [['포자 정원','sporeGarden']], [['번식 고리','sporeSpread'],['포자 정원','sporeGarden']]
  ]},
- {hint:'정면 방벽이 사격을 막아. 옆이나 뒤로 돌아가면서 방패 반격을 피해.',phases:[
-  [['흑철 방벽','shieldFace']], [['방패 되치기','shieldCounter'],['흑철 방벽','shieldFace']]
+ {hint:'방벽은 옆이나 뒤에서 쏴. 방패 충격파가 바깥으로 번질 때는 지나간 고리 안쪽으로 들어가.',phases:[
+  [['방패 충격파','shieldCounter'],['흑철 방벽','shieldFace']], [['방패 충격파','shieldCounter'],['흑철 방벽','shieldFace']]
  ]},
- {hint:'철턱이 뛰면 착지점에서 벗어나. 턱이 닫히기 전에 가까운 쪽 틈을 골라.',phases:[
+ {hint:'철턱이 멀리까지 뛰어와. 착지 원이 뜨면 옆으로 피하고, 턱이 닫히기 전에 가까운 쪽 틈을 골라.',phases:[
   [['도약 착지','jawLeap']], [['철턱 협공','jawClamp'],['도약 착지','jawLeap']]
  ]},
  {hint:'협곡 송곳니가 있던 자리를 봐. 양쪽에서 공격할 때는 협곡의 세로 틈으로 빠져.',phases:[
@@ -2687,10 +2687,10 @@ const bossKits=[
  {hint:'전극 두 점 사이에 전류가 흘러. 전극 사이를 가로지르지 말고 끝으로 돌아가.',phases:[
   [['전극 연결','coilBridge']], [['순환 방전','coilCircuit'],['전극 연결','coilBridge']]
  ]},
- {hint:'젤이 묻은 바닥에서 느려져. 반대쪽으로 나온 분신과 본체의 연결을 피해야 해.',phases:[
+ {hint:'분사된 젤은 길게 굳어서 밟으면 느려져. 분신이 나타나면 연결선과 분신의 탄을 피해.',phases:[
   [['끈끈한 표본','specimenGel']], [['분신 연결','specimenMirror'],['끈끈한 표본','specimenGel']]
  ]},
- {hint:'증기가 높은 쪽을 피하고, 갑각이 제자리에서 압력을 모으면 거리를 벌려.',phases:[
+ {hint:'멀리 있는 벽의 배기구에서도 증기가 와. 첫 분출을 피한 뒤 반대 벽을 보고, 갑각이 움츠리면 거리를 벌려.',phases:[
   [['감압 분출','pressureJet']], [['갑각 압력파','pressureShell'],['감압 분출','pressureJet']]
  ]},
  {hint:'검역 구역이 작아질수록 공간이 줄어. 잠기는 문을 보고 격리실을 옮겨.',phases:[
@@ -2701,11 +2701,11 @@ const bossKits=[
  {hint:'관측교 아래 그림자에 서 있지 마. 유리 반사점에서 오는 두 번째 사선도 봐.',phases:[
   [['교각 아래 급습','bridgeLurk']], [['유리 반사','bridgeGlass'],['교각 아래 급습','bridgeLurk']]
  ]},
- {hint:'펌프가 물을 끌거나 내보낼 때 바닥 화살표 방향을 읽고 안전한 옆으로 빠져.',phases:[
+ {hint:'펌프에서 이어지는 소용돌이는 중심을 피해. 갈라진 물줄기 뒤에는 가운데로 마지막 분사가 와.',phases:[
   [['펌프 회전 흡입','pumpIntake']], [['역압 분발','pumpRelease'],['펌프 회전 흡입','pumpIntake']]
  ]},
  {hint:'탐조등이 비춘 부채꼴은 옆으로 빠져. 정전 직후에는 마지막으로 밟은 지점에 공격이 몰려.',phases:[
-  [['탐조등 소탕','darkLamp']], [['잔상 추격','darkBlackout'],['비상등 사각지대','darkLamp']]
+  [['탐조등 소탕','darkLamp']], [['잔상 추격','darkBlackout'],['탐조등 소탕','darkLamp']]
  ]},
  {hint:'물이 번쩍이면 청록색 접지 발판을 찾아. 발판이 바뀌는 순서를 보고 옮겨.',phases:[
   [['수면 감전과 접지','eelGround'],['수위 상승','eelTide']],
@@ -2766,9 +2766,13 @@ function resolveBossMove(e,cast){
  case 'pickRush':
   beam(e,point(e,dir,290),27,.48,.12);
   e.wind=.48;e.chain=1;e.chargeDuration=.62;return;
- case 'pickFork':
-  for(const direction of [-.38,.38])beam(e,point(e,dir+direction,380),22,.74,.3);
+ case 'pickFault': {
+  const length=Math.max(325,dist(e,target)+64);
+  for(let i=0;i<3;i++){
+   beam(point(e,dir,length*i/3+12),point(e,dir,length*(i+1)/3),20,.62+i*.24,.27,{tone:'ember'});
+  }
   break;
+ }
  case 'railTrain':
   for(let i=0;i<3;i++){
    const y=H*(.26+i*.24);
@@ -2790,14 +2794,19 @@ function resolveBossMove(e,cast){
   e.guardUntil=g.t+2.5;e.guardDirection=dir;
   sector(e,dir,165,.72,.62,.32);
   break;
- case 'shieldCounter':
-  e.guardUntil=g.t+2;e.guardDirection=dir;
-  sector(e,dir,223,.43,.59,.25);
-  sector(e,dir+Math.PI,112,1.12,1.16,.20);
+ case 'shieldCounter': {
+  e.guardUntil=g.t+1.8;e.guardDirection=dir;
+  const reach=Math.max(265,dist(e,target)+22);
+  for(let i=1;i<=3;i++){
+   const r=reach*i/3;
+   circle(e,r,.53+i*.28,.23,{inner:r-41});
+  }
   break;
+ }
  case 'jawLeap': {
-  const landing=point(e,dir,Math.min(245,dist(e,target)));
-  circle(landing,83,.92,.22,{landing,boss:e});
+  const r=e.r;
+  const landing={x:clamp(target.x,r,W-r),y:clamp(target.y,r,H-r)};
+  circle(landing,74,1.02,.22,{landing,boss:e});
   break;
  }
  case 'jawClamp':
@@ -2835,11 +2844,15 @@ function resolveBossMove(e,cast){
   }
   break;
  case 'emberEgg':
-  for(let i=0;i<3;i++)shots(e,[-.60,-.30,0,.30,.60].map(offset=>dir+offset+(i-1)*.10),.42+i*.28,170+i*30);
+  const speed=Math.max(200,dist(e,target)/2.05);
+  for(let i=0;i<3;i++)shots(e,[-.60,-.30,0,.30,.60].map(offset=>dir+offset+(i-1)*.10),.42+i*.28,speed+i*30);
   break;
- case 'emberFront':
-  for(let i=0;i<4;i++)beam(point(e,dir+(i%2?.32:-.32),75+i*73),point(e,dir+(i%2?-.32:.32),148+i*73),21,.65+i*.27,1.1,{tone:'ember'});
+ case 'emberFront': {
+  const length=Math.max(320,dist(e,target)+84);
+  const zigzag=i=>point(point(e,dir,length*i/4),dir+(i%2?1:-1)*Math.PI/2,32);
+  for(let i=0;i<4;i++)beam(zigzag(i),zigzag(i+1),24,.65+i*.27,1.1,{tone:'ember'});
   break;
+ }
  case 'liftTiles':
   for(let row=0;row<3;row++)for(let col=0;col<4;col++){
    if((row+col+e.patternTurn)%2===0)box(col*270+5,row*(H/3)+5,260,H/3-10,1.02,.37);
@@ -2865,7 +2878,10 @@ function resolveBossMove(e,cast){
   }
   break;
  case 'crystalWedge':
-  for(const side of [-1,1])sector(point(e,dir+side*1.3,120),dir+side*.32,236,.58,.83+side*.14,.24);
+  for(const offset of [-1,1]){
+   const root=point(target,dir+Math.PI+offset*.62,170);
+   sector(root,angle(root,target)+offset*.14,235,.45,.91+offset*.15,.24);
+  }
   break;
  case 'crystalNodes':
   for(const offset of [-1,0,1]){
@@ -2890,7 +2906,7 @@ function resolveBossMove(e,cast){
   circle(e,227,.62,.70,{current:-.28,tone:'water'});
   break;
  case 'drainHarpoon':
-  beam(e,point(e,dir,760),14,.67,.19);
+  beam(e,dist(e,target)>760?target:point(e,dir,760),14,.67,.19);
   shots(e,[dir],.69,570);
   break;
  case 'drainHook':
@@ -2910,9 +2926,13 @@ function resolveBossMove(e,cast){
   for(let j=0;j<4;j++)beam(corners[j],corners[(j+1)%4],23,.65+j*.29,.34,{tone:'electric'});
   break;
  }
- case 'specimenGel':
-  for(const offset of [-.8,0,.8])circle(point(e,dir+offset,156),54,.65,1.8,{slow:true,tone:'gel'});
+ case 'specimenGel': {
+  const start=point(target,dir+Math.PI,122);
+  const end=point(target,dir,126);
+  beam(start,end,24,.88,1.75,{slow:true,tone:'gel'});
+  beam(point(start,dir+Math.PI/2,58),point(end,dir+Math.PI/2,58),22,1.37,1.25,{slow:true,tone:'gel'});
   break;
+ }
  case 'specimenMirror': {
   const clone={x:W-e.x,y:H-e.y};
   beam(e,clone,26,1.03,.35,{tone:'gel'});
@@ -2920,7 +2940,10 @@ function resolveBossMove(e,cast){
   break;
  }
  case 'pressureJet':
-  for(const i of [0,1,2])sector({x:W-96,y:105+i*235},Math.PI,282,.36,.83+i*.26,.53);
+  for(const [i,x] of [side,W-side].entries()){
+   const vent={x,y:clamp(target.y+(i?110:-110),55,H-55)};
+   sector(vent,angle(vent,target),dist(vent,target)+52,.12,1.04+i*.76,.37);
+  }
   break;
  case 'pressureShell':
   circle(e,188,1.12,.30);e.guardUntil=g.t+1.1;e.guardDirection=dir;
@@ -2945,24 +2968,31 @@ function resolveBossMove(e,cast){
   break;
  case 'bridgeLurk': {
   const entry={x:side,y:laneY+60};
-  sector(entry,angle(entry,target),475,.31,.88,.42);
+  sector(entry,angle(entry,target),dist(entry,target)+38,.16,.95,.35);
   break;
  }
  case 'bridgeGlass': {
   const mirror={x:side===0?W-margin:margin,y:clamp(target.y+155,52,H-52)};
   beam(e,mirror,16,.77,.28);
-  beam(mirror,point(mirror,angle(mirror,target),535),19,1.24,.34);
+  beam(mirror,target,19,1.24,.34);
   break;
  }
- case 'pumpIntake':
-  for(let i=0;i<3;i++)circle(point(e,dir+i*TAU/3,136),90,.72+i*.25,1.0,{current:.28,tone:'water'});
+ case 'pumpIntake': {
+  const length=Math.max(220,dist(e,target));
+  for(let i=1;i<=3;i++)circle(point(e,dir,length*i/3),68,.52+i*.26,.76,{current:.28,tone:'water'});
   break;
- case 'pumpRelease':
-  for(const offset of [-.55,.55])sector(e,dir+offset,350,.24,.85+offset*.3,.58);
+ }
+ case 'pumpRelease': {
+  const length=Math.max(370,dist(e,target)+65);
+  for(const offset of [-.32,.32])sector(e,dir+offset,length,.15,.81,.39);
+  sector(e,dir,length,.12,1.53,.30);
   break;
- case 'darkLamp':
-  for(let i=0;i<3;i++)sector(e,dir+(i-1)*.48,470,.24,.68+i*.32,.22);
+ }
+ case 'darkLamp': {
+  const length=Math.max(450,dist(e,target)+52);
+  for(let i=0;i<3;i++)sector(e,dir+(i-1)*.48,length,.24,.70+i*.36,.22);
   break;
+ }
  case 'darkBlackout':
   circle(target,69,.79,.33);
   for(const offset of [0,TAU/3,2*TAU/3]){
@@ -4101,7 +4131,7 @@ function draw(){
    const cast=e.bossCast;
    ctx.strokeStyle='#ffd099';ctx.lineWidth=5;ctx.beginPath();
    ctx.arc(e.x,e.y,e.r+10,-Math.PI/2,-Math.PI/2+TAU*(1-cast.left/cast.windup));ctx.stroke();
-   if(['charge','fan','pickRush','pickFork','drainHarpoon','bridgeGlass'].includes(cast.kind)){
+   if(['charge','fan','pickRush'].includes(cast.kind)){
     ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+320*Math.cos(cast.dir),e.y+320*Math.sin(cast.dir));ctx.stroke();
    }
   }
