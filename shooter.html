@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="심층 탄환">
 <meta name="theme-color" content="#12171a">
-<meta name="game-build" content="2.0.8">
+<meta name="game-build" content="2.0.9">
 <title>심층 탄환</title>
 <style>
 *{box-sizing:border-box}
@@ -475,9 +475,43 @@ const training={
  fire:{name:'공격력',percent:2},
  move:{name:'체력',percent:2},
  reload:{name:'치명타 확률',percent:1},
- projectile:{name:'치명타 피해',percent:4}
+ projectile:{name:'치명타 피해',percent:4},
+ defense:{name:'방어',percent:1,benefit:'받는 피해 감소'},
+ mobility:{name:'기동',percent:.8,benefit:'이동 속도 증가'},
+ tactics:{name:'전술',percent:1,benefit:'스킬 재사용 시간 감소'},
+ sustain:{name:'회복',percent:3,benefit:'자동 회복량 증가'}
 };
 const trainingUnlockLevels=[1,10,25,45,65,75,85,95,100];
+const expansionStats={
+ defense:'받는 피해 감소',lowHealthDefense:'체력 35% 이하에서 받는 피해 감소',electricDefense:'전기 피해 감소',
+ mobility:'이동 속도 증가',dashCover:'대시 무적 시간 연장',movingReload:'재장전 중 이동 속도 증가',
+ tactics:'스킬 재사용 시간 감소',skillDamage:'공격 스킬 피해 증가',shieldTime:'보호막 지속 시간 연장',
+ sustain:'자동 회복량 증가',regenDelay:'자동 회복 대기 시간 단축',firstAid:'응급 주사 회복량 증가'
+};
+const treeExpansion={
+ defense:{symbol:'▣',color:'#c7d7f5',perks:[
+  ['armorWeave','강화 섬유','defense',2],['surgeInsulation','전류 절연','electricDefense',7],['fortressDrill','철벽 전술','defense',3],
+  ['combatGuard','방탄 자세','defense',1],['lastStandDrill','최후 방어','lowHealthDefense',4],['reactivePlate','반응 장갑','lowHealthDefense',6]
+ ]},
+ mobility:{symbol:'»',color:'#a0f1f0',perks:[
+  ['marchTempo','가속 보행','mobility',2],['dashTiming','회피 타이밍','dashCover',.10],['sprintDrill','돌파 기동','mobility',3],
+  ['lightStep','가벼운 발걸음','mobility',1],['fieldReload','기동 장전','movingReload',5],['evasionDrill','회피 교범','dashCover',.14]
+ ]},
+ tactics:{symbol:'ϟ',color:'#ddaaff',perks:[
+  ['fieldTactics','전술 준비','tactics',2],['amplifier','스킬 증폭','skillDamage',8],['perfectCycle','전술 순환','tactics',3],
+  ['energyCell','충전 셀','tactics',1],['barrierCore','방벽 코어','shieldTime',.25],['strikeProtocol','타격 교범','skillDamage',10]
+ ]},
+ sustain:{symbol:'✚',color:'#aee78f',perks:[
+  ['recoveryDrill','자연 치유','sustain',8],['fastInjection','응급 처치','firstAid',10],['steadyRecovery','집중 회복','sustain',12],
+  ['deepBreath','심호흡','regenDelay',.25],['medicalDrill','회복 교범','regenDelay',.40],['advancedAid','응급 강화','firstAid',15]
+ ]}
+};
+const durationStats=['dashCover','shieldTime','regenDelay'];
+for(const config of Object.values(treeExpansion)){
+ config.perks=config.perks.map(([id,name,stat,value])=>({
+  id,name,stat,value,effect:expansionStats[stat]+' '+value+(durationStats.includes(stat)?'초':'%')
+ }));
+}
 const trainingBranches={
  fire:{symbol:'✦',color:'#ffab8b',master:{id:'fireMaster',name:'탄도 지휘',effect:'공격 속도 추가 +4%'},perks:[
   {id:'rapid',name:'속사 교범',effect:'공격 속도 추가 +6%'},
@@ -494,7 +528,10 @@ const trainingBranches={
  projectile:{symbol:'◆',color:'#a7c9ff',master:{id:'projectileMaster',name:'초고속 탄도',effect:'탄환 속도 추가 +8%'},perks:[
   {id:'velocity',name:'고속 탄체',effect:'탄환 속도 추가 +10%'},
   {id:'recovery',name:'전투 호흡',effect:'자동 체력 회복 속도 +20%'}
- ]}
+ ]},
+ ...Object.fromEntries(Object.entries(treeExpansion).map(([id,config])=>[id,{
+  symbol:config.symbol,color:config.color,perks:config.perks.slice(0,2),master:config.perks[2]
+ }]))
 };
 const trainingPerkTiers=[
  {level:35,requires:3,price:{credits:420,parts:5,skillData:8}},
@@ -521,7 +558,8 @@ const trainingSideBranches={
   {id:'lightRounds',name:'경량 탄두',effect:'탄환 속도 추가 +3%'},
   {id:'secondWind',name:'긴급 처치',effect:'살아 있는 상태로 체력이 25% 아래로 떨어지면 최대 체력의 12% 회복 · 전투당 한 번'},
   {id:'safeBreathing',name:'호흡 조절',effect:'자동 체력 회복이 시작되기까지 1.2초 단축'}
- ]
+ ],
+ ...Object.fromEntries(Object.entries(treeExpansion).map(([id,config])=>[id,config.perks.slice(3)]))
 };
 const trainingSideTiers=[
  {level:18,requires:2,price:{credits:240,alloy:5}},
@@ -533,13 +571,24 @@ let treeZoom=1;
 const hasTrainingPerk=id=>save.trainingPerks?.[id]===true;
 const trainingNodes=[{rank:1},{rank:2},{rank:3},{perk:0},{rank:4},{rank:5},{perk:1},{perk:2},{perk:3},{perk:4},{perk:5},{rank:6},{rank:7},{rank:8},{rank:9}];
 // Coordinates along and across a spoke. Rotate the same constellation for each stat.
-const constellation=[[83,0],[161,0],[235,-28],[313,-87],[311,1],[392,24],[458,-25],[431,-127],[218,80],[295,133],[394,150],[490,65],[556,112],[616,65],[686,30]];
-const treeAngles={fire:-90,move:0,reload:90,projectile:180};
+const constellation=[[83,0],[161,0],[235,-28],[333,-74],[311,1],[392,24],[458,-25],[444,-111],[218,80],[295,100],[390,132],[490,65],[556,112],[616,65],[686,30]];
+const treeAngles={fire:-90,defense:-45,move:0,mobility:45,reload:90,tactics:135,projectile:180,sustain:225};
 const treeParents=[[-1],[0],[1],[2],[2],[4],[5],[3,6],[1],[8,2],[9,4],[5],[11],[12],[13]];
 let treeSelection={branch:'fire',index:0};
 const trainingCap=trainingUnlockLevels.length;
 const trainingLevel=id=>clamp(Number(save.training?.[id])||0,0,trainingCap);
 const trainingFactor=id=>1+trainingLevel(id)*training[id].percent/100;
+function expansionBonuses(){
+ const bonuses={};
+ for(const key of Object.keys(expansionStats))bonuses[key]=0;
+ for(const id of Object.keys(treeExpansion)){
+  bonuses[id]+=trainingLevel(id)*training[id].percent;
+  for(const perk of treeExpansion[id].perks){
+   if(hasTrainingPerk(perk.id))bonuses[perk.stat]+=perk.value;
+  }
+ }
+ return bonuses;
+}
 const supplyTiers=[
  {rank:2,unlockAt:0,themes:['vanguard','sentinel']},
  {rank:3,unlockAt:2,initial:2050,perStage:65,themes:['vanguard','sentinel','tide']},
@@ -747,7 +796,7 @@ function squadBrief(parent,index){
  if(squad.units.some(unit=>unit.type==='gunner'))paragraph(parent,'신호사수가 1R부터 합류해. 분홍 점선이 멈추면 옆으로 피해.');
  paragraph(parent,squad.trait+' · '+traitGuide[squad.trait]+' · 보스전 잡몹 최대 2마리');
  const operator=operators[selectedOperator()];
- paragraph(parent,Number(recoveryDelay(operator).toFixed(1))+'초 동안 피해를 피하면 최대 체력의 '+Number((.5*(operator.recovery||1)*(hasTrainingPerk('recovery')?1.2:1)).toFixed(2))+'%씩 매초 회복해.');
+ paragraph(parent,Number(recoveryDelay(operator).toFixed(1))+'초 동안 피해를 피하면 최대 체력의 '+Number((.5*(operator.recovery||1)*(hasTrainingPerk('recovery')?1.2:1)*(1+expansionBonuses().sustain/100)).toFixed(2))+'%씩 매초 회복해.');
  paragraph(parent,'바닥의 주황 원은 폭격 예고야. 같은 자리에 머무르면 집중 포격이 강해져.');
 }
 function grid(parent){const el=document.createElement('div');el.className='grid';parent.append(el);return el;}
@@ -937,7 +986,7 @@ function guideSystemMissions(){
   ['set-6','같은 테마 장비 6부위 장착','한 테마로 여섯 부위를 모두 장착하면 6세트 효과를 받아.',themeCount,6,'gear'],
   ['skill-5','전투 스킬 Lv.5 달성','장비 탭의 스킬 정비에서 자주 쓰는 스킬을 강화해.',highestSkill,5,'skills'],
   ['skill-15','전투 스킬 Lv.15 달성','스킬 레벨업 던전에서 전술 데이터를 모아 주력 스킬을 강화해.',highestSkill,15,'skills'],
-  ['tree-1','스킬 트리 기본 노드 구매','스킬 트리에서 네 계열 중 하나의 1단계 노드를 구매해.',Math.max(0,...Object.values(save.training)),1,'growth'],
+  ['tree-1','스킬 트리 기본 노드 구매','스킬 트리에서 여덟 계열 중 하나의 1단계 노드를 구매해.',Math.max(0,...Object.values(save.training)),1,'growth'],
   ['tree-perk','스킬 트리 특수 능력 습득','중간 크기 노드를 눌러 필요 레벨과 선행 조건을 확인해.',Object.values(save.trainingPerks).filter(Boolean).length,1,'growth'],
   ['transcend','장비 1회 초월','같은 등급의 복제본을 사용해 장비 상세에서 초월해.',Math.max(0,...Object.values(save.ascension)),1,'gear'],
   ['materials-1','장비 재료 던전 첫 클리어','장비 강화에 필요한 재료가 적힌 던전을 골라.',dungeon.materials||0,1,'contracts'],
@@ -1167,7 +1216,8 @@ function renderGrowth(previousScroll){
   [0,1,2,3,4,5].filter(index=>hasTrainingPerk(trainingPerk(branch,index).id)).length,0);
  paragraph(growth,filled+' / '+(Object.keys(training).length*trainingNodes.length)+' 습득 · 한 손가락으로 이동 · 두 손가락으로 확대·축소');
  const legend=document.createElement('div');legend.className='tree-legend';growth.append(legend);
- for(const [branch,config] of Object.entries(trainingBranches)){
+ for(const branch of Object.keys(treeAngles)){
+  const config=trainingBranches[branch];
   const key=button(config.symbol+' '+training[branch].name,()=>{
    if(treeZoom<.75)setZoom(1);
    const target=map.querySelector('#tree-'+branch+'-2');
@@ -1301,7 +1351,7 @@ function renderTrainingDetail(parent){
  const card=document.createElement('article');card.className='item tree-detail';parent.append(card);paragraph(card,treeTier(entry)+' 노드');
  if(entry.rank){
   const rank=entry.rank,lv=trainingUnlockLevels[rank-1];
-  paragraph(card,stat.name+' '+rank+'단계 · +'+stat.percent+'%','section-label');
+  paragraph(card,stat.name+' '+rank+'단계 · '+(stat.benefit?stat.benefit+' ':'+')+stat.percent+'%','section-label');
   paragraph(card,'현재 '+current+'/'+trainingCap+' · 누적 +'+Number((current*stat.percent).toFixed(1))+'%');
   if(rank<=current){paragraph(card,'습득 완료');return;}
   const next=rank===current+1;
@@ -1992,6 +2042,7 @@ function start(index,contract,bossHunt=false,band=0,special=''){
  const stat={...gear[gunId]};
  if(hasTrainingPerk('magPouch'))stat.mag++;
  const operator=operators[selectedOperator()];
+ const tree=expansionBonuses();
  const projectileFactor=(hasTrainingPerk('velocity')?1.10:1)*(hasTrainingPerk('projectileMaster')?1.08:1)*(hasTrainingPerk('lightRounds')?1.03:1)*(1+bonuses.projectile)*(operator.projectile||1);
  stat.interval/=.92*(hasTrainingPerk('rapid')?1.06:1)*(hasTrainingPerk('fireMaster')?1.04:1)*(1+bonuses.fire);
  stat.reload/=(hasTrainingPerk('quickLoad')?1.08:1)*(hasTrainingPerk('reloadMaster')?1.06:1)*(1+bonuses.reload)*(operator.reload||1);
@@ -2022,8 +2073,8 @@ function start(index,contract,bossHunt=false,band=0,special=''){
  const maxHp=characterMaxHp();
 
  const transcendStats=Object.fromEntries(Object.keys(slots).map(slot=>[slot,transcendPower(save.equipped[slot])]));
- game={special,rushStart:index,rushEnd:index+9,linkAt:6,element:(index<0?contract:index)%5,secondary:secondarySkill(),secondaryCd:0,operator,transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:(skillLevel(equippedSkill())-1)*.7,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:(operator.move||1)*(hasTrainingPerk('stride')?1.05:1)*(hasTrainingPerk('moveMaster')?1.04:1)*(hasTrainingPerk('footwork')?1.02:1)*(1+bonuses.move)*(1+advancedLevel(save.equipped.boots)*.0029),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
-  p:{recovery:(operator.recovery||1)*(hasTrainingPerk('recovery')?1.20:1),leechCredit:3,regenAt:0,x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
+ game={tree,special,rushStart:index,rushEnd:index+9,linkAt:6,element:(index<0?contract:index)%5,secondary:secondarySkill(),secondaryCd:0,operator,transcendStats,shotsFired:0,nextHeadGuard:0,nextKillRefund:0,bonuses,skillExtra:(skillLevel(equippedSkill())-1)*.7,dungeon:c,dungeonLevel,band,nextBarrage:8,damageScale:c?contractScale(dungeonLevel).damage:1.22+Math.max(index,0)*.024,skill:equippedSkill(),moveFactor:(operator.move||1)*(hasTrainingPerk('stride')?1.05:1)*(hasTrainingPerk('moveMaster')?1.04:1)*(hasTrainingPerk('footwork')?1.02:1)*(1+bonuses.move)*(1+tree.mobility/100)*(1+advancedLevel(save.equipped.boots)*.0029),palette:arenaPalette(index,lab,hazard),movementTime:0,movementHeading:0,terrain,campaign,sector:0,sectorKills:0,bossEntered:false,index,contract,bossHunt,name,mode,n,hazard,lab,walls,objects,enemies:[],shots:[],bolts:[],warnings:[],effects:[],t:0,nextSpawn:bossHunt?5:.2,nextHazard:3,spawned:0,kills:0,paused:false,over:false,hits:0,usedBattery:false,exit:{x:839,y:288},
+  p:{recovery:(operator.recovery||1)*(hasTrainingPerk('recovery')?1.20:1)*(1+tree.sustain/100),leechCredit:3,regenAt:0,x:96,y:H/2,r:15,hp:maxHp,max:maxHp,cd:0,dash:0,inv:0,dir:0,ammo:stat.mag,reload:0,cool:0,afterDash:0,overdrive:0,shield:0,vent:0,skillStride:0,gunId,stat}};
  if(charm&&modOf(charm)===1&&level(charm)>=5)game.p.inv=4;
  releaseStick();keys.clear();$('combatHint').hidden=false;
  $('combatHint').textContent=campaign?'» 가속 · + 응급 회복 · ! 폭발통':'화면을 끌어 이동 · 가까운 적 자동 사격';
@@ -2074,30 +2125,31 @@ function activateSkill(){
  if(!skillReady())return;
  const g=game,p=g.p;
  if(g.transcendStats.boots)p.skillStride=2;
- const extra=g.skillExtra,recovery=(g.operator.cooldown||1)*(1-extra*.01)*(1-g.bonuses.cooldown)*(1-advancedLevel(save.equipped.charm)*.0036);
+ const extra=g.skillExtra,recovery=(g.operator.cooldown||1)*(1-extra*.01)*(1-g.bonuses.cooldown)*(1-g.tree.tactics/100)*(1-advancedLevel(save.equipped.charm)*.0036);
  if(g.skill!=='dash'){
   const skill=skills[g.skill];
   p.cd=skill.cooldown*recovery;
   playEffect(g.skill);
   const radius=150+extra*3;
   const power=1+extra*.02;
+  const skillDamage=1+g.tree.skillDamage/100;
   const effectRadius=g.skill==='pulse'?radius:g.skill==='storm'?240:68;
   skillFlash(g.skill,p,effectRadius);
   if(g.skill==='volley'){
    const near=g.enemies.filter(e=>e.hp>0&&dist(e,p)<420&&clearShot(p,e)).sort((a,b)=>dist(a,p)-dist(b,p));
-   for(const e of near.slice(0,3)){e.hp-=55*power;skillFlash('volley',p,26,e);}
+   for(const e of near.slice(0,3)){e.hp-=55*power*skillDamage;skillFlash('volley',p,26,e);}
   }
-  if(g.skill==='charge'){p.reload=0;p.ammo=p.stat.mag;p.chargedShot=1.35*power;p.chargedPierce=1;}
-  if(g.skill==='heal')p.hp=Math.min(p.max,p.hp+p.max*.18*power);
-  if(g.skill==='storm')for(const e of g.enemies)if(dist(e,p)<240){e.hp-=100*power;e.stun=Math.max(e.stun,.7);skillFlash('storm',p,24,e);}
+  if(g.skill==='charge'){p.reload=0;p.ammo=p.stat.mag;p.chargedShot=1+(1.35*power-1)*skillDamage;p.chargedPierce=1;}
+  if(g.skill==='heal')p.hp=Math.min(p.max,p.hp+p.max*.18*power*(1+g.tree.firstAid/100));
+  if(g.skill==='storm')for(const e of g.enemies)if(dist(e,p)<240){e.hp-=100*power*skillDamage;e.stun=Math.max(e.stun,.7);skillFlash('storm',p,24,e);}
 
-  if(g.skill==='shield')p.shield=1.4+extra*.06;
+  if(g.skill==='shield')p.shield=1.4+extra*.06+g.tree.shieldTime;
   if(g.skill==='overdrive')p.overdrive=3+extra*.15;
   if(g.skill==='pulse'){
    g.bolts=g.bolts.filter(b=>dist(b,p)>radius);
    for(const e of g.enemies){
     if(dist(e,p)>radius+e.r)continue;
-    e.hp-=(e.type==='boss'?70:85)+extra*4;
+    e.hp-=((e.type==='boss'?70:85)+extra*4)*skillDamage;
     if(e.bossCast||e.type==='boss'&&e.wind>0){e.bossCast=null;e.clock=Math.max(e.clock,2.8);}
     e.wind=0;e.rush=0;e.stun=Math.max(e.stun,.7);
    }
@@ -2110,7 +2162,7 @@ function activateSkill(){
  playEffect('dash');skillFlash('dash',p,105);p.dash=.145+extra*.012+(family==='thrust'?.05+l*.013:0)+(boots&&l>=5&&m===0?.045:0);
  p.cd=2.15+((family==='light'?1.35-l*.052:2.15)-(boots&&l>=5&&m===1?.35:0))*(1-.027*gradeBonus(boots))*recovery;
  if(hasTrainingPerk('dashCycle'))p.cd*=.90;
- p.inv=p.dash+.1+(hasTrainingPerk('dashGuard')?.18:0);p.afterDash=1.1;
+ p.inv=p.dash+.1+(hasTrainingPerk('dashGuard')?.18:0)+g.tree.dashCover;p.afterDash=1.1;
 }
 function movement(){
  const x=walk.x+(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0);
@@ -2186,7 +2238,7 @@ function shoot(){
  game.effects.push({x:p.x+Math.cos(p.dir)*21,y:p.y+Math.sin(p.dir)*21,r:12,color:'#ffda8d',life:.08});
  if(!p.ammo)reload();
 }
-function recoveryDelay(operator){return (operator.recoveryDelay||6)-(hasTrainingPerk('safeBreathing')?1.2:0);}
+function recoveryDelay(operator,tree=expansionBonuses()){return (operator.recoveryDelay||6)-(hasTrainingPerk('safeBreathing')?1.2:0)-tree.regenDelay;}
 function hurt(damage,origin,electric=false){
  const p=game.p;if(p.inv>0||p.shield>0)return;
  if(save.equipped.armor&&itemElement(save.equipped.armor)===game.element)damage*=.8;
@@ -2210,8 +2262,11 @@ function hurt(damage,origin,electric=false){
  if(armor&&level(armor)>=5&&modOf(armor)===1&&healthRatio<.35)damage*=.72;
  damage*=(1-.015*(gradeBonus(head)+gradeBonus(armor)))*(1-.0029*(advancedLevel(head)+advancedLevel(armor)));
  const scale=game.dungeon?game.damageScale:game.bossHunt||game.bossEntered?Math.min(1.15,game.damageScale):game.damageScale;
+ const tree=game.tree;
+ const defense=tree.defense+(healthRatio<=.35?tree.lowHealthDefense:0);
+ damage*=(1-defense/100)*(electric?1-tree.electricDefense/100:1);
  const loss=Math.round(damage*(1-game.bonuses.defense)*(1-(game.operator.defense||0))*scale);
- if(loss>0){p.regenAt=game.t+recoveryDelay(game.operator);p.medicBoostUntil=game.operator===operators.medic?p.regenAt+2:0;}
+ if(loss>0){p.regenAt=game.t+recoveryDelay(game.operator,tree);p.medicBoostUntil=game.operator===operators.medic?p.regenAt+2:0;}
  const previousHp=p.hp;
  p.hp-=loss;game.hits++;playEffect('hurt');p.inv=.52;
  if(!p.secondWindUsed&&previousHp>=p.max*.25&&p.hp>0&&p.hp<p.max*.25&&hasTrainingPerk('secondWind')){
@@ -2741,7 +2796,7 @@ function step(dt,refreshHud=true){
  const previousX=p.x,previousY=p.y;
  if(p.dash>0)move(p,Math.cos(p.dashDir)*360*dt,Math.sin(p.dashDir)*360*dt);
  else {
-  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1)*(p.skillStride>0?1+g.transcendStats.boots*.006:1)*(p.reload>0&&hasTrainingPerk('reloadStride')?1.12:1);
+  const movementSpeed=speed*g.moveFactor*(p.overdrive>0?1.35:1)*(p.skillStride>0?1+g.transcendStats.boots*.006:1)*(p.reload>0?1+(hasTrainingPerk('reloadStride')?.12:0)+g.tree.movingReload/100:1);
   move(p,input.x*movementSpeed*dt,input.y*movementSpeed*dt);
  }
  trackMovement(g,p.x-previousX,p.y-previousY,dt);
