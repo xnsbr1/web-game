@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
 'use strict';
 const titles=['홀덤 포커','원카드','블랙잭'];
-const rules=['개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 1,000칩으로 시작해 매 판 참가비 20칩을 냅니다. 플롭·턴·리버에서 체크, 베팅, 콜, 레이즈, 폴드, 올인을 할 수 있어요. 5판 뒤 보유 칩으로 순위를 정합니다.','각자 7장으로 시작해 먼저 손패를 비우면 승리합니다. 공격은 2(+2장), A(+3장), ♠A(+5장), 흑백 조커(+7장), 컬러 조커(+10장) 순서입니다. 공격 중에는 무늬와 관계없이 같은 서열 이상으로 받아치거나 누적된 장수를 뽑습니다. 흑백 조커로 컬러 조커도 받아칠 수 있습니다. 3은 마지막 공격 카드가 2일 때만 누적 공격을 취소합니다. 7은 무늬 선택, J는 다음 차례 건너뛰기, Q는 방향 전환, K는 내 차례 한 번 더입니다.','21을 넘기지 않고 딜러보다 높은 합계를 만드세요. A는 1 또는 11, 그림 카드는 10입니다. 딜러는 17부터 멈추며 처음 두 장의 21이 일반 21보다 우선합니다. 연습 칩 1,000개로 시작합니다. 승리하면 건 만큼, 블랙잭으로 이기면 건 금액의 1.5배를 더 받으며, 무승부는 돌려받습니다.'];
+const rules=['개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 1,000칩으로 시작해 매 판 참가비 20칩을 냅니다. 플롭·턴·리버에서 체크, 베팅, 콜, 레이즈, 폴드, 올인을 할 수 있어요. 5판 뒤 보유 칩으로 순위를 정합니다.','각자 7장으로 시작해 먼저 손패를 비우면 승리합니다. 공격은 2(+2장), A(+3장), ♠A(+5장), 흑백 조커(+7장), 컬러 조커(+10장) 순서입니다. 공격 중에는 무늬와 관계없이 같은 서열 이상으로 받아치거나 누적된 장수를 뽑습니다. 흑백 조커로 컬러 조커도 받아칠 수 있습니다. 3은 마지막 공격 카드가 2일 때만 누적 공격을 취소합니다. 7은 무늬 선택, J는 다음 차례 건너뛰기, Q는 방향 전환, K는 내 차례 한 번 더입니다.','21을 넘기지 않고 딜러보다 높은 합계를 만드세요. A는 1 또는 11, 그림 카드는 10입니다. 딜러는 17부터 멈추며 처음 두 장의 21이 일반 21보다 우선합니다. 연습 칩으로 카드 배분 전에 50~500칩을 겁니다. 일반 승리는 1:1, 블랙잭은 3:2, 무승부는 원금 반환입니다. 처음 두 장에서 더블다운으로 같은 금액을 더 걸고 한 장만 받거나, 같은 랭크 두 장을 한 번 나눌 수 있습니다. 에이스를 나누면 각각 한 장만 받습니다. 딜러의 공개 카드가 A면 원래 베팅의 절반을 보험으로 걸 수 있고, 딜러가 블랙잭이면 보험 수익은 2:1입니다. 딜러는 소프트 17에서도 멈춥니다.'];
 const suits='♠♥♦♣', rank=c=>c%13+2,suit=c=>Math.floor(c/13),face=c=>String(rank(c)).replace('14','A').replace('13','K').replace('12','Q').replace('11','J');
 function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function score5(cards){let r=cards.map(rank).sort((a,b)=>b-a),counts=new Map();for(let x of r)counts.set(x,(counts.get(x)||0)+1);let g=[...counts].sort((a,b)=>b[1]-a[1]||b[0]-a[0]);let straight=g.length===5?(r[0]-r[4]===4?r[0]:r.join()==='14,5,4,3,2'?5:0):0,flush=cards.every(c=>suit(c)===suit(cards[0]));let cat=flush&&straight?8:g[0][1]===4?7:g[0][1]===3&&g[1][1]===2?6:flush?5:straight?4:g[0][1]===3?3:g[1][1]===2?2:g[0][1]===2?1:0;let vals=straight?[straight]:g.map(v=>v[0]);while(vals.length<5)vals.push(0);return vals.reduce((n,v)=>n*15+v,cat)}
@@ -31,7 +31,7 @@ if (mode === 2) {
   blackjackBank ??= seats.map(() => startingChips);
   G = {
     phase:'betting', token:++turnToken, bets:seats.map((seat, i) =>
-      blackjackBank[i] === 0 ? 0 : seat.bot ? Math.min(betStep, blackjackBank[i]) : null),
+      blackjackBank[i] < betStep ? 0 : seat.bot ? betStep : null),
     hands:seats.map(() => []), board:[], dealer:[], pile:[], turn:-1, end:'', log:''
   };
   sync();
@@ -164,24 +164,48 @@ function pokerBotMove() {
   if (category >= 1 && match.chips[i] >= betStep && Math.random() < .45) return betStep;
   return 'check-call';
 }
-function blackjackBet(i, amount) {
-  const balance = blackjackBank[i];
-  if (G.bets[i] !== null || !Number.isSafeInteger(amount) ||
-      amount <= 0 || amount > balance || amount !== balance && amount % betStep !== 0) return false;
-  G.bets[i] = amount;
+const blackjackMaxBet = 500;
+function blackjackBet(player, amount) {
+  if (G.bets[player] !== null || !Number.isSafeInteger(amount) ||
+      amount < betStep || amount > blackjackMaxBet || amount > blackjackBank[player] ||
+      amount % betStep !== 0) return false;
+  G.bets[player] = amount;
   if (G.bets.every(bet => bet !== null)) dealBlackjack();
   return true;
 }
 function dealBlackjack() {
+  G.deck = shuffle(Array.from({length:52}, (_, i) => i));
+  G.blackjack = G.bets.map((bet, player) => {
+    blackjackBank[player] -= bet;
+    return {insurance:bet && !seats[player].bot && blackjackBank[player] >= bet / 2 ? null : 0,
+      hands:bet ? [{cards:[], bet, split:false, done:false}] : []};
+  });
+  G.hands = G.blackjack.map(player => player.hands[0]?.cards || []);
+  for (let pass = 0; pass < 2; pass++) {
+    for (const [player, bet] of G.bets.entries()) if (bet) G.hands[player].push(G.deck.pop());
+    G.dealer.push(G.deck.pop());
+  }
+  G.token = ++turnToken;
+  if (rank(G.dealer[0]) === 14 && G.blackjack.some(player => player.insurance === null)) {
+    G.phase = 'insurance';
+  } else {
+    for (const player of G.blackjack) player.insurance = 0;
+    beginBlackjackTurns();
+  }
+}
+function blackjackInsurance(i, action) {
+  const player = G.blackjack[i];
+  if (!player || player.insurance !== null || !['insure','decline'].includes(action)) return false;
+  player.insurance = action === 'insure' ? G.bets[i] / 2 : 0;
+  blackjackBank[i] -= player.insurance;
+  if (G.blackjack.every(entry => entry.insurance !== null)) beginBlackjackTurns();
+  return true;
+}
+function beginBlackjackTurns() {
   G.phase = 'playing';
   G.token = ++turnToken;
-  G.deck = shuffle(Array.from({length:52}, (_, i) => i));
   G.turn = 0;
-  for (const [i, bet] of G.bets.entries()) {
-    blackjackBank[i] -= bet;
-    if (bet) G.hands[i].push(G.deck.pop(), G.deck.pop());
-  }
-  G.dealer = [G.deck.pop(), G.deck.pop()];
+  G.handIndex = 0;
   nextBJ();
 }
 function scoreText(hand) {
@@ -190,38 +214,76 @@ function scoreText(hand) {
     sum + (rank(card) === 14 ? 1 : Math.min(rank(card), 10)), 0);
   return low < score ? low + '점 또는 ' + score + '점' : score + '점';
 }
+function blackjackOptions(player, hand, balance) {
+  const extra = hand.cards.length === 2 && balance >= hand.bet;
+  return {double:extra, split:extra && player.hands.length === 1 &&
+    rank(hand.cards[0]) === rank(hand.cards[1])};
+}
+function playBlackjack(i, action) {
+  const player = G.blackjack[i], hand = player.hands[G.handIndex];
+  const options = blackjackOptions(player, hand, blackjackBank[i]);
+  if (action === 'hit') hand.cards.push(G.deck.pop());
+  else if (action === 'stand') hand.done = true;
+  else if (action === 'double' && options.double) {
+    blackjackBank[i] -= hand.bet;
+    hand.bet *= 2;
+    hand.cards.push(G.deck.pop());
+    hand.done = true;
+  } else if (action === 'split' && options.split) {
+    blackjackBank[i] -= hand.bet;
+    const second = hand.cards.pop();
+    const splitAces = rank(second) === 14;
+    hand.cards.push(G.deck.pop());
+    hand.split = true;
+    hand.done = splitAces;
+    player.hands.push({cards:[second,G.deck.pop()], bet:hand.bet, split:true, done:splitAces});
+  } else return false;
+  G.token = ++turnToken;
+  nextBJ();
+  return true;
+}
+function naturalBlackjack(hand) {
+  return !hand.split && hand.cards.length === 2 && total(hand.cards) === 21;
+}
 function nextBJ() {
-  while (G.turn < seats.length && (!G.bets[G.turn] || total(G.hands[G.turn]) >= 21)) G.turn++;
   const dealerNatural = G.dealer.length === 2 && total(G.dealer) === 21;
-  if (G.turn < seats.length && !dealerNatural) return;
-  while (total(G.dealer) < 17 && G.hands.some(hand => hand.length && total(hand) <= 21)) {
-    G.dealer.push(G.deck.pop());
+  for (; !dealerNatural && G.turn < seats.length; G.turn++, G.handIndex = 0) {
+    const hands = G.blackjack[G.turn].hands;
+    while (G.handIndex < hands.length) {
+      const hand = hands[G.handIndex];
+      if (!hand.done && total(hand.cards) < 21) return;
+      G.handIndex++;
+    }
   }
+  const needsDealer = G.blackjack.some(player =>
+    player.hands.some(hand => total(hand.cards) <= 21 && !naturalBlackjack(hand)));
+  while (needsDealer && total(G.dealer) < 17) G.dealer.push(G.deck.pop());
   const dealerTotal = total(G.dealer);
   G.end = seats.map((seat, i) => {
-    const bet = G.bets[i];
-    if (!bet) return seat.name + ' · 관전';
-    const hand = G.hands[i], score = total(hand);
-    const natural = score === 21 && hand.length === 2;
-    let label = '패배', payout = 0;
-    if (score > 21) label = '버스트';
-    else if (natural && !dealerNatural) {
-      label = '블랙잭 승리';
-      payout = bet + Math.floor(bet * 1.5);
-    } else if (!dealerNatural && (dealerTotal > 21 || score > dealerTotal)) {
-      label = '승리';
-      payout = bet * 2;
-    } else if (natural && dealerNatural || !dealerNatural && score === dealerTotal) {
-      label = '무승부';
-      payout = bet;
-    }
-    blackjackBank[i] += payout;
-    const change = payout - bet;
-    return seat.name + ' ' + score + '점 · ' + label + ' (' + (change > 0 ? '+' : '') + change + '칩)';
+    const {hands, insurance} = G.blackjack[i];
+    if (!hands.length) return seat.name + ' · 관전';
+    if (dealerNatural) blackjackBank[i] += insurance * 3;
+    const result = hands.map(hand => {
+      const score = total(hand.cards), natural = naturalBlackjack(hand);
+      let label = '패배', payout = 0;
+      if (score > 21) label = '버스트';
+      else if (natural && !dealerNatural) {
+        label = '블랙잭 승리'; payout = hand.bet * 2.5;
+      } else if (natural && dealerNatural || !dealerNatural && score === dealerTotal) {
+        label = '무승부'; payout = hand.bet;
+      } else if (!dealerNatural && (dealerTotal > 21 || score > dealerTotal)) {
+        label = '승리'; payout = hand.bet * 2;
+      }
+      blackjackBank[i] += payout;
+      const change = payout - hand.bet;
+      return score + '점 ' + label + ' (' + (change > 0 ? '+' : '') + change + '칩)';
+    });
+    if (insurance) result.push(dealerNatural ? '보험 적중 (+' + insurance * 2 + '칩)' : '보험 실패 (−' + insurance + '칩)');
+    return seat.name + ' · ' + result.join(' · ');
   }).join(' / ');
-  const draws = Math.max(0, G.dealer.length - 2);
+  const draws = G.dealer.length - 2;
   const reason = dealerNatural ? '첫 두 장으로 블랙잭' :
-    G.hands.every(hand => !hand.length || total(hand) > 21) ? '비교할 플레이어가 없어 추가 카드 없이 종료' :
+    !needsDealer ? '추가로 비교할 패가 없어 종료' :
     (draws ? '17점 미만에서 ' + draws + '장 뽑음 · ' : '') +
     (dealerTotal > 21 ? '버스트' : '17점 이상이라 멈춤');
   G.log = '딜러 ' + scoreText(G.dealer) + ' · ' + reason;
@@ -328,21 +390,16 @@ function act(id, move) {
     if (G.phase === 'betting') {
       const i = seats.findIndex(seat => seat.id === id);
       if (i < 0 || !blackjackBet(i, move.action)) return;
-    } else {
-      if (seats[G.turn]?.id !== id) return;
-      if (move.action === 'hit') G.hands[G.turn].push(G.deck.pop());
-      else if (move.action === 'stand') G.turn++;
-      else return;
-      G.token = ++turnToken;
-      nextBJ();
-    }
+    } else if (G.phase === 'insurance') {
+      if (!blackjackInsurance(seats.findIndex(seat => seat.id === id), move.action)) return;
+    } else if (seats[G.turn]?.id !== id || !playBlackjack(G.turn, move.action)) return;
   } else {
     if (seats[G.turn]?.id !== id) return;
     if (!(mode === 0 ? playPoker(G.turn, move) : playOneCard(move))) return;
   }
   sync();
 }
-function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats:seats.map(({id,name,bot,offline})=>({id,name,bot,offline})),solo,match,bank:blackjackBank,game:G&&{phase:G.phase,token:G.token,bets:G.bets,one:G.one,poker:G.poker,hand:G.hands[i],counts:G.hands.map(h=>h.length),revealed:G.end&&mode!==1?G.hands.map((h,k)=>mode===2||G.poker.reveal&&!G.poker.folded[k]?h:null):null,turn:G.turn,board:G.board,top:G.pile.at(-1),dealer:G.end?G.dealer:G.dealer.slice(0,1),end:G.end,log:G.log}}}
+function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats:seats.map(({id,name,bot,offline})=>({id,name,bot,offline})),solo,match,bank:blackjackBank,game:G&&{phase:G.phase,token:G.token,bets:G.bets,blackjack:G.blackjack?.[i],handIndex:G.handIndex,blackjackResults:G.end&&G.blackjack?.map(player=>player.hands),one:G.one,poker:G.poker,hand:G.hands[i],counts:G.hands.map(h=>h.length),revealed:G.end&&mode!==1?G.hands.map((h,k)=>mode===2||G.poker.reveal&&!G.poker.folded[k]?h:null):null,turn:G.turn,board:G.board,top:G.pile.at(-1),dealer:G.end?G.dealer:G.dealer.slice(0,1),end:G.end,log:G.log}}}
 function sync() {
   clearTimeout(timer);
   V = project(me);
@@ -352,7 +409,7 @@ function sync() {
   }
   if (G && !G.end && seats[G.turn]?.bot && !seats.some(seat=>seat.offline)) {
     timer = setTimeout(() => {
-      const hand = G.hands[G.turn];
+      const hand = mode === 2 ? G.blackjack[G.turn].hands[G.handIndex].cards : G.hands[G.turn];
       const move = mode === 0 ? {action:pokerBotMove(), token:G.poker.token} :
         mode === 2 ? {action:total(hand) < 17 ? 'hit' : 'stand', token:G.token} : oneBotMove(hand);
       act(seats[G.turn].id, move);
@@ -606,7 +663,7 @@ function renderBlackjackBets(view, player) {
   const pending = game.bets[player] === null;
   let html = '<div class="panel"><h3>카드 배분 전 베팅</h3><p>내 연습 칩 ' + balance + '개</p>';
   if (pending) {
-    const max = Math.floor(balance / betStep) * betStep;
+    const max = Math.min(blackjackMaxBet, Math.floor(balance / betStep) * betStep);
     selectedBet = Math.min(Math.max(max, betStep), selectedBet);
     if (max) html += '<div class="row"><button onclick="updateBlackjackBet(selectedBet-50)">−50</button>' +
       '<input id="blackjack-bet" type="range" aria-label="베팅 금액" min="50" max="' + max +
@@ -614,7 +671,7 @@ function renderBlackjackBets(view, player) {
       '<button onclick="updateBlackjackBet(selectedBet+50)">+50</button>' +
       '<button class="primary" id="blackjack-submit" onclick="cmd(selectedBet)">베팅 (' +
       selectedBet + '칩)</button></div>';
-    html += '<p><button onclick="cmd(' + balance + ')">올인 (' + balance + '칩)</button></p>';
+
   } else {
     html += '<p>' + (game.bets[player] ? '내 베팅 ' + game.bets[player] + '칩 확정' : '칩 소진 · 이번 판 관전') +
       ' · 다른 참가자를 기다리는 중</p>';
@@ -664,6 +721,21 @@ function attackHistory(g) {
     g.one.history.map(entry => '<li>' + esc(entry) + '</li>').join('') + '</ol>' +
     (canBlock ? '<p>3을 내면 누적 공격을 막을 수 있어요.</p>' : '') + '</div>';
 }
+function renderBlackjackHands(hands, activeIndex = -1) {
+  return hands.map((hand, index) =>
+    '<div class="panel"><b>' + (hands.length > 1 ? '패 ' + (index + 1) + ' · ' : '') +
+    scoreText(hand.cards) + ' · ' + hand.bet + '칩' +
+    (activeIndex === index ? ' · 진행 중' : '') +
+    '</b>' + cards(hand.cards) + '</div>').join('');
+}
+function blackjackControls(g, balance) {
+  const hand = g.blackjack.hands[g.handIndex];
+  const options = blackjackOptions(g.blackjack, hand, balance);
+  return '<div class="row"><button class="primary" onclick="cmd(\'hit\')">한 장 더</button>' +
+    '<button onclick="cmd(\'stand\')">멈추기</button>' +
+    (options.double ? '<button onclick="cmd(\'double\')">더블다운 (+' + hand.bet + '칩)</button>' : '') +
+    (options.split ? '<button onclick="cmd(\'split\')">스플릿 (+' + hand.bet + '칩)</button>' : '') + '</div>';
+}
 function render() {
   const {seats:ss, game:g, mode:m} = V;
   const my = ss.findIndex(seat => seat.id === me);
@@ -698,28 +770,40 @@ function render() {
       (g.one.penalty ? ' · 누적 공격 ' + g.one.penalty + '장' : '') + '</p>';
     if (m === 2 && !g.end) html += '공개 카드 ' + scoreText(g.dealer) + ' · 뒷면 카드 1장';
     html += '</div><h2 class="' + (turn ? 'turn-alert' : '') + '" aria-live="polite">' +
-      (g.end ? esc(g.end) : offline ? '게임 일시 정지' : turn ? '내 차례' : esc(ss[g.turn]?.name) + '의 차례') +
+      (g.end ? esc(g.end) : offline ? '게임 일시 정지' : g.phase === 'insurance' ? '보험 선택' : turn ? '내 차례' : esc(ss[g.turn]?.name) + '의 차례') +
       '</h2><p>' + esc(g.log) + '</p><h3>내 패' + (m === 2 && g.hand.length ? ' · ' + scoreText(g.hand) : '') + '</h3>';
-    html += '<div class="cards">' + g.hand.map((c,i) =>
-      m === 1 && turn ? card(c,i,g.one.choosing || !legal(c,g.top,g.one)) : card(c)).join('') + '</div>';
+    if (m === 2) {
+      html += renderBlackjackHands(g.blackjack.hands, turn ? g.handIndex : -1);
+      if (!offline && g.phase === 'insurance') {
+        html += g.blackjack.insurance === null ?
+          '<div class="row"><button onclick="cmd(\'insure\')">보험 (' + g.bets[my] / 2 + '칩)</button>' +
+          '<button onclick="cmd(\'decline\')">보험 건너뛰기</button></div>' : '<p>다른 참가자의 보험 선택을 기다리는 중</p>';
+      }
+    } else {
+      html += '<div class="cards">' + g.hand.map((c,i) =>
+        m === 1 && turn ? card(c,i,g.one.choosing || !legal(c,g.top,g.one)) : card(c)).join('') + '</div>';
+    }
     if (m === 0 && !g.end && (turn || !V.solo)) {
       html += '<fieldset ' + (turn ? '' : 'disabled') + '><legend>홀덤 베팅</legend>' +
         pokerControls(g.poker,my) + '</fieldset>';
     }
-    if (turn && m !== 0) html += m === 1 ? oneControls(g) :
-      '<div class="row"><button class="primary" onclick="cmd(\'hit\')">한 장 더</button><button onclick="cmd(\'stand\')">멈추기</button></div>';
+    if (turn && m !== 0) html += m === 1 ? oneControls(g) : blackjackControls(g, V.bank[my]);
+    if (m === 2 && g.blackjackResults) g.blackjackResults.forEach((hands,i) => {
+      if (i !== my && hands.length) html += '<h3>' + esc(ss[i].name) + '</h3>' +
+        renderBlackjackHands(hands);
+    });
     if (m === 1) html += attackHistory(g);
-    if (g.revealed) g.revealed.forEach((hand,i) => {
+    if (m !== 2 && g.revealed) g.revealed.forEach((hand,i) => {
       if (hand?.length && i !== my) html += '<h3>' + esc(ss[i].name) +
         (m === 2 ? ' · ' + scoreText(hand) : '') + '</h3>' + cards(hand);
     });
     if (m === 0) html += pokerStandings(V);
     if (g.end) {
       if (host && !offline) {
-        if (m === 2 && V.bank.some(balance => balance === 0)) {
+        if (m === 2 && V.bank.some(balance => balance < betStep)) {
           html += '<button onclick="resetBlackjackBank()">연습 칩 초기화 후 시작</button> ';
         }
-        if (m !== 2 || V.bank.some(balance => balance > 0)) {
+        if (m !== 2 || V.bank.some(balance => balance >= betStep)) {
           html += '<button class="primary" onclick="start()">' +
             (m === 0 && (V.match.round === matchLength || V.match.chips.filter(chips=>chips>0).length < 2) ?
               '새 5판 시작' : '한 판 더') + '</button>';
