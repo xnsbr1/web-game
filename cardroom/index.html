@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#102f29"><title>클럽룸 · 카드 테이블</title>
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102f29"><title>클럽룸 · 카드 테이블</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 15%,#254b3c,transparent 50%),#102f29;color:#faf4dd;font:16px system-ui,sans-serif;min-height:100svh}main{max-width:780px;margin:auto;padding:24px 18px 60px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff30;padding-bottom:16px}header b{letter-spacing:.15em}small,.muted{color:#c4d2bf}h1{font:clamp(42px,8vw,78px) Georgia,serif;margin:22px 0 6px}h2{font-size:26px;margin:14px 0}h3{margin:14px 0 6px}p{line-height:1.55}button,input{font:inherit;border-radius:12px;border:1px solid #859b83;background:#234b3e;color:#fff8df;padding:12px;min-height:48px}button{cursor:pointer;font-weight:700}button:focus-visible,input:focus-visible{outline:3px solid #ffd16d}button:disabled{opacity:.52;cursor:default}.primary,.chosen{background:#eace84;color:#202e24;border-color:#eace84}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.row>*{min-width:0}input{width:145px;background:#142f28}.panel{background:#193d32;border:1px solid #738772;border-radius:18px;padding:18px;margin:15px 0}.table{background:radial-gradient(ellipse at center,#27674f,#194537);border:4px double #9e996b;border-radius:28px;padding:22px 16px;min-height:145px;margin:16px 0}.cards{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.card{position:relative;display:inline-flex;flex-direction:column;justify-content:space-between;align-items:flex-start;width:57px;height:82px;padding:5px 8px;background:#fff6df;border:1px solid #e7d5ad;border-radius:7px;color:#173930;font:bold 23px Georgia;box-shadow:0 3px 0 #092b23}.card i{align-self:flex-end;font:28px Georgia}.red{color:#ae3437}.sleeve{background:repeating-linear-gradient(45deg,#3b5956 0 4px,#87a392 4px 6px);border:4px solid #e7dbba}.hero{display:flex;align-items:center;justify-content:space-between}.mark{font:80px Georgia;color:#ecd296;transform:rotate(12deg)}#status{color:#ffdc8a;min-height:1.4em}details{margin:12px 0}summary{cursor:pointer}.seat{border-radius:9px;background:#102f29;padding:7px 10px}.active{outline:2px solid #eace84}button.card:disabled{opacity:.62}#view{overflow-wrap:anywhere}
 
@@ -7,7 +7,11 @@
 .game-nav [aria-current]{background:#eace84;color:#202e24;border-color:#eace84}
 .game-nav a:focus-visible{outline:3px solid #ffd16d}
 .turn-alert{background:#eace84;color:#202e24;border-radius:10px;padding:10px 14px}fieldset{border:1px solid #738772;border-radius:12px;margin:12px 0;min-width:0}fieldset:disabled{opacity:.65}.room-tools,.bet-row{margin:12px 0}input[type="range"]{accent-color:#eace84;width:min(42vw,170px);padding:0}
-</style><main><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="view"></div><p id="status" role="status"></p></main>
+main{padding-top:max(24px,env(safe-area-inset-top))}
+.turn-bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;margin:10px 0 16px;padding:12px 16px;border:1px solid #819786;border-radius:12px;background:#193d32;color:#fff8df;font-size:clamp(18px,4vw,24px);font-weight:800;box-shadow:0 4px 12px #071e1980}
+.turn-bar[data-active="true"]{background:#eace84;color:#202e24;border-color:#eace84}
+#update-note:empty{display:none}
+</style><main><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="turn-bar" class="turn-bar" role="status" aria-atomic="true" hidden></div><p id="update-note" role="status"></p><div id="view"></div><p id="status" role="status"></p></main>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
 'use strict';
 const titles=['홀덤 포커','원카드','블랙잭'];
@@ -436,6 +440,7 @@ function leave() {
   history.replaceState(null, '', location.pathname);
   home();
   say('');
+  applyAppUpdate();
 }
 function resetRoom() {
   epoch++;
@@ -457,7 +462,7 @@ function gamePicker() {
   return '<div class="row">' + titles.map((title, i) => '<button class="' +
     (mode === i ? 'chosen' : '') + '" onclick="mode=' + i + ';home()">' + title + '</button>').join('') + '</div>';
 }
-function home(){let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div><div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
+function home(){ $('turn-bar').hidden=true; $('turn-bar').textContent=''; let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div><div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
 const nick=()=>$('name').value.trim().slice(0,12)||'플레이어';
 function waiting(){ $('view').innerHTML='<h2>테이블 연결 중…</h2><button onclick="leave()">돌아가기</button>';say('')}
 function netFail(message) {
@@ -466,6 +471,7 @@ function netFail(message) {
   const code = queryRoom();
   if (code) $('code').value = code;
   say(message);
+  applyAppUpdate();
 }
 const reconnectWindow = 60000;
 let reconnectTimer, guestDeadline, guestAttempt = 0;
@@ -736,12 +742,28 @@ function blackjackControls(g, balance) {
     (options.double ? '<button onclick="cmd(\'double\')">더블다운 (+' + hand.bet + '칩)</button>' : '') +
     (options.split ? '<button onclick="cmd(\'split\')">스플릿 (+' + hand.bet + '칩)</button>' : '') + '</div>';
 }
+function renderTurnBanner(game, players, my, offline, turn) {
+  const banner = $('turn-bar');
+  let text = '';
+  if (offline) text = '일시 정지 · 재접속 대기 중';
+  else if (!game) text = '대기실 · 게임 시작 대기';
+  else if (game.end) text = '이번 판 종료';
+  else if (game.phase === 'betting') text = game.bets[my] === null ? '베팅 금액을 선택하세요' : '베팅 확정 · 다른 참가자 대기';
+  else if (game.phase === 'insurance') text = game.blackjack.insurance === null ? '보험을 선택하세요' : '다른 참가자의 보험 선택 대기';
+  else if (turn) text = '내 차례 · ' + players[my].name;
+  else if (players[game.turn]) text = players[game.turn].name + ' 님의 차례';
+
+  banner.hidden = !text;
+  banner.dataset.active = String(turn);
+  if (banner.textContent !== text) banner.textContent = text;
+}
 function render() {
   const {seats:ss, game:g, mode:m} = V;
   const my = ss.findIndex(seat => seat.id === me);
   const offline = ss.some(seat => seat.offline);
   const turn = Boolean(g && !g.end && g.turn === my && !offline);
   signalTurn(turn);
+  renderTurnBanner(g, ss, my, offline, turn);
   let html = '<div class="hero"><h2>' + titles[m] + '</h2><button onclick="leave()">나가기</button></div>' +
     '<p>' + (V.solo ? '연습 테이블' : '방 코드 <b>' + esc(V.room) + '</b>') + '</p>' + roomTools();
   html += '<div class="row">' + ss.map((seat, i) => {
@@ -814,12 +836,63 @@ function render() {
   }
   $('view').innerHTML = html + '<details><summary>게임 규칙</summary><p>' + rules[m] + '</p></details>';
 }
+function pageSignature(page) {
+  return [...page.querySelectorAll('title, meta, link, style, script, main header')]
+    .map(element => element.outerHTML).join('\n');
+}
+const runningPage = pageSignature(document);
+let checkingUpdate = false;
+let updateReady = false;
+
+function applyAppUpdate() {
+  if (!updateReady || host || room || peer || document.visibilityState === 'hidden') return;
+  const url = new URL(location.href);
+  const nick = $('name')?.value || '';
+  sessionStorage.setItem('clubroom-update-draft', JSON.stringify({nick, mode, code:$('code')?.value || ''}));
+  url.searchParams.set('_app_update', Date.now().toString());
+  location.replace(url.href);
+}
+async function checkAppUpdate() {
+  if (document.visibilityState === 'hidden' || checkingUpdate) return;
+  if (updateReady) return applyAppUpdate();
+  checkingUpdate = true;
+  try {
+    const response = await fetch(location.pathname, {cache:'no-store'});
+    if (!response.ok) return;
+    const nextPage = new DOMParser().parseFromString(await response.text(), 'text/html');
+    if (!nextPage.querySelector('#view') || !nextPage.querySelector('script:not([src])')) return;
+    if (pageSignature(nextPage) === runningPage) return;
+    updateReady = true;
+    if (!host && !room && !peer) applyAppUpdate();
+    else $('update-note').textContent = '새 버전이 준비됐어요. 방을 나가면 자동으로 적용돼요.';
+  } catch {
+    // A later check can retry when the network returns.
+  } finally {
+    checkingUpdate = false;
+  }
+}
+function restoreUpdateDraft() {
+  const url = new URL(location.href);
+  if (!url.searchParams.has('_app_update')) return;
+  url.searchParams.delete('_app_update');
+  history.replaceState(null, '', url.href);
+  const saved = sessionStorage.getItem('clubroom-update-draft');
+  sessionStorage.removeItem('clubroom-update-draft');
+  if (!saved) return;
+  const draft = JSON.parse(saved);
+  mode = draft.mode;
+  home();
+  $('name').value = draft.nick;
+  $('code').value = draft.code;
+}
 function queryRoom() {
   const query = new URLSearchParams(location.search);
   return query.get('room') || query.get('code') || '';
 }
 home();
 window.addEventListener('DOMContentLoaded', () => {
+  restoreUpdateDraft();
+  checkAppUpdate();
   const code = queryRoom();
   if (code) {
     $('code').value = code;
@@ -834,5 +907,10 @@ window.addEventListener('DOMContentLoaded', () => {
     create(action === 'solo');
   }
 });
+window.addEventListener('focus', checkAppUpdate);
+window.addEventListener('pageshow', checkAppUpdate);
+window.addEventListener('online', checkAppUpdate);
+document.addEventListener('visibilitychange', checkAppUpdate);
+setInterval(checkAppUpdate, 60000);
 window.addEventListener('pointerdown', prepareAudio, {passive:true});
 </script></html>
