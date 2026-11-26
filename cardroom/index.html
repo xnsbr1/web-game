@@ -6,11 +6,12 @@
 .game-nav a,.game-nav span{padding:12px 6px;border-radius:12px;text-align:center;font-weight:700;text-decoration:none;background:#234b3e;color:#fff8df;border:1px solid #859b83}
 .game-nav [aria-current]{background:#eace84;color:#202e24;border-color:#eace84}
 .game-nav a:focus-visible{outline:3px solid #ffd16d}
+.turn-alert{background:#eace84;color:#202e24;border-radius:10px;padding:10px 14px}fieldset{border:1px solid #738772;border-radius:12px;margin:12px 0;min-width:0}fieldset:disabled{opacity:.65}.room-tools,.bet-row{margin:12px 0}input[type="range"]{accent-color:#eace84;width:min(42vw,170px);padding:0}
 </style><main><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="view"></div><p id="status" role="status"></p></main>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
 'use strict';
 const titles=['홀덤 포커','원카드','블랙잭'];
-const rules=['개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 공용 카드 3장이 열리면 바로 시작합니다. 체크로 넘어가거나 판당 한 번 압박할 수 있어요. 압박을 받으면 따라가기 또는 폴드를 고릅니다. 5판 동안 승수를 기록합니다. 승수가 같으면 공동 순위입니다.','각자 7장으로 시작해 먼저 손패를 비우면 승리합니다. 공격은 2(+2장), A(+3장), ♠A(+5장), 흑백 조커(+7장), 컬러 조커(+10장) 순서입니다. 공격 중에는 무늬와 관계없이 같은 서열 이상으로 받아치거나 누적된 장수를 뽑습니다. 흑백 조커로 컬러 조커도 받아칠 수 있습니다. 3은 마지막 공격 카드가 2일 때만 누적 공격을 취소합니다. 7은 무늬 선택, J는 다음 차례 건너뛰기, Q는 방향 전환, K는 내 차례 한 번 더입니다.','21을 넘기지 않고 딜러보다 높은 합계를 만드세요. A는 1 또는 11, 그림 카드는 10입니다. 딜러는 17부터 멈추며 처음 두 장의 21이 일반 21보다 우선합니다. 연습 칩 1,000개로 시작합니다. 승리하면 건 만큼, 블랙잭으로 이기면 건 금액의 1.5배를 더 받으며, 무승부는 돌려받습니다.'];
+const rules=['개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 1,000칩으로 시작해 매 판 참가비 20칩을 냅니다. 플롭·턴·리버에서 체크, 베팅, 콜, 레이즈, 폴드, 올인을 할 수 있어요. 5판 뒤 보유 칩으로 순위를 정합니다.','각자 7장으로 시작해 먼저 손패를 비우면 승리합니다. 공격은 2(+2장), A(+3장), ♠A(+5장), 흑백 조커(+7장), 컬러 조커(+10장) 순서입니다. 공격 중에는 무늬와 관계없이 같은 서열 이상으로 받아치거나 누적된 장수를 뽑습니다. 흑백 조커로 컬러 조커도 받아칠 수 있습니다. 3은 마지막 공격 카드가 2일 때만 누적 공격을 취소합니다. 7은 무늬 선택, J는 다음 차례 건너뛰기, Q는 방향 전환, K는 내 차례 한 번 더입니다.','21을 넘기지 않고 딜러보다 높은 합계를 만드세요. A는 1 또는 11, 그림 카드는 10입니다. 딜러는 17부터 멈추며 처음 두 장의 21이 일반 21보다 우선합니다. 연습 칩 1,000개로 시작합니다. 승리하면 건 만큼, 블랙잭으로 이기면 건 금액의 1.5배를 더 받으며, 무승부는 돌려받습니다.'];
 const suits='♠♥♦♣', rank=c=>c%13+2,suit=c=>Math.floor(c/13),face=c=>String(rank(c)).replace('14','A').replace('13','K').replace('12','Q').replace('11','J');
 function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function score5(cards){let r=cards.map(rank).sort((a,b)=>b-a),counts=new Map();for(let x of r)counts.set(x,(counts.get(x)||0)+1);let g=[...counts].sort((a,b)=>b[1]-a[1]||b[0]-a[0]);let straight=g.length===5?(r[0]-r[4]===4?r[0]:r.join()==='14,5,4,3,2'?5:0):0,flush=cards.every(c=>suit(c)===suit(cards[0]));let cat=flush&&straight?8:g[0][1]===4?7:g[0][1]===3&&g[1][1]===2?6:flush?5:straight?4:g[0][1]===3?3:g[1][1]===2?2:g[0][1]===2?1:0;let vals=straight?[straight]:g.map(v=>v[0]);while(vals.length<5)vals.push(0);return vals.reduce((n,v)=>n*15+v,cat)}
@@ -18,14 +19,14 @@ function poker(cs){let best=0;for(let i=0;i<7;i++)for(let j=i+1;j<7;j++)best=Mat
 function total(h){let s=h.reduce((n,c)=>n+(rank(c)===14?1:Math.min(10,rank(c))),0);return s<=11&&h.some(c=>rank(c)===14)?s+10:s}
 const matchLength = 5;
 let match = null, turnToken = 0;
-const fromMain = new URLSearchParams(window.location.search).has('action');
 const requestedGame = new URLSearchParams(window.location.search).get('game');
 const initialMode = requestedGame === 'one-card' ? 1 : requestedGame === 'blackjack' ? 2 : 0;
 const betStep = 50, startingChips = 1000;
+let selectedPokerBet;
 let blackjackBank = null, selectedBet = betStep;
 let peer,link,connections=new Map(),seats=[],me='host',host=false,solo=false,room='',mode=initialMode,G,V,timer,epoch=0;
 const $=id=>document.getElementById(id),say=t=>$('status').textContent=t,esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function start(){if(!host||G&&!G.end||seats.length<2)return;
+function start(){if(!host||G&&!G.end||seats.length<2||seats.some(seat=>seat.offline))return;
 if (mode === 2) {
   blackjackBank ??= seats.map(() => startingChips);
   G = {
@@ -36,75 +37,132 @@ if (mode === 2) {
   sync();
   return;
 }
-G={deck:shuffle(Array.from({length:mode===1?54:52},(_,i)=>i)),hands:seats.map(()=>[]),turn:0,board:[],dealer:[],pile:[],end:'',log:'',stalls:0};for(let h of G.hands)for(let i=0;i<(mode===1?7:2);i++)h.push(G.deck.pop());if(mode===0)initPoker();if(mode===1)beginOneCard();sync()}
+G={deck:shuffle(Array.from({length:mode===1?54:52},(_,i)=>i)),hands:seats.map(()=>[]),turn:0,board:[],dealer:[],pile:[],end:'',log:'',stalls:0};if (mode === 0) initPoker();
+else {
+  for (const hand of G.hands) for (let i = 0; i < 7; i++) hand.push(G.deck.pop());
+  beginOneCard();
+}
+sync()}
 function initPoker() {
-  if (!match || match.round === matchLength) {
-    match = {round: 0, wins: seats.map(() => 0)};
+  if (!match || match.round === matchLength || match.chips.filter(chips => chips > 0).length < 2) {
+    match = {round:0, wins:seats.map(() => 0), chips:seats.map(() => startingChips)};
   }
   match.round++;
+  const folded = match.chips.map(chips => chips === 0);
+  for (const [i, hand] of G.hands.entries()) {
+    if (!folded[i]) hand.push(G.deck.pop(), G.deck.pop());
+  }
   G.board = G.deck.splice(-3);
+  const paid = match.chips.map((chips, i) => {
+    const ante = Math.min(chips, 20);
+    match.chips[i] -= ante;
+    return ante;
+  });
   G.poker = {
-    phase: 'decisions',
-    folded: seats.map(() => false), pressed: seats.map(() => false),
-    pressure: false, reveal: false, pending: [], token: ++turnToken
+    folded, paid, bets:seats.map(() => 0), current:0, reveal:false, pending:[], token:++turnToken
   };
-  pokerQueue(seats.map((_, i) => i), (match.round - 1) % seats.length);
+  nextPokerStreet();
 }
-function pokerQueue(players, first) {
-  const order = seats.map((_, offset) => (first + offset) % seats.length);
-  G.poker.pending = order.filter(i => players.includes(i));
-  G.turn = G.poker.pending[0];
+function pokerOrder(first) {
+  return seats.map((_, offset) => (first + offset) % seats.length);
 }
 function livePokerPlayers() {
   return seats.map((_, i) => i).filter(i => !G.poker.folded[i]);
 }
-function finishPoker(players) {
-  const table = G.poker;
-  let winners = players, handLabel = '';
-  if (players.length > 1) {
-    table.reveal = true;
-    const scores = players.map(i => poker([...G.hands[i], ...G.board]));
-    const best = Math.max(...scores);
-    winners = players.filter((_, i) => scores[i] === best);
-    handLabel = ' · ' + ['하이 카드','원 페어','투 페어','트리플','스트레이트','플러시','풀 하우스','포 카드','스트레이트 플러시'][Math.floor(best/15**5)];
+function advancePoker() {
+  if (livePokerPlayers().length <= 1 || G.board.length === 5) finishPoker();
+  else {
+    G.board.push(G.deck.pop());
+    nextPokerStreet();
   }
+}
+function nextPokerStreet() {
+  const table = G.poker;
+  table.current = 0;
+  table.bets.fill(0);
+  table.pending = pokerOrder(0).filter(i => !table.folded[i] && match.chips[i] > 0);
+  if (table.pending.length <= 1) advancePoker();
+  else G.turn = table.pending[0];
+}
+function settlePots(paid, scores, folded) {
+  const winnings = paid.map(() => 0);
+  const winners = new Set();
+  const levels = [...new Set(paid.filter(amount => amount > 0))].sort((a,b) => a-b);
+  let previous = 0;
+  for (const level of levels) {
+    const contributors = paid.map((_, i) => i).filter(i => paid[i] >= level);
+    const layer = level - previous;
+    previous = level;
+    const eligible = contributors.filter(i => !folded[i]);
+    if (contributors.length === 1 || !eligible.length) {
+      for (const i of contributors) winnings[i] += layer;
+      continue;
+    }
+    const best = Math.max(...eligible.map(i => scores[i]));
+    const tied = eligible.filter(i => scores[i] === best);
+    const pot = layer * contributors.length;
+    tied.forEach((i, index) => {
+      winnings[i] += Math.floor(pot / tied.length) + Number(index < pot % tied.length);
+      winners.add(i);
+    });
+  }
+  return {winnings, winners};
+}
+function finishPoker() {
+  const table = G.poker, players = livePokerPlayers();
+  table.reveal = players.length > 1;
+  while (G.board.length < 5) G.board.push(G.deck.pop());
+  const scores = seats.map((_, i) => table.reveal && !table.folded[i] ? poker([...G.hands[i], ...G.board]) : 0);
+  const {winnings, winners} = settlePots(table.paid, scores, table.folded);
+  if (players.length === 1) winners.add(players[0]);
+  G.end = [...winners].map(i => seats[i].name + ' · ' + winnings[i] + '칩 획득').join(' / ');
   for (const i of winners) match.wins[i]++;
-  G.end = winners.map(i => seats[i].name).join(' · ') +
-    (winners.length > 1 ? ' 공동 승리' : ' 승리') + handLabel;
+  winnings.forEach((amount, i) => { match.chips[i] += amount; });
 }
 function playPoker(i, move) {
   const table = G.poker;
   if (!move || move.token !== table.token) return false;
-  const action = move.action;
-  const allowed = table.pressure ? ['call', 'fold'] : ['check', 'press'];
-  if (!allowed.includes(action) || action === 'press' && table.pressed[i]) return false;
-  if (action === 'fold') table.folded[i] = true;
-  if (action === 'press') {
-    table.pressure = true;
-    table.pressed[i] = true;
-    pokerQueue(livePokerPlayers().filter(index => index !== i), (i + 1) % seats.length);
-    G.log = seats[i].name + ' · 압박';
-    table.token = ++turnToken;
-    return true;
-  }
-  G.log = seats[i].name + ' · ' + {fold:'폴드', call:'따라가기', check:'체크'}[action];
+  const {action} = move;
+  const balance = match.chips[i], bet = table.bets[i];
+  const toCall = table.current - bet;
+  let payment = 0, label;
+  if (action === 'fold') {
+    table.folded[i] = true;
+    label = '폴드';
+  } else if (action === 'check-call') {
+    payment = Math.min(toCall, balance);
+    label = payment ? '콜 ' + payment + '칩' : '체크';
+  } else if (action === 'all-in') {
+    payment = balance;
+    label = '올인 ' + payment + '칩';
+  } else if (Number.isSafeInteger(action) && action <= bet + balance &&
+      action >= table.current + betStep && (action - table.current) % betStep === 0) {
+    payment = action - bet;
+    label = (table.current ? '레이즈 ' : '베팅 ') + action + '칩';
+  } else return false;
 
-  table.token = ++turnToken;
+  match.chips[i] -= payment;
+  table.bets[i] += payment;
+  table.paid[i] += payment;
   table.pending.shift();
-  const players = livePokerPlayers();
-  if (players.length === 1) finishPoker(players);
+  if (table.bets[i] > table.current) {
+    table.current = table.bets[i];
+    table.pending = pokerOrder(i + 1).filter(j =>
+      j !== i && !table.folded[j] && match.chips[j] > 0 && table.bets[j] < table.current);
+  }
+  G.log = seats[i].name + ' · ' + label;
+  table.token = ++turnToken;
+  if (livePokerPlayers().length === 1) finishPoker();
   else if (table.pending.length) G.turn = table.pending[0];
-  else if (G.board.length < 5) {
-    G.board.push(G.deck.pop());
-    table.pressure = false;
-    pokerQueue(players, (match.round + G.board.length - 4) % seats.length);
-  } else finishPoker(players);
+  else advancePoker();
   return true;
 }
 function pokerBotMove() {
-  const table = G.poker, i = G.turn;
-  if (table.pressure) return Math.random() < .25 ? 'fold' : 'call';
-  return !table.pressed[i] && Math.random() < .3 ? 'press' : 'check';
+  const table = G.poker, i = G.turn, call = table.current - table.bets[i];
+  const category = Math.floor(poker([...G.hands[i], ...G.board]) / 15**5);
+  if (call) return category < 1 && call > 50 ? 'fold' : 'check-call';
+  if (category >= 1 && match.chips[i] >= betStep && Math.random() < .45) return betStep;
+  return 'check-call';
 }
 function blackjackBet(i, amount) {
   const balance = blackjackBank[i];
@@ -125,6 +183,12 @@ function dealBlackjack() {
   }
   G.dealer = [G.deck.pop(), G.deck.pop()];
   nextBJ();
+}
+function scoreText(hand) {
+  const score = total(hand);
+  const low = hand.reduce((sum, card) =>
+    sum + (rank(card) === 14 ? 1 : Math.min(rank(card), 10)), 0);
+  return low < score ? low + '점 또는 ' + score + '점' : score + '점';
 }
 function nextBJ() {
   while (G.turn < seats.length && (!G.bets[G.turn] || total(G.hands[G.turn]) >= 21)) G.turn++;
@@ -155,7 +219,12 @@ function nextBJ() {
     const change = payout - bet;
     return seat.name + ' ' + score + '점 · ' + label + ' (' + (change > 0 ? '+' : '') + change + '칩)';
   }).join(' / ');
-  G.log = '딜러 ' + dealerTotal + '점';
+  const draws = Math.max(0, G.dealer.length - 2);
+  const reason = dealerNatural ? '첫 두 장으로 블랙잭' :
+    G.hands.every(hand => !hand.length || total(hand) > 21) ? '비교할 플레이어가 없어 추가 카드 없이 종료' :
+    (draws ? '17점 미만에서 ' + draws + '장 뽑음 · ' : '') +
+    (dealerTotal > 21 ? '버스트' : '17점 이상이라 멈춤');
+  G.log = '딜러 ' + scoreText(G.dealer) + ' · ' + reason;
 }
 function resetBlackjackBank() {
   if (!host || mode !== 2 || !G?.end) return;
@@ -182,7 +251,7 @@ function beginOneCard() {
   // Deal a plain opening card so special actions always belong to a player.
   const i = G.deck.findIndex(c => c < blackJoker && [4,5,6,8,9,10].includes(rank(c)));
   G.pile = G.deck.splice(i < 0 ? G.deck.length - 1 : i, 1);
-  G.one = {penalty:0, direction:1, suit:suit(G.pile[0]), choosing:false};
+  G.one = {penalty:0, direction:1, suit:suit(G.pile[0]), choosing:false, history:[]};
 }
 function nextOneSeat(steps) {
   const n = seats.length;
@@ -205,6 +274,7 @@ function playOneCard(action) {
     G.log = name + ' · ' + got + '장 뽑기';
     G.stalls = got ? 0 : G.stalls + 1;
     if (G.stalls >= seats.length) G.end = '덱 소진 · 무승부';
+    if (state.penalty) recordAttack(state, name + ' ' + got + '장 뽑음');
     state.penalty = 0;
     nextOneSeat(1);
     return true;
@@ -217,14 +287,25 @@ function playOneCard(action) {
   G.stalls = 0;
   state.suit = c < blackJoker ? suit(c) : null;
   G.log = name + ' · ' + (c === blackJoker ? '흑백 조커' : c === colorJoker ? '컬러 조커' : face(c)+suits[suit(c)]);
+  if (attackValue(c)) {
+    if (!state.penalty) state.history = [];
+    state.penalty += attackValue(c);
+    recordAttack(state, G.log + ' (+' + attackValue(c) + '장) · 누적 ' + state.penalty + '장');
+  } else if (rank(c) === 3 && state.penalty) {
+    state.penalty = 0;
+    G.log += ' · 방어';
+    recordAttack(state, G.log);
+  }
   if (!hand.length) { G.end = name + ' 승리!'; return true; }
-  if (attackValue(c)) state.penalty += attackValue(c);
-  else if (rank(c) === 3 && state.penalty) { state.penalty = 0; G.log += ' · 방어'; }
-  else if (rank(c) === 7) { state.choosing = true; return true; }
+  if (rank(c) === 7) { state.choosing = true; return true; }
   else if (rank(c) === 13) { G.log += ' · 한 번 더'; return true; }
   else if (rank(c) === 12) state.direction *= -1;
   nextOneSeat(c < blackJoker && rank(c) === 11 ? 2 : 1);
   return true;
+}
+function recordAttack(state, line) {
+  state.history.push(line);
+  if (state.history.length > 8) state.history.shift();
 }
 function oneBotMove(hand) {
   if (G.one.choosing) {
@@ -241,7 +322,7 @@ function oneControls(g) {
   return '<button onclick="cmd(\'draw\')">'+(g.one.penalty ? '공격 받기 · '+g.one.penalty+'장' : '한 장 뽑기')+'</button>';
 }
 function act(id, move) {
-  if (!host || !G || G.end) return;
+  if (!host || !G || G.end || seats.some(seat => seat.offline)) return;
   if (mode === 2) {
     if (move?.token !== G.token) return;
     if (G.phase === 'betting') {
@@ -261,7 +342,7 @@ function act(id, move) {
   }
   sync();
 }
-function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats,solo,match,bank:blackjackBank,game:G&&{phase:G.phase,token:G.token,bets:G.bets,one:G.one,poker:G.poker,hand:G.hands[i],counts:G.hands.map(h=>h.length),revealed:G.end&&mode!==1?G.hands.map((h,k)=>mode===2||G.poker.reveal&&!G.poker.folded[k]?h:null):null,turn:G.turn,board:G.board,top:G.pile.at(-1),dealer:G.end?G.dealer:G.dealer.slice(0,1),end:G.end,log:G.log}}}
+function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats:seats.map(({id,name,bot,offline})=>({id,name,bot,offline})),solo,match,bank:blackjackBank,game:G&&{phase:G.phase,token:G.token,bets:G.bets,one:G.one,poker:G.poker,hand:G.hands[i],counts:G.hands.map(h=>h.length),revealed:G.end&&mode!==1?G.hands.map((h,k)=>mode===2||G.poker.reveal&&!G.poker.folded[k]?h:null):null,turn:G.turn,board:G.board,top:G.pile.at(-1),dealer:G.end?G.dealer:G.dealer.slice(0,1),end:G.end,log:G.log}}}
 function sync() {
   clearTimeout(timer);
   V = project(me);
@@ -269,7 +350,7 @@ function sync() {
   for (const [id, connection] of connections) {
     if (connection.open) connection.send(project(id));
   }
-  if (G && !G.end && seats[G.turn]?.bot) {
+  if (G && !G.end && seats[G.turn]?.bot && !seats.some(seat=>seat.offline)) {
     timer = setTimeout(() => {
       const hand = G.hands[G.turn];
       const move = mode === 0 ? {action:pokerBotMove(), token:G.poker.token} :
@@ -280,60 +361,238 @@ function sync() {
 }
 function cmd(action) {
   const game = V.game;
+  if (!game || V.seats.some(seat=>seat.offline)) return;
   if (V.mode === 0) action = {action, token:game.poker.token};
   if (V.mode === 2) action = {action, token:game.token};
   if (host) act(me, action);
   else if (link?.open) link.send({action});
 }
-function leave(returnToMain = true){epoch++;clearTimeout(timer);let p=peer;peer=link=null;connections=new Map();seats=[];host=solo=false;room='';me='host';G=V=match=blackjackBank=null;p?.destroy();if (returnToMain && fromMain) { location.replace('../real-game/'); return; } home();say('')}
-function gamePicker() {
-  if (!initialMode) {
-    return '<div class="row">' + titles.map((title, i) =>
-      '<button class="' + (mode === i ? 'chosen' : '') + '" onclick="mode=' + i +
-      ';home()">' + title + '</button>').join('') + '</div>';
+function leave() {
+  if (!host && link?.open) {
+    link.send({leave:true});
+    const departing = peer;
+    peer = null;
+    setTimeout(() => departing.destroy(), 350);
   }
-  const links = [
-    ['../real-game/', '홀덤'], ['?game=one-card', '원카드'], ['?game=blackjack', '블랙잭']
-  ];
-  return '<nav aria-label="게임 선택" class="game-nav">' + links.map(([url, title], i) =>
-    i === initialMode ? '<span aria-current="page">' + title + '</span>' :
-      '<a href="' + url + '">' + title + '</a>').join('') + '</nav>';
+  if (room && !host) sessionStorage.removeItem(ticketKey(room));
+  resetRoom();
+  history.replaceState(null, '', location.pathname);
+  home();
+  say('');
+}
+function resetRoom() {
+  epoch++;
+  clearTimeout(timer);
+  clearTimeout(reconnectTimer);
+  seats.forEach(seat => clearTimeout(seat.expiry));
+  const client = peer;
+  peer = link = null;
+  connections = new Map();
+  seats = [];
+  host = solo = false;
+  room = '';
+  me = 'host';
+  G = V = match = blackjackBank = null;
+  alerted = false;
+  client?.destroy();
+}
+function gamePicker() {
+  return '<div class="row">' + titles.map((title, i) => '<button class="' +
+    (mode === i ? 'chosen' : '') + '" onclick="mode=' + i + ';home()">' + title + '</button>').join('') + '</div>';
 }
 function home(){let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div><div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
 const nick=()=>$('name').value.trim().slice(0,12)||'플레이어';
 function waiting(){ $('view').innerHTML='<h2>테이블 연결 중…</h2><button onclick="leave()">돌아가기</button>';say('')}
-function netFail(t){leave(false);say(t)}
-const peerRoomId = code => (Number(code)>=400000 && Number(code)<700000?'kr-onecard-v5-':Number(code)>=700000?'kr-blackjack-v6-':'kr-clubroom-table-v4-') + code;
-function create(local){let name=nick();if(!local&&!window.Peer)return say('멀티 연결 모듈을 불러오지 못했어요. 새로고침해 주세요.');host=true;solo=local;seats=[{id:me,name}];if(local){seats.push({id:'bot',name:'클로버 봇',bot:true});start();return}let e=epoch;room=String(Math.floor(100000+mode*300000+Math.random()*300000));waiting();peer=new Peer(peerRoomId(room));peer.on('open',()=>{if(e===epoch)sync()});peer.on('error',err=>{if(e===epoch&&err.type!=='peer-unavailable')netFail('방 연결 실패 · 다시 시도해 주세요.')});peer.on('connection',c=>{c.on('data',m=>{if(e!==epoch||!m)return;if(!connections.has(c.peer)){if(m.join!==true)return;if(G||seats.length>=4){c.send({error:'게임 중이거나 자리가 가득 찼어요.'});return}connections.set(c.peer,c);seats.push({id:c.peer,name:String(m.name||'친구').slice(0,12)});sync()}else if(connections.get(c.peer)===c)act(c.peer,m.action)});c.on('close',()=>{if(e!==epoch||connections.get(c.peer)!==c)return;connections.delete(c.peer);seats=seats.filter(s=>s.id!==c.peer);G=match=blackjackBank=null;sync();say('친구가 나가 대기실로 돌아왔어요.')})})}
-function join(){let code=$('code').value.trim(),name=nick();if(!/^\d{6}$/.test(code))return say('방 코드 숫자 6자리를 입력해 주세요.');if(!window.Peer)return say('멀티 연결 모듈을 불러오지 못했어요.');let e=epoch;waiting();peer=new Peer();timer=setTimeout(()=>{if(e===epoch&&!V)netFail('연결 시간이 초과됐어요. 방 코드와 네트워크를 확인해 주세요.')},18000);peer.on('error',()=>{if(e===epoch)netFail('방에 연결할 수 없어요. 방 코드를 확인해 주세요.')});peer.on('open',()=>{if(e!==epoch)return;link=peer.connect(peerRoomId(code),{reliable:true});link.on('open',()=>link.send({join:true,name}));link.on('close',()=>{if(e===epoch)netFail('방 연결이 종료됐어요.')});link.on('data',v=>{if(e!==epoch)return;if(v.error)return netFail(v.error);clearTimeout(timer);V=v;me=v.id;render()})})}
+function netFail(message) {
+  resetRoom();
+  home();
+  const code = queryRoom();
+  if (code) $('code').value = code;
+  say(message);
+}
+const reconnectWindow = 60000;
+let reconnectTimer, guestDeadline, guestAttempt = 0;
+let guestTicket = '', guestName = '';
+const peerRoomId = code => 'kr-clubroom-v7-' + code;
+const ticketKey = code => 'clubroom-seat-' + code;
+const invitesUrl = () => new URL('?room=' + room, location.href).href;
+
+function changeGame(nextMode) {
+  if (!host || seats.some(seat => seat.offline) || G && !G.end || nextMode === mode || ![0,1,2].includes(nextMode)) return;
+  mode = nextMode;
+  G = match = blackjackBank = null;
+  sync();
+}
+async function shareRoom() {
+  const url = invitesUrl();
+  try {
+    if (navigator.share) {
+      await navigator.share({title:'카드룸 초대', url});
+    } else {
+      await navigator.clipboard.writeText(url);
+      say('참가 링크를 복사했어요.');
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError') say('참가 링크 · ' + url);
+  }
+}
+function removeSeat(seat) {
+  clearTimeout(seat.expiry);
+  connections.delete(seat.id);
+  seats = seats.filter(entry => entry !== seat);
+  G = match = blackjackBank = null;
+  sync();
+  say(seat.name + ' 님이 나가 대기실로 돌아왔어요.');
+}
+function acceptGuest(connection, generation) {
+  let seat;
+  function disconnect() {
+    if (generation !== epoch || !seat || connections.get(seat.id) !== connection) return;
+    connections.delete(seat.id);
+    seat.offline = true;
+    seat.expiry = setTimeout(() => removeSeat(seat), reconnectWindow);
+    sync();
+  }
+  connection.on('close', disconnect);
+  connection.on('error', disconnect);
+  connection.on('data', message => {
+    if (generation !== epoch || !message) return;
+    if (seat && connections.get(seat.id) === connection) {
+      if (message.leave) removeSeat(seat);
+      else act(seat.id, message.action);
+      return;
+    }
+    if (!message.join || seat || typeof message.ticket !== 'string' ||
+        !/^[a-f0-9-]{36}$/i.test(message.ticket)) return;
+    seat = seats.find(entry => entry.ticket === message.ticket);
+    if (!seat) {
+      if (G || seats.length >= 4) {
+        connection.send({error:'게임 중이거나 자리가 가득 찼어요.'});
+        return;
+      }
+      seat = {id:connection.peer, ticket:message.ticket, name:String(message.name || '친구').slice(0,12)};
+      seats.push(seat);
+    }
+    const previous = connections.get(seat.id);
+    connections.set(seat.id, connection);
+    if (previous && previous !== connection) previous.close();
+    clearTimeout(seat.expiry);
+    seat.offline = false;
+    sync();
+  });
+}
+function create(local) {
+  prepareAudio();
+  if (!local && !window.Peer) return say('멀티 연결 모듈을 불러오지 못했어요. 새로고침해 주세요.');
+  host = true;
+  solo = local;
+  seats = [{id:me,name:nick()}];
+  if (local) {
+    seats.push({id:'bot',name:'클로버 봇',bot:true});
+    start();
+    return;
+  }
+  const generation = epoch;
+  room = String(100000 + Math.floor(Math.random() * 900000));
+  waiting();
+  peer = new Peer(peerRoomId(room));
+  timer = setTimeout(() => netFail('방을 열지 못했어요. 다시 시도해 주세요.'), 18000);
+  peer.on('open', () => { if (generation === epoch) sync(); });
+  peer.on('disconnected', () => { if (generation === epoch && !peer.destroyed) peer.reconnect(); });
+  peer.on('error', () => {
+    if (generation === epoch && !V) netFail('방 연결 실패 · 다시 시도해 주세요.');
+  });
+  peer.on('connection', connection => acceptGuest(connection, generation));
+}
+function reconnectGuest() {
+  clearTimeout(reconnectTimer);
+  if (Date.now() >= guestDeadline) return netFail('방에 다시 연결할 수 없어요. 방 코드와 네트워크를 확인해 주세요.');
+  reconnectTimer = setTimeout(connectGuest, 1500);
+}
+function connectGuest() {
+  const generation = epoch, attempt = ++guestAttempt;
+  peer?.destroy();
+  link = null;
+  const client = peer = new Peer();
+  let failed = false;
+  const current = () => generation === epoch && attempt === guestAttempt && !failed;
+  function retry() {
+    if (!current()) return;
+    failed = true;
+    if (!guestDeadline) guestDeadline = Date.now() + reconnectWindow;
+    if (V) say('연결이 끊겼어요. 원래 자리로 다시 연결하는 중…');
+    reconnectGuest();
+  }
+  reconnectTimer = setTimeout(retry, 8000);
+  client.on('error', retry);
+  client.on('open', () => {
+    if (!current()) return;
+    const connection = link = client.connect(peerRoomId(room), {reliable:true});
+    connection.on('open', () => {
+      if (current()) connection.send({join:true,name:guestName,ticket:guestTicket});
+    });
+    connection.on('close', retry);
+    connection.on('error', retry);
+    connection.on('data', state => {
+      if (!current()) return;
+      if (state.error) return netFail(state.error);
+      clearTimeout(reconnectTimer);
+      guestDeadline = 0;
+      V = state;
+      me = state.id;
+      say('');
+      render();
+    });
+  });
+}
+function join() {
+  const code = $('code').value.trim();
+  if (!/^\d{6}$/.test(code)) return say('방 코드 숫자 6자리를 입력해 주세요.');
+  if (!window.Peer) return say('멀티 연결 모듈을 불러오지 못했어요. 새로고침해 주세요.');
+  prepareAudio();
+  guestName = nick();
+  guestTicket = sessionStorage.getItem(ticketKey(code)) || crypto.randomUUID();
+  const returning = sessionStorage.getItem(ticketKey(code)) === guestTicket;
+  sessionStorage.setItem(ticketKey(code), guestTicket);
+  room = code;
+  guestDeadline = Date.now() + (returning ? reconnectWindow : 18000);
+  history.replaceState(null, '', '?room=' + code);
+  waiting();
+  connectGuest();
+}
 function card(c,action,disabled){let tag=action===undefined?'span':'button';return '<'+tag+' class="card '+(c===colorJoker||[1,2].includes(suit(c))?'red':'')+'" '+(tag==='button'?'onclick="cmd('+action+')" '+(disabled?'disabled':''):'')+'>'+(c>=blackJoker?'<small style="font:700 14px system-ui;color:inherit">'+(c===blackJoker?'흑조':'컬조')+'</small>':face(c))+'<i>'+(c>=blackJoker?'★':suits[suit(c)])+'</i></'+tag+'>'}
 const cards=h=>'<div class="cards">'+h.map(c=>card(c)).join('')+'</div>';
-function pokerButton(action, label, disabled = false) {
-  return '<button ' + (disabled ? 'disabled ' : '') +
-    "onclick='cmd(" + JSON.stringify(action) + ")'>" + label + '</button>';
-}
 function pokerControls(table, player) {
-  let prompt, buttons;
-  if (table.pressure) {
-    prompt = '따라가서 승부를 이어가거나, 폴드로 이번 판에서 빠지세요.';
-    buttons = pokerButton('call', '따라가기') + pokerButton('fold', '폴드');
-  } else {
-    prompt = '체크로 넘기거나 압박을 선언하세요. 압박은 한 판에 한 번입니다.';
-    buttons = pokerButton('check', '체크') + pokerButton('press', '압박', table.pressed[player]);
-  }
-  return '<p>' + prompt + '</p><div class="row">' + buttons + '</div>';
+  const balance = V.match.chips[player], already = table.bets[player];
+  const call = table.current - already, min = table.current + betStep;
+  const max = table.current + Math.floor((balance + already - table.current) / betStep) * betStep;
+  const action = table.current ? '레이즈' : '베팅';
+  selectedPokerBet = min;
+  let html = '<div class="row"><button class="primary" onclick="cmd(\'check-call\')">' +
+    (call ? '콜 (' + Math.min(call, balance) + '칩)' : '체크 (0)') +
+    '</button><button onclick="cmd(\'fold\')">폴드</button>' +
+    '<button onclick="cmd(\'all-in\')">올인 (' + balance + '칩)</button></div>';
+  if (max >= min) html += '<div class="row bet-row"><button onclick="updatePokerBet(selectedPokerBet-50)">−50</button>' +
+    '<input id="poker-bet" type="range" aria-label="베팅 금액" min="' + min + '" max="' + max +
+    '" step="50" value="' + min + '" oninput="updatePokerBet(Number(this.value))">' +
+    '<button onclick="updatePokerBet(selectedPokerBet+50)">+50</button>' +
+    '<button class="primary" id="poker-submit" onclick="cmd(selectedPokerBet)">' + action + ' (' + min + '칩)</button></div>';
+  return html;
+}
+function updatePokerBet(amount) {
+  const slider = $('poker-bet');
+  selectedPokerBet = Math.max(Number(slider.min), Math.min(Number(slider.max), amount));
+  slider.value = selectedPokerBet;
+  const action = V.game.poker.current ? '레이즈' : '베팅';
+  $('poker-submit').textContent = action + ' (' + selectedPokerBet + '칩)';
 }
 function pokerStandings(view) {
   const {match, seats, game} = view;
-  const finished = match.round === matchLength && game.end;
-  const compare = (a,b) => match.wins[b] - match.wins[a];
-  const order = seats.map((_,i) => i).sort(compare);
-  let rank = 1;
-  return '<div class="panel"><h3>'+(finished?'5판 최종 순위':'현재 순위')+'</h3><div class="row">' +
-    order.map((i, position) => {
-      if (position && compare(order[position-1], i)) rank = position + 1;
-      return '<span class="seat">'+rank+'위 '+esc(seats[i].name)+' · '+match.wins[i]+'승</span>';
-    }).join('') + '</div></div>';
+  const finished = (match.round === matchLength || match.chips.filter(chips => chips > 0).length < 2) && game.end;
+  const order = seats.map((_, i) => i).sort((a,b) => match.chips[b]-match.chips[a] || match.wins[b]-match.wins[a]);
+  return '<div class="panel"><h3>' + (finished ? '최종 순위' : '현재 순위') + '</h3><div class="row">' +
+    order.map(i => '<span class="seat">' + esc(seats[i].name) + ' · ' + match.chips[i] +
+      '칩 · ' + match.wins[i] + '승</span>').join('') + '</div></div>';
 }
 function updateBlackjackBet(amount) {
   const slider = $('blackjack-bet');
@@ -362,21 +621,134 @@ function renderBlackjackBets(view, player) {
   }
   return html + '</div>';
 }
-function render(){let {seats:ss,game:g,mode:m}=V,my=ss.findIndex(s=>s.id===me),turn=g&&!g.end&&g.turn===my;let html='<div class="hero"><h2>'+titles[m]+'</h2><button onclick="leave()">나가기</button></div><p>'+ (V.solo?'연습 테이블':'방 코드 <b>'+esc(V.room)+'</b>')+'</p><div class="row">'+ss.map((s,i)=>'<span class="seat '+(g&&!g.end&&g.turn===i?'active':'')+'">'+esc(s.name)+(i===my?' (나)':'')+(m===2&&V.bank?' · '+V.bank[i]+'칩':'')+(g&&g.phase!=='betting'?' · '+g.counts[i]+'장':'')+(m===0&&g?.poker.folded[i]?' · 폴드':'')+'</span>').join('')+'</div>';if(m===2&&g?.phase==='betting'){ $('view').innerHTML=html+renderBlackjackBets(V,my); return; }if(!g)html+='<div class="panel"><h2>친구를 기다리는 중</h2><p>같은 게임 링크에서 방 코드를 입력하면 참가할 수 있어요. 2~4명이 모이면 시작하세요.</p>'+(host?'<button class="primary" onclick="start()" '+(ss.length<2?'disabled':'')+'>게임 시작</button>':'방장이 시작하면 카드가 배분돼요.')+'</div>';else{if(m===0)html+='<p><b>'+V.match.round+' / '+matchLength+'판</b></p>';html+='<div class="table"><small>'+['공용 카드','더미 맨 위','딜러'][m]+'</small>'+cards(m===0?g.board:m===1?[g.top]:g.dealer)+(m===1?'<p>'+ (g.one.suit==null?'자유 무늬':suits[g.one.suit]+' 무늬')+' · '+(g.one.direction===1?'정방향 →':'역방향 ←')+(g.one.penalty?' · 누적 공격 '+g.one.penalty+'장':'')+'</p>':'')+(m===2&&!g.end?'뒷면 카드 1장':'')+'</div><h2 aria-live="polite">'+(g.end?esc(g.end):turn?'내 차례':esc(ss[g.turn]?.name)+'의 차례')+'</h2><p>'+esc(g.log)+'</p><h3>내 패'+(m===2?' · '+total(g.hand)+'점':'')+'</h3>';html+='<div class="cards">'+g.hand.map((c,i)=>(m===1)&&turn?card(c,i,m===1&&(g.one.choosing||!legal(c,g.top,g.one))):card(c)).join('')+'</div>';if(turn)html+=m===0?pokerControls(g.poker,my):m===1?oneControls(g):'<div class="row"><button class="primary" onclick="cmd(\'hit\')">한 장 더</button><button onclick="cmd(\'stand\')">멈추기</button></div>';if(g.revealed)g.revealed.forEach((h,i)=>{if(h&&i!==my)html+='<h3>'+esc(ss[i].name)+'</h3>'+cards(h)});if(m===0)html+=pokerStandings(V);if(m===2&&g.end&&host&&V.bank.some(balance=>balance===0))
-  html+='<button onclick="resetBlackjackBank()">연습 칩 초기화 후 시작</button> ';
-if(g.end&&host&&(m!==2||V.bank.some(balance=>balance>0)))html+='<button class="primary" onclick="start()">'+(m===0&&V.match.round===matchLength?'새 5판 시작':'한 판 더')+'</button>'}html+='<details><summary>게임 규칙</summary><p>'+rules[m]+'</p></details>';$('view').innerHTML=html}
+let audio = null, alerted = false;
+let sound = localStorage.getItem('clubroom-sound') !== 'off';
+function prepareAudio() {
+  const Context = window.AudioContext || window.webkitAudioContext;
+  if (!sound || !Context) return;
+  audio ??= new Context();
+  audio.resume().catch(() => {});
+}
+function toggleSound() {
+  sound = !sound;
+  localStorage.setItem('clubroom-sound', sound ? 'on' : 'off');
+  prepareAudio();
+  render();
+}
+function signalTurn(turn) {
+  if (turn && !alerted && sound && audio?.state === 'running') {
+    const oscillator = audio.createOscillator(), gain = audio.createGain();
+    oscillator.frequency.value = 660;
+    gain.gain.value = .08;
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start();
+    oscillator.stop(audio.currentTime + .16);
+  }
+  alerted = turn;
+}
+function roomTools() {
+  return '<div class="row room-tools">' +
+    (V.solo ? '' : '<button onclick="shareRoom()">참가 링크 공유</button>') +
+    '<button onclick="toggleSound()" aria-pressed="' + sound + '">차례 소리 ' +
+    (sound ? '켜짐' : '꺼짐') + '</button></div>';
+}
+function switchControls() {
+  if (!host) return '<p>방장이 다음 게임을 정할 수 있어요.</p>';
+  return '<div class="row"><b>같은 방에서 게임 바꾸기</b>' + titles.map((title, i) =>
+    '<button onclick="changeGame(' + i + ')" ' + (V.mode === i ? 'disabled' : '') + '>' + title + '</button>').join('') + '</div>';
+}
+function attackHistory(g) {
+  const canBlock = g.one.penalty && attackValue(g.top) === 2;
+  if (!g.one.history.length) return '';
+  return '<div class="panel"><h3>공격 기록</h3><ol>' +
+    g.one.history.map(entry => '<li>' + esc(entry) + '</li>').join('') + '</ol>' +
+    (canBlock ? '<p>3을 내면 누적 공격을 막을 수 있어요.</p>' : '') + '</div>';
+}
+function render() {
+  const {seats:ss, game:g, mode:m} = V;
+  const my = ss.findIndex(seat => seat.id === me);
+  const offline = ss.some(seat => seat.offline);
+  const turn = Boolean(g && !g.end && g.turn === my && !offline);
+  signalTurn(turn);
+  let html = '<div class="hero"><h2>' + titles[m] + '</h2><button onclick="leave()">나가기</button></div>' +
+    '<p>' + (V.solo ? '연습 테이블' : '방 코드 <b>' + esc(V.room) + '</b>') + '</p>' + roomTools();
+  html += '<div class="row">' + ss.map((seat, i) => {
+    const balance = m === 2 ? V.bank?.[i] : m === 0 ? V.match?.chips[i] : undefined;
+    return '<span class="seat ' + (g && !g.end && g.turn === i ? 'active' : '') + '">' +
+      esc(seat.name) + (i === my ? ' (나)' : '') + (seat.offline ? ' · 재접속 대기' : '') +
+      (balance === undefined ? '' : ' · ' + balance + '칩') +
+      (g && g.phase !== 'betting' ? ' · ' + g.counts[i] + '장' : '') +
+      (m === 0 && g?.poker.folded[i] ? ' · 폴드' : '') + '</span>';
+  }).join('') + '</div>';
+  if (offline) html += '<p role="status">친구의 재접속을 기다리는 중이에요. 자리는 60초간 유지돼요.</p>';
+
+  if (!g) {
+    html += '<div class="panel"><h3>대기실</h3><p>친구는 방 코드나 참가 링크로 들어올 수 있어요. 2~4명이 모이면 시작하세요.</p>' +
+      (host ? '<button class="primary" onclick="start()" ' + (ss.length < 2 || offline ? 'disabled' : '') +
+      '>게임 시작</button>' : '방장이 시작하면 카드가 배분돼요.') + '</div>' + switchControls();
+  } else if (m === 2 && g.phase === 'betting') {
+    if (!offline) html += renderBlackjackBets(V, my);
+  } else {
+    if (m === 0) html += '<p><b>' + V.match.round + ' / ' + matchLength + '판</b> · 팟 ' +
+      (g.end ? 0 : g.poker.paid.reduce((sum, value) => sum + value, 0)) + '칩</p>';
+    const tableCards = m === 0 ? g.board : m === 1 ? [g.top] : g.dealer;
+    html += '<div class="table"><small>' + ['공용 카드','더미 맨 위','딜러'][m] + '</small>' + cards(tableCards);
+    if (m === 1) html += '<p>' + (g.one.suit == null ? '자유 무늬' : suits[g.one.suit] + ' 무늬') +
+      ' · ' + (g.one.direction === 1 ? '정방향 →' : '역방향 ←') +
+      (g.one.penalty ? ' · 누적 공격 ' + g.one.penalty + '장' : '') + '</p>';
+    if (m === 2 && !g.end) html += '공개 카드 ' + scoreText(g.dealer) + ' · 뒷면 카드 1장';
+    html += '</div><h2 class="' + (turn ? 'turn-alert' : '') + '" aria-live="polite">' +
+      (g.end ? esc(g.end) : offline ? '게임 일시 정지' : turn ? '내 차례' : esc(ss[g.turn]?.name) + '의 차례') +
+      '</h2><p>' + esc(g.log) + '</p><h3>내 패' + (m === 2 && g.hand.length ? ' · ' + scoreText(g.hand) : '') + '</h3>';
+    html += '<div class="cards">' + g.hand.map((c,i) =>
+      m === 1 && turn ? card(c,i,g.one.choosing || !legal(c,g.top,g.one)) : card(c)).join('') + '</div>';
+    if (m === 0 && !g.end && (turn || !V.solo)) {
+      html += '<fieldset ' + (turn ? '' : 'disabled') + '><legend>홀덤 베팅</legend>' +
+        pokerControls(g.poker,my) + '</fieldset>';
+    }
+    if (turn && m !== 0) html += m === 1 ? oneControls(g) :
+      '<div class="row"><button class="primary" onclick="cmd(\'hit\')">한 장 더</button><button onclick="cmd(\'stand\')">멈추기</button></div>';
+    if (m === 1) html += attackHistory(g);
+    if (g.revealed) g.revealed.forEach((hand,i) => {
+      if (hand?.length && i !== my) html += '<h3>' + esc(ss[i].name) +
+        (m === 2 ? ' · ' + scoreText(hand) : '') + '</h3>' + cards(hand);
+    });
+    if (m === 0) html += pokerStandings(V);
+    if (g.end) {
+      if (host && !offline) {
+        if (m === 2 && V.bank.some(balance => balance === 0)) {
+          html += '<button onclick="resetBlackjackBank()">연습 칩 초기화 후 시작</button> ';
+        }
+        if (m !== 2 || V.bank.some(balance => balance > 0)) {
+          html += '<button class="primary" onclick="start()">' +
+            (m === 0 && (V.match.round === matchLength || V.match.chips.filter(chips=>chips>0).length < 2) ?
+              '새 5판 시작' : '한 판 더') + '</button>';
+        }
+      }
+      html += switchControls();
+    }
+  }
+  $('view').innerHTML = html + '<details><summary>게임 규칙</summary><p>' + rules[m] + '</p></details>';
+}
+function queryRoom() {
+  const query = new URLSearchParams(location.search);
+  return query.get('room') || query.get('code') || '';
+}
 home();
 window.addEventListener('DOMContentLoaded', () => {
-  const query = new URLSearchParams(location.search);
-  const action = query.get('action');
-  if (!initialMode || !['create','join','solo'].includes(action)) return;
-  const code = query.get('code') || '';
-  history.replaceState(null, '', '?game=' + requestedGame);
-  $('name').value = sessionStorage.getItem('cardroom-nickname') || '';
-  if (action === 'join') {
+  const code = queryRoom();
+  if (code) {
     $('code').value = code;
-    join();
-  } else create(action === 'solo');
+    if (sessionStorage.getItem(ticketKey(code))) join();
+    else $('name').focus();
+    return;
+  }
+  const action = new URLSearchParams(location.search).get('action');
+  if (action === 'create' || action === 'solo') {
+    history.replaceState(null, '', '?game=' + (requestedGame || 'holdem'));
+    $('name').value = sessionStorage.getItem('cardroom-nickname') || '';
+    create(action === 'solo');
+  }
 });
+window.addEventListener('pointerdown', prepareAudio, {passive:true});
 </script></html>
-
