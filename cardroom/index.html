@@ -406,6 +406,7 @@ function act(id, move) {
 function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats:seats.map(({id,name,bot,offline})=>({id,name,bot,offline})),solo,match,bank:blackjackBank,game:G&&{phase:G.phase,token:G.token,bets:G.bets,blackjack:G.blackjack?.[i],handIndex:G.handIndex,blackjackResults:G.end&&G.blackjack?.map(player=>player.hands),one:G.one,poker:G.poker,hand:G.hands[i],counts:G.hands.map(h=>h.length),revealed:G.end&&mode!==1?G.hands.map((h,k)=>mode===2||G.poker.reveal&&!G.poker.folded[k]?h:null):null,turn:G.turn,board:G.board,top:G.pile.at(-1),dealer:G.end?G.dealer:G.dealer.slice(0,1),end:G.end,log:G.log}}}
 function sync() {
   clearTimeout(timer);
+  saveHostRoom();
   V = project(me);
   render();
   for (const [id, connection] of connections) {
@@ -429,6 +430,10 @@ function cmd(action) {
   else if (link?.open) link.send({action});
 }
 function leave() {
+  if (hostConnected && host && !solo && !saveHostRoom()) {
+    say('이 기기에 방을 저장할 수 없어요. 저장 공간이나 브라우저 설정을 확인해 주세요.');
+    return;
+  }
   if (!host && link?.open) {
     link.send({leave:true});
     const departing = peer;
@@ -451,18 +456,105 @@ function resetRoom() {
   peer = link = null;
   connections = new Map();
   seats = [];
-  host = solo = false;
+  host = solo = hostConnected = false;
   room = '';
   me = 'host';
   G = V = match = blackjackBank = null;
   alerted = false;
   client?.destroy();
 }
+const savedRoomKey = 'clubroom-host-snapshot-v1';
+let hostConnected = false;
+
+function savedHostRoom() {
+  try {
+    const value = JSON.parse(localStorage.getItem(savedRoomKey));
+    return value?.version === 1 && /^\d{6}$/.test(value.code) &&
+      [0,1,2].includes(value.mode) && value.seats?.[0]?.id === 'host' ? value : null;
+  } catch {
+    return null;
+  }
+}
+function saveHostRoom() {
+  if (!hostConnected || !host || solo || !room) return false;
+  try {
+    const metadata = seats.map(({id,name,ticket}) => ({id,name,ticket}));
+    localStorage.setItem(savedRoomKey, JSON.stringify({
+      version:1, code:room, mode, seats:metadata, game:G,
+      match, blackjackBank, turnToken
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function resumeHostRoom() {
+  if (host || room || peer) return;
+  const saved = savedHostRoom();
+  if (!saved) return say('저장된 방이 없어요.');
+  if (!window.Peer) return say('멀티 연결 모듈을 불러오지 못했어요. 새로고침해 주세요.');
+  prepareAudio();
+  host = true;
+  mode = saved.mode;
+  room = saved.code;
+  seats = saved.seats.map((seat,i) => ({...seat, offline:i > 0}));
+  G = saved.game;
+  match = saved.match;
+  blackjackBank = saved.blackjackBank;
+  turnToken = Math.max(turnToken, saved.turnToken);
+  if (G?.blackjack) {
+    G.hands = G.blackjack.map(player => player.hands[0]?.cards || []);
+  }
+  openHostRoom(true);
+}
+function openHostRoom(resuming) {
+  const generation = epoch, deadline = Date.now() + 18000;
+  waiting();
+  const failed = () => netFail(resuming ?
+    '저장한 방을 다시 열지 못했어요. 잠시 뒤 다시 시도해 주세요.' :
+    '방을 열지 못했어요. 다시 시도해 주세요.');
+  timer = setTimeout(failed, 18000);
+  function connect() {
+    if (generation !== epoch) return;
+    const client = peer = new Peer(peerRoomId(room));
+    const current = () => generation === epoch && peer === client;
+    client.on('open', () => {
+      if (!current()) return;
+      hostConnected = true;
+      const url = new URL(location.href);
+      url.searchParams.delete('game');
+      url.searchParams.set('hostRoom', room);
+      history.replaceState(null, '', url.href);
+      for (const seat of seats.filter(seat => seat.offline)) {
+        seat.expiry = setTimeout(() => removeSeat(seat), reconnectWindow);
+      }
+      sync();
+    });
+    client.on('disconnected', () => {
+      if (current() && !client.destroyed) client.reconnect();
+    });
+    client.on('error', error => {
+      if (!current() || hostConnected) return;
+      if (error.type !== 'unavailable-id' || Date.now() >= deadline) return failed();
+      client.destroy();
+      if (!resuming) room = String(100000 + Math.floor(Math.random() * 900000));
+      reconnectTimer = setTimeout(connect, 800);
+    });
+    client.on('connection', connection => acceptGuest(connection, generation));
+  }
+  connect();
+}
+function savedRoomControls() {
+  const saved = savedHostRoom();
+  if (!saved) return '';
+  return '<div class="panel"><p>저장된 방 <b>' + saved.code + '</b> · ' +
+    titles[saved.mode] + '</p><button class="primary" onclick="resumeHostRoom()">저장한 방 다시 열기</button></div>';
+}
 function gamePicker() {
   return '<div class="row">' + titles.map((title, i) => '<button class="' +
     (mode === i ? 'chosen' : '') + '" onclick="mode=' + i + ';home()">' + title + '</button>').join('') + '</div>';
 }
-function home(){ $('turn-bar').hidden=true; $('turn-bar').textContent=''; let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div><div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
+function home(){ $('turn-bar').hidden=true; $('turn-bar').textContent=''; let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div>'+savedRoomControls()+'<div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
 const nick=()=>$('name').value.trim().slice(0,12)||'플레이어';
 function waiting(){ $('view').innerHTML='<h2>테이블 연결 중…</h2><button onclick="leave()">돌아가기</button>';say('')}
 function netFail(message) {
@@ -502,6 +594,7 @@ async function shareRoom() {
 function removeSeat(seat) {
   clearTimeout(seat.expiry);
   connections.delete(seat.id);
+  if (!seats.includes(seat)) return;
   seats = seats.filter(entry => entry !== seat);
   G = match = blackjackBank = null;
   sync();
@@ -547,6 +640,9 @@ function acceptGuest(connection, generation) {
 function create(local) {
   prepareAudio();
   if (!local && !window.Peer) return say('멀티 연결 모듈을 불러오지 못했어요. 새로고침해 주세요.');
+  if (!local && savedHostRoom()) {
+    if (!window.confirm('저장된 방을 새 방으로 바꿀까요?')) return;
+  }
   host = true;
   solo = local;
   seats = [{id:me,name:nick()}];
@@ -555,17 +651,8 @@ function create(local) {
     start();
     return;
   }
-  const generation = epoch;
   room = String(100000 + Math.floor(Math.random() * 900000));
-  waiting();
-  peer = new Peer(peerRoomId(room));
-  timer = setTimeout(() => netFail('방을 열지 못했어요. 다시 시도해 주세요.'), 18000);
-  peer.on('open', () => { if (generation === epoch) sync(); });
-  peer.on('disconnected', () => { if (generation === epoch && !peer.destroyed) peer.reconnect(); });
-  peer.on('error', () => {
-    if (generation === epoch && !V) netFail('방 연결 실패 · 다시 시도해 주세요.');
-  });
-  peer.on('connection', connection => acceptGuest(connection, generation));
+  openHostRoom(false);
 }
 function reconnectGuest() {
   clearTimeout(reconnectTimer);
@@ -764,7 +851,8 @@ function render() {
   const turn = Boolean(g && !g.end && g.turn === my && !offline);
   signalTurn(turn);
   renderTurnBanner(g, ss, my, offline, turn);
-  let html = '<div class="hero"><h2>' + titles[m] + '</h2><button onclick="leave()">나가기</button></div>' +
+  let html = '<div class="hero"><h2>' + titles[m] + '</h2><button onclick="leave()">' +
+    (host && !V.solo ? '방 저장하고 나가기' : '나가기') + '</button></div>' +
     '<p>' + (V.solo ? '연습 테이블' : '방 코드 <b>' + esc(V.room) + '</b>') + '</p>' + roomTools();
   html += '<div class="row">' + ss.map((seat, i) => {
     const balance = m === 2 ? V.bank?.[i] : m === 0 ? V.match?.chips[i] : undefined;
@@ -893,6 +981,11 @@ home();
 window.addEventListener('DOMContentLoaded', () => {
   restoreUpdateDraft();
   checkAppUpdate();
+  const hostCode = new URLSearchParams(location.search).get('hostRoom');
+  if (hostCode && savedHostRoom()?.code === hostCode) {
+    resumeHostRoom();
+    return;
+  }
   const code = queryRoom();
   if (code) {
     $('code').value = code;
@@ -907,6 +1000,7 @@ window.addEventListener('DOMContentLoaded', () => {
     create(action === 'solo');
   }
 });
+window.addEventListener('pagehide', saveHostRoom);
 window.addEventListener('focus', checkAppUpdate);
 window.addEventListener('pageshow', checkAppUpdate);
 window.addEventListener('online', checkAppUpdate);
