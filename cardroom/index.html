@@ -724,7 +724,10 @@ function create(local) {
   solo = local;
   seats = [{id:me,name:nick()}];
   if (local) {
-    seats.push({id:'bot',name:'클로버 봇',bot:true});
+    const botCount = mode === 0 ? playerLimits[mode] - 1 : 1;
+    for (let i = 1; i <= botCount; i++) {
+      seats.push({id:'bot-' + i, name:botCount === 1 ? '클로버 봇' : 'AI ' + i, bot:true});
+    }
     start();
     return;
   }
