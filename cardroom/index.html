@@ -41,8 +41,12 @@ main.compact-holdem{padding-top:max(8px,env(safe-area-inset-top));padding-bottom
 .holdem-match-info{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:3px 0;font-size:13px;color:#eace84}
 .holdem-bottom-seats{display:grid;grid-template-columns:1fr 2fr;align-items:center;gap:5px}
 @media(min-width:620px){.holdem-bottom-seats{grid-template-columns:1fr 3fr}}
+.friends-dialog{width:min(92vw,490px);max-height:85dvh;overflow:auto;border:1px solid #829582;border-radius:16px;background:#17392f;color:#fff8df;padding:14px}
+.friends-dialog::backdrop{background:#071612c0}
+.friends-dialog input{display:block;margin:5px 0 9px;width:100%}
+.friends-dialog .row{margin:6px 0}.friends-dialog h2{margin:0}.friends-dialog h3{margin:16px 0 4px}.friends-dialog [role="status"]{color:#eace84}
 </style><main id="clubroom-main"><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="turn-bar" class="turn-bar" role="status" aria-atomic="true" hidden></div><p id="update-note" role="status"></p><div id="view"></div><p id="status" role="status"></p></main>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
+<script src="/cardroom/friends.js" defer></script><script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
 'use strict';
 const titles=['홀덤 포커','원카드','블랙잭'];
 const matchLength = 10;
@@ -640,7 +644,7 @@ function gamePicker() {
   return '<div class="row">' + titles.map((title, i) => '<button class="' +
     (mode === i ? 'chosen' : '') + '" onclick="mode=' + i + ';home()">' + title + '</button>').join('') + '</div>';
 }
-function home(){ setCompactHoldem(false); $('turn-bar').hidden=true; $('turn-bar').textContent=''; let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div>'+savedRoomControls()+'<div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
+function home(){ setCompactHoldem(false); $('turn-bar').hidden=true; $('turn-bar').textContent=''; let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p><button type="button" data-friends-open>친구</button></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div>'+savedRoomControls()+'<div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
 const nick=()=>$('name').value.trim().slice(0,12)||'플레이어';
 function waiting(){ $('view').innerHTML='<h2>테이블 연결 중…</h2><button onclick="leave()">돌아가기</button>';say('')}
 function netFail(message) {
@@ -896,7 +900,7 @@ function signalTurn(turn) {
   alerted = turn;
 }
 function roomTools() {
-  return '<div class="row room-tools">' +
+  return '<div class="row room-tools"><button type="button" data-friends-open>친구</button>' +
     (V.solo ? '' : '<button onclick="shareRoom()">참가 링크 공유</button>') +
     '<button onclick="toggleSound()" aria-pressed="' + sound + '">차례 소리 ' +
     (sound ? '켜짐' : '꺼짐') + '</button></div>';
@@ -1219,6 +1223,16 @@ window.addEventListener('DOMContentLoaded', () => {
     create(action === 'solo');
   }
 });
+window.cardroomFriends = {
+  room: () => hostConnected && host && !solo && !G && seats.length < playerLimits[mode] ? room : '',
+  join(code, name) {
+    if (host || room || peer || !/^\d{6}$/.test(code) || !window.Peer) return false;
+    $('name').value = name.slice(0,12);
+    $('code').value = code;
+    join();
+    return true;
+  }
+};
 window.addEventListener('pagehide', saveHostRoom);
 window.addEventListener('focus', checkAppUpdate);
 window.addEventListener('pageshow', checkAppUpdate);
