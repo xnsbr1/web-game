@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>텍사스 홀덤 카드룸 (Texas Hold'em Card Room)</title>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: Noto Sans KR & JetBrains Mono -->
@@ -11,12 +12,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
+        [hidden] { display: none !important; }
         body {
             font-family: 'Noto Sans KR', sans-serif;
             background-color: #0b131e;
             color: #f8fafc;
             overflow-x: hidden;
             user-select: none;
+        }
+        @media (max-width: 480px) {
+            #board-cards { width: 100%; padding-inline: 4px; gap: 4px; }
+            #board-cards > div { width: min(17%, 3.5rem); }
+            [id^="cards-"]:not(#cards-0) { width: 100%; gap: 3px; }
+            [id^="cards-"]:not(#cards-0) > div { min-width: 0; flex-shrink: 1; }
         }
         .font-mono-num {
             font-family: 'JetBrains Mono', monospace;
@@ -111,6 +119,8 @@
                 <span class="text-xs text-slate-400">단계</span>
                 <span id="header-phase" class="font-bold text-emerald-400 text-xs sm:text-sm">준비 중</span>
             </div>
+            <span id="room-indicator" class="text-sm font-bold text-amber-300"></span>
+            <button id="room-leave-game" hidden type="button" class="rounded-xl bg-slate-800 px-3 py-2 text-sm">나가기</button>
             <button id="btn-rules" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs sm:text-sm font-semibold text-slate-200 transition active:scale-95">
                 📖 게임 규칙
             </button>
@@ -120,8 +130,34 @@
         </div>
     </header>
 
+    <section id="room-lobby" class="w-full max-w-2xl mx-auto my-8 p-5 text-slate-100">
+        <div class="rounded-3xl border border-slate-700 bg-slate-900 p-5 sm:p-8">
+            <h2 class="text-2xl font-black text-amber-400">카드룸 입장</h2>
+            <p class="mt-2 text-sm text-slate-300">친구 2~4명과 같은 링크를 열고 방 코드로 모이세요. 방장은 게임이 끝날 때까지 탭을 열어 두세요.</p>
+            <div id="room-options" class="mt-5 space-y-4">
+                <label class="block text-sm">닉네임
+                    <input id="room-name" maxlength="16" autocomplete="nickname" class="block mt-1 w-full rounded-xl bg-slate-800 px-3 py-3" placeholder="닉네임 입력">
+                </label>
+                <div class="flex flex-wrap gap-2">
+                    <button id="room-create" class="rounded-xl bg-amber-400 text-slate-950 font-bold px-4 py-3">친구 방 만들기</button>
+                    <button id="room-solo" class="rounded-xl bg-slate-700 px-4 py-3">혼자 연습</button>
+                </div>
+                <form id="room-join" class="flex flex-wrap gap-2">
+                    <input id="room-code" inputmode="numeric" maxlength="6" aria-label="방 코드" class="w-36 rounded-xl bg-slate-800 px-3 py-3" placeholder="방 코드 6자리">
+                    <button class="rounded-xl bg-emerald-700 font-bold px-4 py-3">참가하기</button>
+                </form>
+            </div>
+            <p id="room-message" role="status" class="mt-3 text-lg font-bold text-amber-300"></p>
+            <p id="room-members" class="mt-2 text-sm text-slate-300"></p>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <button id="room-start" hidden class="rounded-xl bg-amber-400 text-slate-950 font-bold px-4 py-3 disabled:opacity-50">게임 시작</button>
+                <button id="room-cancel" hidden class="rounded-xl bg-slate-700 px-4 py-3">나가기</button>
+            </div>
+        </div>
+    </section>
+
     <!-- 메인 게임 영역 -->
-    <main class="flex-1 w-full max-w-7xl mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch">
+    <main id="game-table" hidden class="flex-1 w-full max-w-7xl mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch">
 
         <!-- 좌측/중앙: 포커 테이블 (9 cols) -->
         <section class="lg:col-span-9 flex flex-col justify-between gap-3">
@@ -266,7 +302,7 @@
                         </div>
 
                         <!-- 레이즈 / 베팅 금액 조절 -->
-                        <div id="raise-group" class="flex flex-wrap items-center gap-2 bg-slate-950/90 border border-slate-700 px-3 py-1.5 rounded-xl">
+                        <div class="flex flex-wrap items-center gap-2"><div id="raise-group" class="flex flex-wrap items-center gap-2 bg-slate-950/90 border border-slate-700 px-3 py-1.5 rounded-xl">
                             <span class="text-xs text-slate-400 font-semibold">베팅/레이즈 총액:</span>
                             <button id="btn-raise-minus" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm">-</button>
                             <input id="raise-slider" type="range" min="50" max="1000" step="50" value="50" class="w-24 sm:w-32 accent-amber-400 cursor-pointer">
@@ -275,6 +311,7 @@
                             <button id="btn-raise-submit" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm transition shadow active:scale-95">
                                 베팅
                             </button>
+                        </div>
                             <button id="btn-allin" class="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm transition shadow active:scale-95">
                                 올인
                             </button>
@@ -426,6 +463,221 @@
          * 카드 덱 및 포커 족보 평가기 (7장 중 최강 5장 조합 탐색)
          * ============================================================================
          */
+        const byId = id => document.getElementById(id);
+        const ROOM_PREFIX = 'kr-holdem-card-room-v1-';
+        const room = {mode:'menu', peer:null, connection:null, guests:new Map(), code:'',
+            name:'', timer:null, playerId:0, revision:0, submitted:false, pendingState:false};
+        const practicePlayers = G.players;
+        const sayRoom = message => { byId('room-message').textContent = message; };
+        const safeName = (value, fallback) => typeof value === 'string' &&
+            value.replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 16) || fallback;
+        const lobbyNames = () => [room.name, ...Array.from(room.guests.values(), guest => guest.name)];
+
+        function changeScreen(playing) {
+            byId('room-lobby').hidden = playing;
+            byId('game-table').hidden = !playing;
+            byId('room-leave-game').hidden = !playing;
+            byId('btn-restart-all').hidden = !playing || room.mode === 'guest';
+            byId('btn-play-again').hidden = room.mode === 'guest';
+            byId('room-indicator').textContent = playing && room.code ? '방 코드 ' + room.code : '';
+        }
+
+        function leaveRoom(message = '') {
+            clearAiTimer();
+            clearTimeout(room.timer);
+            const peer = room.peer;
+            Object.assign(room, {mode:'menu', peer:null, connection:null, guests:new Map(),
+                code:'', playerId:0, revision:0, submitted:false});
+            peer?.destroy();
+            byId('modal-final').classList.add('hidden');
+            byId('modal-rules').classList.add('hidden');
+            byId('room-start').hidden = true;
+            byId('room-cancel').hidden = true;
+            byId('room-options').hidden = false;
+            byId('room-members').textContent = '';
+            changeScreen(false);
+            sayRoom(message);
+        }
+
+        function waitForRoom(mode, code = '') {
+            if (!window.Peer) {
+                sayRoom('멀티 연결 모듈을 불러오지 못했어요. 새로고침 후 다시 시도하세요.');
+                return null;
+            }
+            const peer = mode === 'host' ? new window.Peer(ROOM_PREFIX + code) : new window.Peer();
+            Object.assign(room, {peer, mode, code, name:safeName(byId('room-name').value, mode === 'host' ? '방장' : '친구')});
+            byId('room-options').hidden = true;
+            byId('room-cancel').hidden = false;
+            sayRoom('방에 연결하는 중…');
+            room.timer = setTimeout(() => {
+                if (room.peer === peer) leaveRoom('연결 시간이 초과됐어요. 방 코드와 네트워크를 확인하세요.');
+            }, 18000);
+            peer.on('error', () => {
+                if (room.peer === peer) leaveRoom('방 연결이 끊겼어요. 방 코드와 네트워크를 확인하세요.');
+            });
+            return peer;
+        }
+
+        function showLobby(names) {
+            clearTimeout(room.timer);
+            sayRoom('방 코드 ' + room.code + ' · ' + names.length + '/4명');
+            byId('room-members').textContent = names.join(' · ');
+            byId('room-start').hidden = room.mode !== 'host';
+            byId('room-start').disabled = names.length < 2;
+        }
+
+        function sendLobby() {
+            const names = lobbyNames();
+            showLobby(names);
+            for (const guest of room.guests.values()) guest.link.send({type:'lobby', names});
+        }
+
+        function createRoom() {
+            const code = String(100000 + Math.floor(Math.random() * 900000));
+            const peer = waitForRoom('host', code);
+            if (!peer) return;
+            peer.on('open', () => { if (room.peer === peer) sendLobby(); });
+            peer.on('connection', link => {
+                const guest = {link, name:'', id:null};
+                link.on('data', packet => {
+                    if (room.peer !== peer || !packet || typeof packet !== 'object') return;
+                    if (room.guests.get(link.peer) === guest) {
+                        if (packet.type === 'move' && guest.id !== null && (packet.revision !== room.revision ||
+                            !applyPlayerMove(guest.id, packet.action, packet.value))) {
+                            link.send(tableSnapshot(guest.id));
+                        }
+                        return;
+                    }
+                    if (packet.type !== 'join') return;
+                    if (!byId('game-table').hidden || room.guests.size >= 3 || room.guests.has(link.peer)) {
+                        link.send({type:'reject', message:'게임이 진행 중이거나 방이 가득 찼어요.'});
+                        return;
+                    }
+                    guest.name = safeName(packet.name, '친구 ' + (room.guests.size + 1));
+                    room.guests.set(link.peer, guest);
+                    sendLobby();
+                });
+                const onDisconnect = () => {
+                    if (room.peer !== peer || room.guests.get(link.peer) !== guest) return;
+                    room.guests.delete(link.peer);
+                    if (byId('game-table').hidden) sendLobby();
+                    else leaveRoom(guest.name + ' 님과 연결이 끊겨 게임이 종료됐어요.');
+                };
+                link.on('close', onDisconnect);
+                link.on('error', onDisconnect);
+            });
+        }
+
+        function joinRoom() {
+            const code = byId('room-code').value.trim();
+            if (!/^\d{6}$/.test(code)) return sayRoom('방 코드 숫자 6자리를 입력하세요.');
+            const peer = waitForRoom('guest', code);
+            if (!peer) return;
+            peer.on('open', () => {
+                if (room.peer !== peer) return;
+                const link = peer.connect(ROOM_PREFIX + code, {reliable:true});
+                room.connection = link;
+                link.on('open', () => link.send({type:'join', name:room.name}));
+                const onDisconnect = () => {
+                    if (room.peer === peer) leaveRoom('방장과 연결이 끊겨 게임이 종료됐어요.');
+                };
+                link.on('close', onDisconnect);
+                link.on('error', onDisconnect);
+                link.on('data', packet => {
+                    if (room.peer !== peer || !packet) return;
+                    if (packet.type === 'reject') leaveRoom(packet.message);
+                    if (packet.type === 'lobby') showLobby(packet.names);
+                    if (packet.type === 'table') receiveTable(packet);
+                });
+            });
+        }
+
+        function startRoomMatch() {
+            if (room.mode !== 'host' || !room.guests.size || !byId('game-table').hidden) return;
+            let id = 1;
+            for (const guest of room.guests.values()) guest.id = id++;
+            G.players = lobbyNames().map((name, playerId) => ({id:playerId, name, isHuman:true}));
+            changeScreen(true);
+            startNewMatch();
+        }
+
+        function tableSnapshot(playerId) {
+            const reveal = G.phase === 'showdown' || G.phase === 'match_over';
+            const players = G.players.map(player => {
+                const visible = player.id === playerId || reveal && !player.folded;
+                return {...player, hole:visible ? player.hole : player.hole.map(() => null),
+                    lastHand:visible ? player.lastHand : null};
+            });
+            return {type:'table', playerId, revision:room.revision, state:{
+                round:G.round, phase:G.phase, bettingStage:G.bettingStage, board:G.board,
+                pot:G.pot, currentBet:G.currentBet, activeTurn:G.activeTurn, log:G.log, players,
+                banner:byId('banner-text').textContent, highlighted:reveal
+            }};
+        }
+
+        // Publish once after all synchronous game transitions have settled.
+        function publishTable() {
+            if (room.mode !== 'host' || room.pendingState) return;
+            const peer = room.peer;
+            room.pendingState = true;
+            queueMicrotask(() => {
+                room.pendingState = false;
+                if (room.peer !== peer || room.mode !== 'host') return;
+                room.revision++;
+                for (const guest of room.guests.values()) {
+                    if (guest.id !== null && guest.link.open) guest.link.send(tableSnapshot(guest.id));
+                }
+            });
+        }
+
+        function receiveTable(packet) {
+            if (packet.revision < room.revision) return;
+            const changed = packet.revision !== room.revision;
+            room.revision = packet.revision;
+            room.playerId = packet.playerId;
+            room.submitted = false;
+            Object.assign(G, packet.state);
+            if (changed) G.selectedExchangeIdx = null;
+            setBanner(G.banner, G.highlighted);
+            changeScreen(true);
+            renderAll();
+            renderLog();
+            if (G.phase === 'match_over') renderFinalMatchResults();
+            else byId('modal-final').classList.add('hidden');
+        }
+
+        function applyPlayerMove(id, action, value) {
+            const player = G.players[id];
+            if (!player || G.activeTurn !== id || player.folded) return false;
+            if (G.phase === 'exchange') {
+                if (action !== 'exchange' || ![null, 0, 1].includes(value)) return false;
+                executeExchange(player, value);
+                return true;
+            }
+            if (G.phase !== 'decisions' || player.allIn) return false;
+            const toCall = Math.max(0, G.currentBet - player.bet);
+            if (action === 'check-call') applyBettingAction(player, toCall ? 'call' : 'check');
+            else if (action === 'fold') applyBettingAction(player, 'fold');
+            else if (action === 'all-in') {
+                const total = player.bet + player.chips;
+                applyBettingAction(player, total <= G.currentBet ? 'call' : 'raise', total);
+            } else if (action === 'raise' && Number.isSafeInteger(value) &&
+                value >= G.currentBet + MIN_BET_STEP && value <= player.bet + player.chips &&
+                (value - G.currentBet) % MIN_BET_STEP === 0) {
+                applyBettingAction(player, 'raise', value);
+            } else return false;
+            return true;
+        }
+
+        function requestMove(action, value) {
+            if (G.activeTurn !== room.playerId || room.submitted) return;
+            if (room.mode !== 'guest') return applyPlayerMove(room.playerId, action, value);
+            if (!room.connection?.open) return leaveRoom('방장과 연결이 끊겼어요.');
+            room.submitted = true;
+            room.connection.send({type:'move', action, value, revision:room.revision});
+            renderControls();
+        }
+
         function createDeck() {
             const deck = [];
             for (const suit of SUITS) {
@@ -629,7 +881,7 @@
             `;
         }
 
-        function renderAll() {
+        function renderAll(syncRoom = true) {
             // 상단 헤더 업데이트
             document.getElementById('header-round').textContent = `${G.round} / ${MATCH_LENGTH}`;
             const phaseLabels = {
@@ -660,13 +912,17 @@
             // 4명 플레이어 좌석 렌더링
             const revealAll = (G.phase === 'showdown' || G.phase === 'match_over');
 
-            G.players.forEach(p => {
-                const seatEl = document.getElementById(`seat-${p.id}`);
-                const chipsEl = document.getElementById(`chips-${p.id}`);
-                const winsEl = document.getElementById(`wins-${p.id}`);
-                const cardsEl = document.getElementById(`cards-${p.id}`);
-                const betEl = document.getElementById(`bet-${p.id}`);
-                const statusEl = document.getElementById(`status-${p.id}`);
+            const myId = room.playerId;
+            const seats = [G.players[myId], ...G.players.filter(player => player.id !== myId)];
+            for (let slot = 0; slot < 4; slot++) byId(`seat-${slot}`).hidden = slot >= seats.length;
+            seats.forEach((p, slot) => {
+                byId(`name-${slot}`).textContent = p.name;
+                const seatEl = document.getElementById(`seat-${slot}`);
+                const chipsEl = document.getElementById(`chips-${slot}`);
+                const winsEl = document.getElementById(`wins-${slot}`);
+                const cardsEl = document.getElementById(`cards-${slot}`);
+                const betEl = document.getElementById(`bet-${slot}`);
+                const statusEl = document.getElementById(`status-${slot}`);
 
                 chipsEl.textContent = `${p.chips.toLocaleString()} 칩`;
                 winsEl.textContent = `${p.wins}승`;
@@ -684,8 +940,8 @@
                 // 카드 렌더링
                 if (p.hole.length === 0) {
                     cardsEl.innerHTML = '';
-                } else if (p.isHuman) {
-                    const canSelect = (G.phase === 'exchange' && G.activeTurn === 0 && !p.folded);
+                } else if (p.id === myId) {
+                    const canSelect = (G.phase === 'exchange' && G.activeTurn === myId && !room.submitted && !p.folded);
                     cardsEl.innerHTML = p.hole.map((c, idx) =>
                         createCardHTML(c, {
                             hidden: false,
@@ -701,7 +957,7 @@
                             cardDom.addEventListener('click', () => {
                                 const idx = Number(cardDom.getAttribute('data-card-idx'));
                                 G.selectedExchangeIdx = (G.selectedExchangeIdx === idx) ? null : idx;
-                                renderAll();
+                                renderAll(false);
                             });
                         });
                     }
@@ -725,8 +981,8 @@
                 else statusEl.className += 'bg-slate-800 text-slate-300';
 
                 // AI 쇼다운 족보 표시
-                if (!p.isHuman) {
-                    const rankEl = document.getElementById(`hand-rank-${p.id}`);
+                if (p.id !== myId) {
+                    const rankEl = document.getElementById(`hand-rank-${slot}`);
                     if (revealAll && !p.folded && p.lastHand) {
                         rankEl.textContent = p.lastHand.name;
                     } else {
@@ -736,7 +992,7 @@
             });
 
             // 내 현재 족보 실시간 미리보기
-            const me = G.players[0];
+            const me = G.players[room.playerId];
             const myPreviewEl = document.getElementById('my-hand-preview');
             if (me.folded) {
                 myPreviewEl.textContent = '상태: 폴드 (이번 판 포기)';
@@ -748,6 +1004,7 @@
             }
 
             renderControls();
+            if (syncRoom) publishTable();
         }
 
         function renderControls() {
@@ -764,16 +1021,16 @@
             idleCtrl.classList.remove('hidden');
             nextBtn.classList.add('hidden');
 
-            const me = G.players[0];
+            const me = G.players[room.playerId];
 
             // 1. 내 교환 턴
-            if (G.phase === 'exchange' && G.activeTurn === 0 && !me.folded) {
+            if (G.phase === 'exchange' && G.activeTurn === room.playerId && !room.submitted && !me.folded) {
                 idleCtrl.classList.add('hidden');
                 exCtrl.classList.remove('hidden');
                 exCtrl.classList.add('flex');
 
                 const btnEx = document.getElementById('btn-exchange-card');
-                btnEx.disabled = (G.selectedExchangeIdx === null || G.deck.length === 0);
+                btnEx.disabled = (G.selectedExchangeIdx === null);
                 if (G.selectedExchangeIdx !== null) {
                     const chosenCard = me.hole[G.selectedExchangeIdx];
                     btnEx.textContent = `${formatCardText(chosenCard)} 카드 교환하기`;
@@ -784,7 +1041,7 @@
             }
 
             // 2. 내 베팅 턴
-            if (G.phase === 'decisions' && G.activeTurn === 0 && !me.folded && !me.allIn) {
+            if (G.phase === 'decisions' && G.activeTurn === room.playerId && !room.submitted && !me.folded && !me.allIn) {
                 idleCtrl.classList.add('hidden');
                 betCtrl.classList.remove('hidden');
                 betCtrl.classList.add('flex');
@@ -813,7 +1070,7 @@
                     raiseGroup.classList.remove('opacity-50', 'pointer-events-none');
                     const slider = document.getElementById('raise-slider');
                     // 50단위로 스냅된 최대값 계산
-                    const snappedMax = Math.floor(maxTotalBet / MIN_BET_STEP) * MIN_BET_STEP;
+                    const snappedMax = G.currentBet + Math.floor((maxTotalBet - G.currentBet) / MIN_BET_STEP) * MIN_BET_STEP;
                     const effectiveMax = Math.max(minTotalTarget, snappedMax);
 
                     slider.min = minTotalTarget;
@@ -837,14 +1094,20 @@
                 idleMsg.textContent = G.round < MATCH_LENGTH
                     ? `라운드 ${G.round} 종료! 결과를 확인하고 다음 라운드로 이동하세요.`
                     : '마지막 5라운드가 종료되었습니다! 최종 순위를 확인하세요.';
+                if (room.mode === 'guest') {
+                    idleMsg.textContent = '방장이 다음 단계로 넘어가기를 기다리는 중…';
+                    return;
+                }
                 nextBtn.classList.remove('hidden');
                 nextBtn.textContent = G.round < MATCH_LENGTH ? '다음 라운드 ▶' : '최종 결과 보기 🏆';
                 return;
             }
 
             // 4. AI 진행 중
-            if (G.activeTurn > 0) {
-                idleMsg.textContent = `${G.players[G.activeTurn].name} 플레이어가 생각 중입니다...`;
+            if (room.submitted) {
+                idleMsg.textContent = '내 선택을 전송했어요…';
+            } else if (G.activeTurn >= 0 && G.activeTurn !== room.playerId) {
+                idleMsg.textContent = `${G.players[G.activeTurn].name} 님의 차례입니다.`;
             } else if (me.folded) {
                 idleMsg.textContent = '폴드하여 이번 라운드 관전 중입니다...';
             } else if (me.allIn) {
@@ -1016,7 +1279,7 @@
                 const newCard = G.deck.pop();
                 player.hole[cardIndex] = newCard;
                 player.statusText = '1장 교환';
-                if (player.isHuman) {
+                if (room.mode === 'solo' && player.isHuman) {
                     addLog(`${player.name}: [${formatCardText(oldCard)}] 카드를 버리고 [${formatCardText(newCard)}] 카드로 교환했습니다!`, 'action');
                 } else {
                     addLog(`${player.name}: 개인 카드 1장을 새로 교환했습니다.`, 'action');
@@ -1331,6 +1594,10 @@
         function showFinalMatchResults() {
             G.phase = 'match_over';
             renderAll();
+            renderFinalMatchResults();
+        }
+
+        function renderFinalMatchResults() {
 
             // 보유 칩 내림차순 -> 동점 시 승리 횟수 내림차순 정렬
             const ranked = [...G.players].sort((a, b) => (b.chips - a.chips) || (b.wins - a.wins));
@@ -1338,7 +1605,7 @@
             const champions = ranked.filter(p => p.chips === topChips);
 
             const subtitleEl = document.getElementById('final-subtitle');
-            if (champions.some(c => c.isHuman)) {
+            if (champions.some(c => c.id === room.playerId)) {
                 subtitleEl.textContent = champions.length > 1
                     ? `축하합니다! 공동 1위를 달성했습니다! (${topChips.toLocaleString()}칩)`
                     : `축하합니다! 최종 1위 챔피언에 등극했습니다! (${topChips.toLocaleString()}칩)`;
@@ -1352,7 +1619,7 @@
                 const isFirst = p.chips === topChips;
                 const cardStyle = isFirst
                     ? 'bg-amber-950/50 border-amber-400 text-amber-200'
-                    : (p.isHuman ? 'bg-slate-800 border-sky-500/60 text-white' : 'bg-slate-800/70 border-slate-700 text-slate-300');
+                    : (p.id === room.playerId ? 'bg-slate-800 border-sky-500/60 text-white' : 'bg-slate-800/70 border-slate-700 text-slate-300');
 
                 return `
                     <div class="flex items-center justify-between px-4 py-3 rounded-2xl border ${cardStyle}">
@@ -1379,35 +1646,23 @@
          * ============================================================================
          */
         window.addEventListener('DOMContentLoaded', () => {
-            // 교환 버튼
-            document.getElementById('btn-exchange-card').addEventListener('click', () => {
-                if (G.phase === 'exchange' && G.activeTurn === 0 && G.selectedExchangeIdx !== null) {
-                    executeExchange(G.players[0], G.selectedExchangeIdx);
-                }
+            byId('room-create').addEventListener('click', createRoom);
+            byId('room-join').addEventListener('submit', event => { event.preventDefault(); joinRoom(); });
+            byId('room-start').addEventListener('click', startRoomMatch);
+            byId('room-cancel').addEventListener('click', () => leaveRoom());
+            byId('room-leave-game').addEventListener('click', () => leaveRoom());
+            byId('room-solo').addEventListener('click', () => {
+                room.mode = 'solo';
+                G.players = practicePlayers;
+                changeScreen(true);
+                startNewMatch();
             });
-
-            // 유지 버튼
-            document.getElementById('btn-keep-cards').addEventListener('click', () => {
-                if (G.phase === 'exchange' && G.activeTurn === 0) {
-                    executeExchange(G.players[0], null);
-                }
+            byId('btn-exchange-card').addEventListener('click', () => {
+                if (G.selectedExchangeIdx !== null) requestMove('exchange', G.selectedExchangeIdx);
             });
-
-            // 폴드 버튼
-            document.getElementById('btn-fold').addEventListener('click', () => {
-                if (G.phase === 'decisions' && G.activeTurn === 0) {
-                    applyBettingAction(G.players[0], 'fold');
-                }
-            });
-
-            // 체크 / 콜 버튼
-            document.getElementById('btn-check-call').addEventListener('click', () => {
-                if (G.phase === 'decisions' && G.activeTurn === 0) {
-                    const me = G.players[0];
-                    const toCall = Math.max(0, G.currentBet - me.bet);
-                    applyBettingAction(me, toCall === 0 ? 'check' : 'call');
-                }
-            });
+            byId('btn-keep-cards').addEventListener('click', () => requestMove('exchange', null));
+            byId('btn-fold').addEventListener('click', () => requestMove('fold'));
+            byId('btn-check-call').addEventListener('click', () => requestMove('check-call'));
 
             // 레이즈 슬라이더 및 +/- 조절
             const slider = document.getElementById('raise-slider');
@@ -1433,19 +1688,8 @@
                 syncSliderUI(Number(slider.value) + MIN_BET_STEP);
             });
 
-            submitRaiseBtn.addEventListener('click', () => {
-                if (G.phase === 'decisions' && G.activeTurn === 0) {
-                    applyBettingAction(G.players[0], 'raise', Number(slider.value));
-                }
-            });
-
-            // 올인 버튼
-            document.getElementById('btn-allin').addEventListener('click', () => {
-                if (G.phase === 'decisions' && G.activeTurn === 0) {
-                    const me = G.players[0];
-                    applyBettingAction(me, 'raise', me.bet + me.chips);
-                }
-            });
+            submitRaiseBtn.addEventListener('click', () => requestMove('raise', Number(slider.value)));
+            byId('btn-allin').addEventListener('click', () => requestMove('all-in'));
 
             // 다음 라운드 / 최종 결과 버튼
             document.getElementById('btn-next-round').addEventListener('click', () => {
@@ -1469,8 +1713,7 @@
             document.getElementById('btn-restart-all').addEventListener('click', startNewMatch);
             document.getElementById('btn-play-again').addEventListener('click', startNewMatch);
 
-            // 첫 매치 자동 시작
-            startNewMatch();
+            changeScreen(false);
         });
     </script>
 </body>
