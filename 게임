@@ -1,0 +1,230 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#102f29"><title>클럽룸 · 카드 테이블</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 15%,#254b3c,transparent 50%),#102f29;color:#faf4dd;font:16px system-ui,sans-serif;min-height:100svh}main{max-width:780px;margin:auto;padding:24px 18px 60px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff30;padding-bottom:16px}header b{letter-spacing:.15em}small,.muted{color:#c4d2bf}h1{font:clamp(42px,8vw,78px) Georgia,serif;margin:22px 0 6px}h2{font-size:26px;margin:14px 0}h3{margin:14px 0 6px}p{line-height:1.55}button,input{font:inherit;border-radius:12px;border:1px solid #859b83;background:#234b3e;color:#fff8df;padding:12px;min-height:48px}button{cursor:pointer;font-weight:700}button:focus-visible,input:focus-visible{outline:3px solid #ffd16d}button:disabled{opacity:.52;cursor:default}.primary,.chosen{background:#eace84;color:#202e24;border-color:#eace84}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.row>*{min-width:0}input{width:145px;background:#142f28}.panel{background:#193d32;border:1px solid #738772;border-radius:18px;padding:18px;margin:15px 0}.table{background:radial-gradient(ellipse at center,#27674f,#194537);border:4px double #9e996b;border-radius:28px;padding:22px 16px;min-height:145px;margin:16px 0}.cards{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.card{position:relative;display:inline-flex;flex-direction:column;justify-content:space-between;align-items:flex-start;width:57px;height:82px;padding:5px 8px;background:#fff6df;border:1px solid #e7d5ad;border-radius:7px;color:#173930;font:bold 23px Georgia;box-shadow:0 3px 0 #092b23}.card i{align-self:flex-end;font:28px Georgia}.red{color:#ae3437}.sleeve{background:repeating-linear-gradient(45deg,#3b5956 0 4px,#87a392 4px 6px);border:4px solid #e7dbba}.hero{display:flex;align-items:center;justify-content:space-between}.mark{font:80px Georgia;color:#ecd296;transform:rotate(12deg)}#status{color:#ffdc8a;min-height:1.4em}details{margin:12px 0}summary{cursor:pointer}.seat{border-radius:9px;background:#102f29;padding:7px 10px}.active{outline:2px solid #eace84}button.card:disabled{opacity:.62}#view{overflow-wrap:anywhere}
+</style><main><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="view"></div><p id="status" role="status"></p></main>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
+'use strict';
+const titles=['홀덤 포커','원카드','블랙잭'];
+const rules=[
+  '개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 모두 1,000칩으로 시작하며 매 판 참가비 20칩을 냅니다. 공용 카드 3장이 열리면 개인 카드 1장을 교환하거나 유지한 뒤, 체크·베팅·콜·레이즈·폴드로 베팅을 진행합니다. 5판 종료 후 보유 칩이 가장 많은 사람이 1위입니다.',
+  '7장으로 시작합니다. 맨 위와 숫자 또는 무늬가 같은 카드를 내세요. 2는 다음 사람에게 2장을 주고 차례를 넘깁니다. J는 다음 사람을 건너뜁니다. 한 장을 뽑으면 차례가 끝납니다.',
+  '21을 넘기지 않고 딜러보다 높은 합계를 만드세요. A는 1 또는 11, 그림 카드는 10입니다. 딜러는 17부터 멈추며 처음 두 장의 21이 일반 21보다 우선합니다.'
+];
+const suits='♠♥♦♣', rank=c=>c%13+2,suit=c=>Math.floor(c/13),face=c=>String(rank(c)).replace('14','A').replace('13','K').replace('12','Q').replace('11','J');
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function score5(cards){let r=cards.map(rank).sort((a,b)=>b-a),counts=new Map();for(let x of r)counts.set(x,(counts.get(x)||0)+1);let g=[...counts].sort((a,b)=>b[1]-a[1]||b[0]-a[0]);let straight=g.length===5?(r[0]-r[4]===4?r[0]:r.join()==='14,5,4,3,2'?5:0):0,flush=cards.every(c=>suit(c)===suit(cards[0]));let cat=flush&&straight?8:g[0][1]===4?7:g[0][1]===3&&g[1][1]===2?6:flush?5:straight?4:g[0][1]===3?3:g[1][1]===2?2:g[0][1]===2?1:0;let vals=straight?[straight]:g.map(v=>v[0]);while(vals.length<5)vals.push(0);return vals.reduce((n,v)=>n*15+v,cat)}
+function poker(cs){let best=0;for(let i=0;i<7;i++)for(let j=i+1;j<7;j++)best=Math.max(best,score5(cs.filter((_,k)=>k!==i&&k!==j)));return best}
+function total(h){let s=h.reduce((n,c)=>n+(rank(c)===14?1:Math.min(10,rank(c))),0);return s<=11&&h.some(c=>rank(c)===14)?s+10:s}
+const matchLength = 5;
+const startingChips = 1000;
+const anteAmount = 20;
+const minBetStep = 50;
+let match = null, turnToken = 0;
+let peer,link,connections=new Map(),seats=[],me='host',host=false,solo=false,room='',mode=0,G,V,timer,epoch=0;
+const $=id=>document.getElementById(id),say=t=>$('status').textContent=t,esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function start(){
+  if(!host||G&&!G.end||seats.length<2)return;
+  G={deck:shuffle(Array.from({length:52},(_,i)=>i)),hands:seats.map(()=>[]),turn:0,board:[],dealer:[],pile:[],end:'',log:'',stalls:0};
+  for(let h of G.hands)for(let i=0;i<(mode===1?7:2);i++)h.push(G.deck.pop());
+  if(mode===0)initPoker();
+  if(mode===1)G.pile=[G.deck.pop()];
+  if(mode===2){G.dealer=G.deck.splice(-2);nextBJ()}
+  sync();
+}
+
+function initPoker() {
+  if (!match || match.round === matchLength) {
+    match = {round: 0, chips: seats.map(() => startingChips), wins: seats.map(() => 0)};
+  }
+  match.round++;
+  G.board = G.deck.splice(-3);
+
+  let pot = 0;
+  for (let i = 0; i < seats.length; i++) {
+    const ante = Math.min(match.chips[i], anteAmount);
+    match.chips[i] -= ante;
+    pot += ante;
+  }
+
+  G.poker = {
+    phase: 'exchange',
+    folded: seats.map(() => false),
+    allIn: seats.map((_, i) => match.chips[i] === 0),
+    bets: seats.map(() => 0),
+    currentBet: 0,
+    pot,
+    reveal: false,
+    pending: [],
+    token: ++turnToken
+  };
+  pokerQueue(seats.map((_, i) => i), (match.round - 1) % seats.length);
+  G.log = `판 시작 · 각자 참가비 ${anteAmount}칩 (팟 ${pot}칩)`;
+}
+
+function pokerQueue(players, first) {
+  const order = seats.map((_, offset) => (first + offset) % seats.length);
+  G.poker.pending = order.filter(i => players.includes(i));
+  G.turn = G.poker.pending[0];
+}
+
+function startBettingRound(players, startIdx) {
+  const table = G.poker;
+  table.bets = seats.map(() => 0);
+  table.currentBet = 0;
+  const active = players.filter(i => !table.allIn[i]);
+  if (active.length <= 1) {
+    table.pending = [];
+  } else {
+    pokerQueue(active, startIdx);
+  }
+}
+
+function commitChips(i, amount) {
+  const table = G.poker;
+  const actual = Math.min(match.chips[i], Math.max(0, amount));
+  match.chips[i] -= actual;
+  table.bets[i] += actual;
+  table.pot += actual;
+  if (match.chips[i] === 0) table.allIn[i] = true;
+  return actual;
+}
+
+function livePokerPlayers() {
+  return seats.map((_, i) => i).filter(i => !G.poker.folded[i]);
+}
+
+function finishPoker(players) {
+  const table = G.poker;
+  let winners = players, handLabel = ' (상대 전원 폴드)';
+  if (players.length > 1) {
+    table.reveal = true;
+    const scores = players.map(i => poker([...G.hands[i], ...G.board]));
+    const best = Math.max(...scores);
+    winners = players.filter((_, i) => scores[i] === best);
+    handLabel = ' · ' + ['하이 카드','원 페어','투 페어','트리플','스트레이트','플러시','풀 하우스','포 카드','스트레이트 플러시'][Math.floor(best/15**5)];
+  }
+  const share = Math.floor(table.pot / winners.length);
+  let rem = table.pot % winners.length;
+  for (const i of winners) {
+    match.wins[i]++;
+    match.chips[i] += share + (rem > 0 ? 1 : 0);
+    if (rem > 0) rem--;
+  }
+  G.end = winners.map(i => seats[i].name).join(' · ') +
+    (winners.length > 1 ? ' 공동 승리' : ' 승리') + handLabel + ` (+${table.pot}칩)`;
+}
+
+function playPoker(i, move) {
+  const table = G.poker;
+  if (!move || move.token !== table.token) return false;
+  const action = move.action;
+
+  if (table.phase === 'exchange') {
+    if (!['keep', 0, 1].includes(action)) return false;
+    if (action !== 'keep') {
+      G.hands[i][action] = G.deck.pop();
+      G.log = seats[i].name + ' · 카드 1장 교환';
+    } else {
+      G.log = seats[i].name + ' · 패 유지';
+    }
+    table.pending.shift();
+  } else {
+    const toCall = Math.max(0, table.currentBet - table.bets[i]);
+    if (action === 'fold') {
+      table.folded[i] = true;
+      table.pending.shift();
+      G.log = seats[i].name + ' · 폴드';
+    } else if (action === 'check') {
+      if (toCall > 0) return false;
+      table.pending.shift();
+      G.log = seats[i].name + ' · 체크';
+    } else if (action === 'call') {
+      if (toCall === 0) return false;
+      const paid = commitChips(i, toCall);
+      table.pending.shift();
+      G.log = seats[i].name + ` · ${paid}칩 콜` + (table.allIn[i] ? ' (올인)' : '');
+    } else if (action && typeof action === 'object' && (action.type === 'bet' || action.type === 'raise')) {
+      const targetBet = Number(action.amount);
+      const maxTarget = table.bets[i] + match.chips[i];
+      const minTarget = Math.min(maxTarget, table.currentBet === 0 ? minBetStep : table.currentBet + minBetStep);
+      if (!Number.isInteger(targetBet) || targetBet < minTarget || targetBet > maxTarget) return false;
+      const needed = targetBet - table.bets[i];
+      commitChips(i, needed);
+      const isRaise = table.currentBet > 0;
+      table.currentBet = Math.max(table.currentBet, table.bets[i]);
+      const others = livePokerPlayers().filter(p => p !== i && !table.allIn[p]);
+      pokerQueue(others, (i + 1) % seats.length);
+      G.log = seats[i].name + ` · ${table.bets[i]}칩 ` + (isRaise ? '레이즈' : '베팅') + (table.allIn[i] ? ' (올인)' : '');
+    } else {
+      return false;
+    }
+  }
+
+  const players = livePokerPlayers();
+  if (players.length === 1) {
+    finishPoker(players);
+    table.token = ++turnToken;
+    return true;
+  }
+
+  if (table.pending.length) {
+    G.turn = table.pending[0];
+    table.token = ++turnToken;
+    return true;
+  }
+
+  const nextStart = (match.round - 1) % seats.length;
+  if (table.phase === 'exchange') {
+    table.phase = 'decisions';
+    startBettingRound(players, nextStart);
+  } else if (G.board.length < 5) {
+    G.board.push(G.deck.pop());
+    startBettingRound(players, nextStart);
+  } else {
+    finishPoker(players);
+    table.token = ++turnToken;
+    return true;
+  }
+
+  while (!G.end && table.pending.length === 0) {
+    if (G.board.length < 5) {
+      G.board.push(G.deck.pop());
+    } else {
+      finishPoker(players);
+      table.token = ++turnToken;
+      return true;
+    }
+  }
+
+  G.turn = table.pending[0];
+  table.token = ++turnToken;
+  return true;
+}
+
+function pokerBotMove() {
+  const table = G.poker, i = G.turn;
+  if (table.phase === 'exchange') return Math.random() < .5 ? 'keep' : 0;
+  const toCall = Math.max(0, table.currentBet - table.bets[i]);
+  const myChips = match.chips[i];
+  const cat = Math.floor(poker([...G.hands[i], ...G.board]) / 15**5);
+  if (toCall > 0) {
+    if (cat === 0 && toCall >= 100 && Math.random() < .6) return 'fold';
+    if (cat >= 2 && myChips > toCall + minBetStep && Math.random() < .35) {
+      return {type:'raise', amount: Math.min(table.bets[i] + myChips, table.currentBet + minBetStep)};
+    }
+    return 'call';
+  }
+  if ((cat >= 1 || Math.random() < .3) && myChips >= minBetStep) {
+    return {type:'bet', amount: Math.min(myChips, minBetStep)};
+  }
+  return 'check';
+}
+
+function nextBJ(){while(G.turn<seats.length&&total(G.hands[G.turn])>=21)G.turn++;if(G.turn<seats.length&&total(G.dealer)!==21)return;while(total(G.dealer)<17)G.dealer.push(G.deck.pop());let d=total(G.dealer),dn=d===21&&G.dealer.length===2;G.end=seats.map((s,i)=>{let h=G.hands[i],v=total(h),natural=v===21&&h.length===2;let res=v>21?'버스트':natural&&!dn?'블랙잭 승리':dn&&!natural?'패배':d>21||v>d?'승리':v===d?'무승부':'패배';return s.name+' '+v+'점 · '+res}).join(' / ')}
+function drawOne(h){if(!G.deck.length&&G.pile.length>1){let top=G.pile.pop();G.deck=shuffle(G.pile);G.pile=[top]}if(!G.deck.length)return false;h.push(G.deck.pop());return true}
+function legal(c,top){return rank(c)===rank(top)||suit(c)===suit(top)}
+function act(id,a){if(!host||!G||G.end||seats[G.turn]?.id!==id)return;let i=G.turn,h=G.hands[i],n=seats.length;if(mode===0){if(!playPoker(i,a))return}
+else if(mode===1){let step=1;if(a==='draw'){let got=drawOne(h);G.stalls=got?0:G.stalls+1;G.log=seats[i].name+(got?' · 한 장 뽑기':' · 덱이 비어 패스');if(G.stalls>=n)G.end='덱 소진 · 무승부'}else{if(!Number.isInteger(a)||h[a]===undefined||!legal(h[a],G.pile.at(-1)))return;G.stalls=0;let c=h.splice(a,1)[0];G.pile.push(c);G.log=seats[i].name+' · '+face(c)+suits[suit(c)];if(!h.length)G.end=seats[i].name+' 승리!';else if(rank(c)===2||rank(c)===11){step=2;if(rank(c)===2){drawOne(G.hands[(i+1)%n]);drawOne(G.hands[(i+1)%n])}G.log+=' · 다음 차례 건너뛰기'}}G.turn=(i+step)%n}
+else{if(a==='hit')h.push(G.deck.pop());else if(a==='stand')G.turn++;else return;nextBJ()}sync()}
+function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats,solo,match,game:G&&{poker:G.poker,hand:G.hands[i],counts:G.hands.map(h=>h.length),revealed:G.end&&mode!==1?G.hands.map((h,k
