@@ -135,6 +135,11 @@
             <h2 class="text-2xl font-black text-amber-400">카드룸 입장</h2>
             <p class="mt-2 text-sm text-slate-300">친구 2~4명과 같은 링크를 열고 방 코드로 모이세요. 방장은 게임이 끝날 때까지 탭을 열어 두세요.</p>
             <div id="room-options" class="mt-5 space-y-4">
+                <nav aria-label="게임 선택" class="grid grid-cols-3 gap-2 text-center text-sm font-bold">
+                    <span aria-current="page" class="rounded-xl bg-amber-400 px-2 py-3 text-slate-950">홀덤</span>
+                    <a href="../cardroom/?game=one-card" class="rounded-xl bg-slate-800 px-2 py-3 hover:bg-slate-700">원카드</a>
+                    <a href="../cardroom/?game=blackjack" class="rounded-xl bg-slate-800 px-2 py-3 hover:bg-slate-700">블랙잭</a>
+                </nav>
                 <label class="block text-sm">닉네임
                     <input id="room-name" maxlength="16" autocomplete="nickname" class="block mt-1 w-full rounded-xl bg-slate-800 px-3 py-3" placeholder="닉네임 입력">
                 </label>
