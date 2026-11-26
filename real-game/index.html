@@ -12,7 +12,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        [hidden] { display: none !important; }
+        [hidden], .hidden { display: none !important; }
+        #betting-controls:not([hidden]) { display: flex; flex-direction: column; }
+        @media (pointer: coarse) and (min-width: 600px) {
+            #controls-panel {
+                position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+                background: #0f172a; padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom));
+                max-height: 36vh; overflow-y: auto;
+            }
+            #game-table { padding-bottom: max(180px, 36vh); }
+            #controls-panel button { min-height: 44px; }
+        }
         body {
             font-family: 'Noto Sans KR', sans-serif;
             background-color: #0b131e;
@@ -281,7 +291,7 @@
             <!-- 하단 컨트롤 패널 (액션 버튼 영역) -->
             <div id="controls-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl">
                 <!-- 2. 베팅 컨트롤 (decisions 단계에서 내 턴일 때 표시) -->
-                <div id="betting-controls" class="hidden flex-col gap-3">
+                <div id="betting-controls" hidden class="flex-col gap-3">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <div class="flex items-center gap-2">
                             <button id="btn-fold" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm transition shadow active:scale-95">
@@ -989,8 +999,7 @@
             const nextBtn = document.getElementById('btn-next-round');
             const idleMsg = document.getElementById('idle-message');
 
-            betCtrl.classList.add('hidden');
-            betCtrl.classList.remove('flex');
+            betCtrl.hidden = true;
             idleCtrl.classList.remove('hidden');
             nextBtn.classList.add('hidden');
 
@@ -999,8 +1008,7 @@
             // 2. 내 베팅 턴
             if (G.phase === 'decisions' && G.activeTurn === room.playerId && !room.submitted && !me.folded && !me.allIn) {
                 idleCtrl.classList.add('hidden');
-                betCtrl.classList.remove('hidden');
-                betCtrl.classList.add('flex');
+                betCtrl.hidden = false;
 
                 const toCall = Math.max(0, G.currentBet - me.bet);
                 const btnCheckCall = document.getElementById('btn-check-call');
