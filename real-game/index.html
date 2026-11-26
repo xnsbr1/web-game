@@ -103,9 +103,9 @@
             </div>
             <div>
                 <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-amber-400 leading-tight">
-                    텍사스 홀덤 카드룸
+                    친구 카드룸
                 </h1>
-                <p class="text-[11px] text-slate-400">5라운드 칩 쟁탈전 · 1장 교환 스페셜 룰</p>
+                <p class="text-[11px] text-slate-400">홀덤 · 원카드 · 블랙잭</p>
             </div>
         </div>
 
@@ -132,14 +132,16 @@
 
     <section id="room-lobby" class="w-full max-w-2xl mx-auto my-8 p-5 text-slate-100">
         <div class="rounded-3xl border border-slate-700 bg-slate-900 p-5 sm:p-8">
-            <h2 class="text-2xl font-black text-amber-400">카드룸 입장</h2>
+            <h2 class="text-2xl font-black text-amber-400">친구 카드룸</h2>
             <p class="mt-2 text-sm text-slate-300">친구 2~4명과 같은 링크를 열고 방 코드로 모이세요. 방장은 게임이 끝날 때까지 탭을 열어 두세요.</p>
             <div id="room-options" class="mt-5 space-y-4">
-                <nav aria-label="게임 선택" class="grid grid-cols-3 gap-2 text-center text-sm font-bold">
-                    <span aria-current="page" class="rounded-xl bg-amber-400 px-2 py-3 text-slate-950">홀덤</span>
-                    <a href="../cardroom/?game=one-card" class="rounded-xl bg-slate-800 px-2 py-3 hover:bg-slate-700">원카드</a>
-                    <a href="../cardroom/?game=blackjack" class="rounded-xl bg-slate-800 px-2 py-3 hover:bg-slate-700">블랙잭</a>
-                </nav>
+                <label class="block font-bold">방 만들기 · 게임 선택
+                    <select id="host-game" class="mt-2 block w-full rounded-xl bg-slate-800 px-4 py-3">
+                        <option value="holdem">텍사스 홀덤</option>
+                        <option value="one-card">원카드</option>
+                        <option value="blackjack">블랙잭</option>
+                    </select>
+                </label>
                 <label class="block text-sm">닉네임
                     <input id="room-name" maxlength="16" autocomplete="nickname" class="block mt-1 w-full rounded-xl bg-slate-800 px-3 py-3" placeholder="닉네임 입력">
                 </label>
@@ -278,22 +280,6 @@
 
             <!-- 하단 컨트롤 패널 (액션 버튼 영역) -->
             <div id="controls-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl">
-                <!-- 1. 카드 교환 컨트롤 (exchange 단계에서 내 턴일 때 표시) -->
-                <div id="exchange-controls" class="hidden flex-col sm:flex-row items-center justify-between gap-3">
-                    <div class="text-center sm:text-left">
-                        <p class="text-sm font-bold text-amber-400">🔄 카드 1장 교환 또는 유지</p>
-                        <p class="text-xs text-slate-400">교환할 내 카드를 클릭해 선택한 뒤 [선택 카드 교환]을 누르거나, 그대로 [유지]하세요.</p>
-                    </div>
-                    <div class="flex flex-wrap items-center justify-center gap-2 w-full sm:w-auto">
-                        <button id="btn-exchange-card" disabled class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-700 disabled:text-slate-500 text-slate-950 font-extrabold text-sm transition shadow-md active:scale-95">
-                            선택 카드 교환
-                        </button>
-                        <button id="btn-keep-cards" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition shadow-md active:scale-95">
-                            유지 (패스)
-                        </button>
-                    </div>
-                </div>
-
                 <!-- 2. 베팅 컨트롤 (decisions 단계에서 내 턴일 때 표시) -->
                 <div id="betting-controls" class="hidden flex-col gap-3">
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -378,12 +364,11 @@
             </div>
             <div class="space-y-3 text-sm text-slate-300 leading-relaxed">
                 <p class="p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-amber-200 font-medium">
-                    개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 모두 1,000칩으로 시작하며 매 판 참가비 20칩을 냅니다. 공용 카드 3장이 열리면 카드를 1장 교환하거나 유지한 뒤, 체크·베팅·콜·레이즈·폴드로 베팅을 진행합니다. 5판 종료 후 보유 칩이 가장 많은 사람이 1위입니다.
+                    개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 모두 1,000칩으로 시작하며 매 판 참가비 20칩을 냅니다. 공용 카드 3장이 열리면 체크·베팅·콜·레이즈·폴드로 베팅을 진행합니다. 5판 종료 후 보유 칩이 가장 많은 사람이 1위입니다.
                 </p>
                 <ul class="list-disc pl-5 space-y-1.5 text-xs sm:text-sm text-slate-300">
                     <li><strong>참가비(Ante):</strong> 매 라운드 시작 시 전원 20칩을 팟에 지불합니다.</li>
-                    <li><strong>플롭 & 카드 교환:</strong> 공용 카드 3장이 공개된 직후, 각 플레이어는 자신의 개인 카드 2장 중 <strong>1장을 덱의 새 카드로 교환</strong>하거나 <strong>유지</strong>할 수 있습니다.</li>
-                    <li><strong>베팅 라운드:</strong> 교환 후 1차 베팅(3장), 4번째 공용 카드(턴) 오픈 후 2차 베팅, 5번째 공용 카드(리버) 오픈 후 3차 베팅이 진행됩니다.</li>
+                    <li><strong>베팅 라운드:</strong> 플롭 공개 후 1차 베팅(3장), 4번째 공용 카드(턴) 오픈 후 2차 베팅, 5번째 공용 카드(리버) 오픈 후 3차 베팅이 진행됩니다.</li>
                     <li><strong>최소 베팅/레이즈 단위:</strong> 50칩 단위로 베팅 및 레이즈할 수 있으며 올인도 가능합니다.</li>
                 </ul>
             </div>
@@ -423,7 +408,7 @@
         const MIN_BET_STEP = 50;
         const MATCH_LENGTH = 5;
 
-        const RULE_DESCRIPTION = '개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 모두 1,000칩으로 시작하며 매 판 참가비 20칩을 냅니다. 공용 카드 3장이 열리면 카드를 1장 교환하거나 유지한 뒤, 체크·베팅·콜·레이즈·폴드로 베팅을 진행합니다. 5판 종료 후 보유 칩이 가장 많은 사람이 1위입니다.';
+        const RULE_DESCRIPTION = '개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 모두 1,000칩으로 시작하며 매 판 참가비 20칩을 냅니다. 공용 카드 3장이 열리면 체크·베팅·콜·레이즈·폴드로 베팅을 진행합니다. 5판 종료 후 보유 칩이 가장 많은 사람이 1위입니다.';
 
         // 족보 이름 (인덱스 0 ~ 8)
         const HAND_NAMES = [
@@ -452,7 +437,6 @@
             currentBet: 0,
             activeTurn: -1,
             pokerQueue: [],
-            selectedExchangeIdx: null,
             aiTimer: null,
             log: [],
             players: [
@@ -537,8 +521,19 @@
             for (const guest of room.guests.values()) guest.link.send({type:'lobby', names});
         }
 
+        function openCardTable(game, action, code = '') {
+            const url = new URL('../cardroom/', location.href);
+            url.searchParams.set('game', game);
+            url.searchParams.set('action', action);
+            if (code) url.searchParams.set('code', code);
+            sessionStorage.setItem('cardroom-nickname', byId('room-name').value);
+            location.assign(url.href);
+        }
+
         function createRoom() {
-            const code = String(100000 + Math.floor(Math.random() * 900000));
+            const game = byId('host-game').value;
+            if (game && game !== 'holdem') return openCardTable(game, 'create');
+            const code = String(100000 + Math.floor(Math.random() * 300000));
             const peer = waitForRoom('host', code);
             if (!peer) return;
             peer.on('open', () => { if (room.peer === peer) sendLobby(); });
@@ -576,6 +571,9 @@
         function joinRoom() {
             const code = byId('room-code').value.trim();
             if (!/^\d{6}$/.test(code)) return sayRoom('방 코드 숫자 6자리를 입력하세요.');
+            if (Number(code) >= 400000) {
+                return openCardTable(Number(code) < 700000 ? 'one-card' : 'blackjack', 'join', code);
+            }
             const peer = waitForRoom('guest', code);
             if (!peer) return;
             peer.on('open', () => {
@@ -637,12 +635,10 @@
 
         function receiveTable(packet) {
             if (packet.revision < room.revision) return;
-            const changed = packet.revision !== room.revision;
             room.revision = packet.revision;
             room.playerId = packet.playerId;
             room.submitted = false;
             Object.assign(G, packet.state);
-            if (changed) G.selectedExchangeIdx = null;
             setBanner(G.banner, G.highlighted);
             changeScreen(true);
             renderAll();
@@ -654,11 +650,6 @@
         function applyPlayerMove(id, action, value) {
             const player = G.players[id];
             if (!player || G.activeTurn !== id || player.folded) return false;
-            if (G.phase === 'exchange') {
-                if (action !== 'exchange' || ![null, 0, 1].includes(value)) return false;
-                executeExchange(player, value);
-                return true;
-            }
             if (G.phase !== 'decisions' || player.allIn) return false;
             const toCall = Math.max(0, G.currentBet - player.bet);
             if (action === 'check-call') applyBettingAction(player, toCall ? 'call' : 'check');
@@ -891,7 +882,6 @@
             document.getElementById('header-round').textContent = `${G.round} / ${MATCH_LENGTH}`;
             const phaseLabels = {
                 idle: '대기 중',
-                exchange: '카드 1장 교환',
                 decisions: G.bettingStage === 0 ? '플롭 베팅 (3장)' : (G.bettingStage === 1 ? '턴 베팅 (4장)' : '리버 베팅 (5장)'),
                 showdown: '쇼다운 결과',
                 match_over: '매치 종료'
@@ -933,7 +923,7 @@
                 winsEl.textContent = `${p.wins}승`;
 
                 // 활성 턴 강조
-                if (G.activeTurn === p.id && (G.phase === 'exchange' || G.phase === 'decisions')) {
+                if (G.activeTurn === p.id && G.phase === 'decisions') {
                     seatEl.classList.add('active-turn-ring');
                 } else {
                     seatEl.classList.remove('active-turn-ring');
@@ -946,26 +936,7 @@
                 if (p.hole.length === 0) {
                     cardsEl.innerHTML = '';
                 } else if (p.id === myId) {
-                    const canSelect = (G.phase === 'exchange' && G.activeTurn === myId && !room.submitted && !p.folded);
-                    cardsEl.innerHTML = p.hole.map((c, idx) =>
-                        createCardHTML(c, {
-                            hidden: false,
-                            small: false,
-                            selectable: canSelect,
-                            selected: canSelect && G.selectedExchangeIdx === idx,
-                            index: idx
-                        })
-                    ).join('');
-
-                    if (canSelect) {
-                        cardsEl.querySelectorAll('.playing-card').forEach(cardDom => {
-                            cardDom.addEventListener('click', () => {
-                                const idx = Number(cardDom.getAttribute('data-card-idx'));
-                                G.selectedExchangeIdx = (G.selectedExchangeIdx === idx) ? null : idx;
-                                renderAll(false);
-                            });
-                        });
-                    }
+                    cardsEl.innerHTML = p.hole.map(c => createCardHTML(c)).join('');
                 } else {
                     // AI 봇 카드: 쇼다운 시 폴드하지 않은 봇의 카드 오픈
                     const showBotCards = revealAll && !p.folded;
@@ -1013,37 +984,17 @@
         }
 
         function renderControls() {
-            const exCtrl = document.getElementById('exchange-controls');
             const betCtrl = document.getElementById('betting-controls');
             const idleCtrl = document.getElementById('idle-controls');
             const nextBtn = document.getElementById('btn-next-round');
             const idleMsg = document.getElementById('idle-message');
 
-            exCtrl.classList.add('hidden');
-            exCtrl.classList.remove('flex');
             betCtrl.classList.add('hidden');
             betCtrl.classList.remove('flex');
             idleCtrl.classList.remove('hidden');
             nextBtn.classList.add('hidden');
 
             const me = G.players[room.playerId];
-
-            // 1. 내 교환 턴
-            if (G.phase === 'exchange' && G.activeTurn === room.playerId && !room.submitted && !me.folded) {
-                idleCtrl.classList.add('hidden');
-                exCtrl.classList.remove('hidden');
-                exCtrl.classList.add('flex');
-
-                const btnEx = document.getElementById('btn-exchange-card');
-                btnEx.disabled = (G.selectedExchangeIdx === null);
-                if (G.selectedExchangeIdx !== null) {
-                    const chosenCard = me.hole[G.selectedExchangeIdx];
-                    btnEx.textContent = `${formatCardText(chosenCard)} 카드 교환하기`;
-                } else {
-                    btnEx.textContent = '선택 카드 교환';
-                }
-                return;
-            }
 
             // 2. 내 베팅 턴
             if (G.phase === 'decisions' && G.activeTurn === room.playerId && !room.submitted && !me.folded && !me.allIn) {
@@ -1171,7 +1122,6 @@
             G.pot = 0;
             G.currentBet = 0;
             G.bettingStage = 0;
-            G.selectedExchangeIdx = null;
 
             addLog(`=== 라운드 ${G.round} / ${MATCH_LENGTH} 시작 ===`, 'phase');
 
@@ -1212,11 +1162,7 @@
             G.board = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
             addLog(`플롭 공용 카드 3장 공개: ${G.board.map(formatCardText).join(' ')}`, 'phase');
 
-            // 3. 'exchange' 단계 진입 (카드 1장 교환 또는 유지)
-            G.phase = 'exchange';
-            G.pokerQueue = G.players.filter(p => !p.folded).map(p => p.id);
-            setBanner('공용 카드 3장이 열렸습니다! 각 플레이어는 개인 카드 1장을 교환하거나 유지합니다.');
-            processNextTurn();
+            startBettingRound(0);
         }
 
         function processNextTurn() {
@@ -1226,27 +1172,6 @@
             const remaining = G.players.filter(p => !p.folded);
             if (remaining.length <= 1) {
                 finishPoker();
-                return;
-            }
-
-            if (G.phase === 'exchange') {
-                if (G.pokerQueue.length === 0) {
-                    // 모든 플레이어 교환 완료 -> 1차 베팅(플롭)으로 전환
-                    startBettingRound(0);
-                    return;
-                }
-                const nextId = G.pokerQueue.shift();
-                const player = G.players[nextId];
-                if (player.folded) {
-                    processNextTurn();
-                    return;
-                }
-                G.activeTurn = nextId;
-                renderAll();
-
-                if (!player.isHuman) {
-                    G.aiTimer = setTimeout(() => runAiExchange(player), 750);
-                }
                 return;
             }
 
@@ -1272,75 +1197,6 @@
 
         /**
          * ============================================================================
-         * 카드 교환(Exchange) 로직 (플레이어 & AI)
-         * ============================================================================
-         */
-        function executeExchange(player, cardIndex) {
-            if (cardIndex === null || cardIndex === undefined || G.deck.length === 0) {
-                player.statusText = '카드 유지';
-                addLog(`${player.name}: 카드를 교환하지 않고 유지했습니다.`, 'action');
-            } else {
-                const oldCard = player.hole[cardIndex];
-                const newCard = G.deck.pop();
-                player.hole[cardIndex] = newCard;
-                player.statusText = '1장 교환';
-                if (room.mode === 'solo' && player.isHuman) {
-                    addLog(`${player.name}: [${formatCardText(oldCard)}] 카드를 버리고 [${formatCardText(newCard)}] 카드로 교환했습니다!`, 'action');
-                } else {
-                    addLog(`${player.name}: 개인 카드 1장을 새로 교환했습니다.`, 'action');
-                }
-            }
-            G.selectedExchangeIdx = null;
-            G.activeTurn = -1;
-            renderAll();
-            processNextTurn();
-        }
-
-        function runAiExchange(bot) {
-            // 현재 5장(홀카드 2 + 플롭 3) 기준 족보 평가
-            const currentEval = evaluateBestHand([...bot.hole, ...G.board]);
-
-            // 원 페어 이상이면 기본적으로 유지 (단, 보드 페어만 있는 경우엔 약한 카드 교체 고려)
-            if (currentEval.category >= 2) {
-                executeExchange(bot, null);
-                return;
-            }
-
-            // 각각 0번 또는 1번 카드를 제외했을 때 남은 4장의 가치를 비교해 약한 쪽 교체
-            const boardRanks = G.board.map(c => c.rank);
-            const c0 = bot.hole[0];
-            const c1 = bot.hole[1];
-
-            // 보드와 페어를 이루는 카드는 보호
-            const c0Paired = boardRanks.includes(c0.rank) || c0.rank === c1.rank;
-            const c1Paired = boardRanks.includes(c1.rank) || c0.rank === c1.rank;
-
-            if (c0Paired && c1Paired) {
-                executeExchange(bot, null);
-                return;
-            }
-            if (c0Paired && !c1Paired) {
-                // c1이 10 이하로 낮으면 교체
-                executeExchange(bot, c1.rank <= 11 ? 1 : null);
-                return;
-            }
-            if (c1Paired && !c0Paired) {
-                executeExchange(bot, c0.rank <= 11 ? 0 : null);
-                return;
-            }
-
-            // 둘 다 페어가 없는 경우: 두 카드 모두 J(11) 이상이면 유지, 아니면 더 낮은 카드 1장 교체
-            if (c0.rank >= 11 && c1.rank >= 11) {
-                executeExchange(bot, null);
-            } else {
-                const weakIdx = c0.rank < c1.rank ? 0 : 1;
-                executeExchange(bot, weakIdx);
-            }
-        }
-
-        /**
-         * ============================================================================
-         * 베팅 라운드(Decisions) 진행 로직
          * ============================================================================
          */
         function startBettingRound(stage) {
@@ -1657,15 +1513,13 @@
             byId('room-cancel').addEventListener('click', () => leaveRoom());
             byId('room-leave-game').addEventListener('click', () => leaveRoom());
             byId('room-solo').addEventListener('click', () => {
+                const game = byId('host-game').value;
+                if (game && game !== 'holdem') return openCardTable(game, 'solo');
                 room.mode = 'solo';
                 G.players = practicePlayers;
                 changeScreen(true);
                 startNewMatch();
             });
-            byId('btn-exchange-card').addEventListener('click', () => {
-                if (G.selectedExchangeIdx !== null) requestMove('exchange', G.selectedExchangeIdx);
-            });
-            byId('btn-keep-cards').addEventListener('click', () => requestMove('exchange', null));
             byId('btn-fold').addEventListener('click', () => requestMove('fold'));
             byId('btn-check-call').addEventListener('click', () => requestMove('check-call'));
 
