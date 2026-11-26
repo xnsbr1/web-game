@@ -1,6 +1,11 @@
 <!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#102f29"><title>클럽룸 · 카드 테이블</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% 15%,#254b3c,transparent 50%),#102f29;color:#faf4dd;font:16px system-ui,sans-serif;min-height:100svh}main{max-width:780px;margin:auto;padding:24px 18px 60px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff30;padding-bottom:16px}header b{letter-spacing:.15em}small,.muted{color:#c4d2bf}h1{font:clamp(42px,8vw,78px) Georgia,serif;margin:22px 0 6px}h2{font-size:26px;margin:14px 0}h3{margin:14px 0 6px}p{line-height:1.55}button,input{font:inherit;border-radius:12px;border:1px solid #859b83;background:#234b3e;color:#fff8df;padding:12px;min-height:48px}button{cursor:pointer;font-weight:700}button:focus-visible,input:focus-visible{outline:3px solid #ffd16d}button:disabled{opacity:.52;cursor:default}.primary,.chosen{background:#eace84;color:#202e24;border-color:#eace84}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.row>*{min-width:0}input{width:145px;background:#142f28}.panel{background:#193d32;border:1px solid #738772;border-radius:18px;padding:18px;margin:15px 0}.table{background:radial-gradient(ellipse at center,#27674f,#194537);border:4px double #9e996b;border-radius:28px;padding:22px 16px;min-height:145px;margin:16px 0}.cards{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.card{position:relative;display:inline-flex;flex-direction:column;justify-content:space-between;align-items:flex-start;width:57px;height:82px;padding:5px 8px;background:#fff6df;border:1px solid #e7d5ad;border-radius:7px;color:#173930;font:bold 23px Georgia;box-shadow:0 3px 0 #092b23}.card i{align-self:flex-end;font:28px Georgia}.red{color:#ae3437}.sleeve{background:repeating-linear-gradient(45deg,#3b5956 0 4px,#87a392 4px 6px);border:4px solid #e7dbba}.hero{display:flex;align-items:center;justify-content:space-between}.mark{font:80px Georgia;color:#ecd296;transform:rotate(12deg)}#status{color:#ffdc8a;min-height:1.4em}details{margin:12px 0}summary{cursor:pointer}.seat{border-radius:9px;background:#102f29;padding:7px 10px}.active{outline:2px solid #eace84}button.card:disabled{opacity:.62}#view{overflow-wrap:anywhere}
+
+.game-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.game-nav a,.game-nav span{padding:12px 6px;border-radius:12px;text-align:center;font-weight:700;text-decoration:none;background:#234b3e;color:#fff8df;border:1px solid #859b83}
+.game-nav [aria-current]{background:#eace84;color:#202e24;border-color:#eace84}
+.game-nav a:focus-visible{outline:3px solid #ffd16d}
 </style><main><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="view"></div><p id="status" role="status"></p></main>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
 'use strict';
@@ -13,7 +18,9 @@ function poker(cs){let best=0;for(let i=0;i<7;i++)for(let j=i+1;j<7;j++)best=Mat
 function total(h){let s=h.reduce((n,c)=>n+(rank(c)===14?1:Math.min(10,rank(c))),0);return s<=11&&h.some(c=>rank(c)===14)?s+10:s}
 const matchLength = 5;
 let match = null, turnToken = 0;
-let peer,link,connections=new Map(),seats=[],me='host',host=false,solo=false,room='',mode=0,G,V,timer,epoch=0;
+const requestedGame = new URLSearchParams(window.location.search).get('game');
+const initialMode = requestedGame === 'one-card' ? 1 : requestedGame === 'blackjack' ? 2 : 0;
+let peer,link,connections=new Map(),seats=[],me='host',host=false,solo=false,room='',mode=initialMode,G,V,timer,epoch=0;
 const $=id=>document.getElementById(id),say=t=>$('status').textContent=t,esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function start(){if(!host||G&&!G.end||seats.length<2)return;G={deck:shuffle(Array.from({length:52},(_,i)=>i)),hands:seats.map(()=>[]),turn:0,board:[],dealer:[],pile:[],end:'',log:'',stalls:0};for(let h of G.hands)for(let i=0;i<(mode===1?7:2);i++)h.push(G.deck.pop());if(mode===0)initPoker();if(mode===1)G.pile=[G.deck.pop()];if(mode===2){G.dealer=G.deck.splice(-2);nextBJ()}sync()}
 function initPoker() {
@@ -104,7 +111,20 @@ function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,se
 function sync(){clearTimeout(timer);V=project(me);render();for(let [id,c] of connections)if(c.open)c.send(project(id));if(G&&!G.end&&seats[G.turn]?.bot)timer=setTimeout(()=>{let h=G.hands[G.turn],a=mode===0?{action:pokerBotMove(),token:G.poker.token}:mode===2?(total(h)<17?'hit':'stand'):h.findIndex(c=>legal(c,G.pile.at(-1)));act(seats[G.turn].id,a===-1?'draw':a)},650)}
 function cmd(a){if(V.mode===0)a={action:a,token:V.game.poker.token};if(host)act(me,a);else if(link?.open)link.send({action:a})}
 function leave(){epoch++;clearTimeout(timer);let p=peer;peer=link=null;connections=new Map();seats=[];host=solo=false;room='';me='host';G=V=match=null;p?.destroy();home();say('')}
-function home(){let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2><div class="row">'+titles.map((t,i)=>'<button class="'+(mode===i?'chosen':'')+'" onclick="mode='+i+';home()">'+t+'</button>').join('')+'</div><p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div><div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
+function gamePicker() {
+  if (!initialMode) {
+    return '<div class="row">' + titles.map((title, i) =>
+      '<button class="' + (mode === i ? 'chosen' : '') + '" onclick="mode=' + i +
+      ';home()">' + title + '</button>').join('') + '</div>';
+  }
+  const links = [
+    ['../real-game/', '홀덤'], ['?game=one-card', '원카드'], ['?game=blackjack', '블랙잭']
+  ];
+  return '<nav aria-label="게임 선택" class="game-nav">' + links.map(([url, title], i) =>
+    i === initialMode ? '<span aria-current="page">' + title + '</span>' :
+      '<a href="' + url + '">' + title + '</a>').join('') + '</nav>';
+}
+function home(){let old=$('name')?.value||'';$('view').innerHTML='<div class="hero"><div><h1>Clubroom</h1><p>친구들과 모이는 카드 테이블</p></div><span class="mark">♣</span></div><div class="panel"><h2>게임 선택</h2>'+gamePicker()+'<p>'+rules[mode]+'</p><div class="row"><input id="name" maxlength="12" placeholder="닉네임" aria-label="닉네임"><button class="primary" onclick="create(false)">멀티 방 만들기</button><button onclick="create(true)">혼자 연습</button></div></div><div class="panel"><h3>친구 방 참가</h3><div class="row"><input id="code" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리"><button onclick="join()">참가하기</button></div></div>';$('name').value=old}
 const nick=()=>$('name').value.trim().slice(0,12)||'플레이어';
 function waiting(){ $('view').innerHTML='<h2>테이블 연결 중…</h2><button onclick="leave()">돌아가기</button>';say('')}
 function netFail(t){leave();say(t)}
