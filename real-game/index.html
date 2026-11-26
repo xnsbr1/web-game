@@ -290,8 +290,9 @@
 
             <!-- 하단 컨트롤 패널 (액션 버튼 영역) -->
             <div id="controls-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl">
+                <p id="turn-caption" aria-live="polite" class="mb-1 font-bold text-amber-300"></p>
                 <!-- 2. 베팅 컨트롤 (decisions 단계에서 내 턴일 때 표시) -->
-                <div id="betting-controls" hidden class="flex-col gap-3">
+                <div id="betting-controls" aria-describedby="turn-caption" hidden class="flex-col gap-3">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <div class="flex items-center gap-2">
                             <button id="btn-fold" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm transition shadow active:scale-95">
@@ -552,6 +553,7 @@
                 link.on('data', packet => {
                     if (room.peer !== peer || !packet || typeof packet !== 'object') return;
                     if (room.guests.get(link.peer) === guest) {
+                        if (packet.type === 'refresh' && guest.id !== null) link.send(tableSnapshot(guest.id));
                         if (packet.type === 'move' && guest.id !== null && (packet.revision !== room.revision ||
                             !applyPlayerMove(guest.id, packet.action, packet.value))) {
                             link.send(tableSnapshot(guest.id));
@@ -642,6 +644,12 @@
                 }
             });
         }
+
+        function refreshGuestTable() {
+            if (room.mode === 'guest' && room.connection?.open) room.connection.send({type:'refresh'});
+        }
+        window.addEventListener('pageshow', refreshGuestTable);
+        window.addEventListener('focus', refreshGuestTable);
 
         function receiveTable(packet) {
             if (packet.revision < room.revision) return;
@@ -1005,8 +1013,13 @@
 
             const me = G.players[room.playerId];
 
-            // 2. 내 베팅 턴
-            if (G.phase === 'decisions' && G.activeTurn === room.playerId && !room.submitted && !me.folded && !me.allIn) {
+            const playing = G.phase === 'decisions' && G.activeTurn >= 0;
+            const canAct = playing && G.activeTurn === room.playerId && !room.submitted && !me.folded && !me.allIn;
+            const inFriendRoom = room.mode === 'guest' || room.mode === 'host';
+            byId('turn-caption').textContent = playing ? (canAct ? '내 차례' :
+                room.submitted ? '선택을 전송하는 중…' : G.players[G.activeTurn].name + ' 님 차례') : '';
+            for (const input of betCtrl.querySelectorAll('button, input')) input.disabled = !canAct;
+            if (playing && (canAct || inFriendRoom)) {
                 idleCtrl.classList.add('hidden');
                 betCtrl.hidden = false;
 
