@@ -1,0 +1,181 @@
+const startingChips = 1000;
+const anteAmount = 20;
+const minBetStep = 50;
+
+// rules[0] 교체
+const holdemRule =
+  '개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 모두 1,000칩으로 시작하며 매 판 참가비 20칩을 냅니다. 공용 카드 3장이 열리면 카드를 1장 교환하거나 유지한 뒤, 체크·베팅·콜·레이즈·폴드로 베팅을 진행합니다. 5판 종료 후 보유 칩이 가장 많은 사람이 1위입니다.';
+
+function initPoker() {
+  if (!match || match.round === matchLength) {
+    match = {
+      round: 0,
+      chips: seats.map(() => startingChips),
+      wins: seats.map(() => 0)
+    };
+  }
+  match.round++;
+  G.board = G.deck.splice(-3);
+
+  // 매 판 시작 시 기본 참가비(앤티) 징수
+  let pot = 0;
+  const bets = seats.map((_, i) => {
+    const ante = Math.min(match.chips[i], anteAmount);
+    match.chips[i] -= ante;
+    pot += ante;
+    return 0;
+  });
+
+  G.poker = {
+    phase: 'exchange',
+    folded: seats.map(() => false),
+    allIn: seats.map((_, i) => match.chips[i] === 0),
+    bets,
+    currentBet: 0,
+    pot,
+    lastRaiser: -1,
+    reveal: false,
+    pending: [],
+    token: ++turnToken
+  };
+  pokerQueue(livePokerPlayers(), (match.round - 1) % seats.length);
+}
+
+function startBettingRound(players, startIdx) {
+  const table = G.poker;
+  table.bets = seats.map(() => 0);
+  table.currentBet = 0;
+  table.lastRaiser = -1;
+  // 올인하지 않고 폴드하지 않은 플레이어만 베팅 액션 수행
+  const active = players.filter(i => !table.allIn[i]);
+  if (active.length <= 1) {
+    table.pending = [];
+  } else {
+    pokerQueue(active, startIdx);
+  }
+}
+
+function commitChips(i, amount) {
+  const table = G.poker;
+  const actual = Math.min(match.chips[i], amount);
+  match.chips[i] -= actual;
+  table.bets[i] += actual;
+  table.pot += actual;
+  if (match.chips[i] === 0) table.allIn[i] = true;
+  return actual;
+}
+
+function finishPoker(players) {
+  const table = G.poker;
+  let winners = players;
+  let handLabel = ' (상대 전원 폴드)';
+  if (players.length > 1) {
+    table.reveal = true;
+    const scores = players.map(i => poker([...G.hands[i], ...G.board]));
+    const best = Math.max(...scores);
+    winners = players.filter((_, idx) => scores[idx] === best);
+    handLabel =
+      ' · ' +
+      ['하이 카드', '원 페어', '투 페어', '트리플', '스트레이트', '플러시', '풀 하우스', '포 카드', '스트레이트 플러시'][
+        Math.floor(best / 15 ** 5)
+      ];
+  }
+
+  // 팟 분배 (나머지 칩은 앞선 승자에게 배분)
+  const share = Math.floor(table.pot / winners.length);
+  let remainder = table.pot % winners.length;
+  for (const i of winners) {
+    match.wins[i]++;
+    match.chips[i] += share + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder--;
+  }
+
+  G.end =
+    winners.map(i => seats[i].name).join(' · ') +
+    (winners.length > 1 ? ' 공동 승리' : ' 승리') +
+    handLabel +
+    ` (+${table.pot}칩)`;
+}
+
+function playPoker(i, move) {
+  const table = G.poker;
+  if (!move || move.token !== table.token) return false;
+  const action = move.action;
+
+  if (table.phase === 'exchange') {
+    if (!['keep', 0, 1].includes(action)) return false;
+    if (action !== 'keep') {
+      G.hands[i][action] = G.deck.pop();
+      G.log = `${seats[i].name}님이 카드를 1장 교환했습니다.`;
+    } else {
+      G.log = `${seats[i].name}님이 패를 유지했습니다.`;
+    }
+    table.pending.shift();
+  } else {
+    const toCall = Math.max(0, table.currentBet - table.bets[i]);
+
+    if (action === 'fold') {
+      table.folded[i] = true;
+      table.pending.shift();
+      G.log = `${seats[i].name}님이 폴드했습니다.`;
+    } else if (action === 'check') {
+      if (toCall > 0) return false;
+      table.pending.shift();
+      G.log = `${seats[i].name}님이 체크했습니다.`;
+    } else if (action === 'call') {
+      if (toCall === 0) return false;
+      const paid = commitChips(i, toCall);
+      table.pending.shift();
+      G.log = `${seats[i].name}님이 ${paid}칩 콜했습니다.`;
+    } else if (action && typeof action === 'object' && (action.type === 'bet' || action.type === 'raise')) {
+      const targetBet = Number(action.amount);
+      const minTarget = table.currentBet === 0 ? minBetStep : table.currentBet + minBetStep;
+      const maxTarget = table.bets[i] + match.chips[i];
+      if (!Number.isInteger(targetBet) || targetBet < Math.min(minTarget, maxTarget) || targetBet > maxTarget) {
+        return false;
+      }
+      const needed = targetBet - table.bets[i];
+      commitChips(i, needed);
+      const isRaise = table.currentBet > 0;
+      table.currentBet = Math.max(table.currentBet, table.bets[i]);
+      table.lastRaiser = i;
+
+      // 레이즈 발생 시 아직 폴드/올인하지 않은 다른 생존 플레이어들에게 다시 응답 차례 부여
+      const others = livePokerPlayers().filter(p => p !== i && !table.allIn[p]);
+      const startFromNext = (i + 1) % seats.length;
+      pokerQueue(others, startFromNext);
+
+      G.log = `${seats[i].name}님이 ${table.bets[i]}칩으로 ${isRaise ? '레이즈' : '베팅'}했습니다.`;
+    } else {
+      return false;
+    }
+  }
+
+  const players = livePokerPlayers();
+  if (players.length === 1) {
+    finishPoker(players);
+    return true;
+  }
+
+  // 다음 대기 플레이어 차례로 이동
+  if (table.pending.length) {
+    G.turn = table.pending[0];
+    table.token = ++turnToken;
+    return true;
+  }
+
+  // 현재 페이즈가 모두 끝났을 때 다음 단계로 진행
+  const nextDealerStart = (match.round - 1) % seats.length;
+  if (table.phase === 'exchange') {
+    table.phase = 'decisions';
+    startBettingRound(players, nextDealerStart);
+  } else if (G.board.length < 5) {
+    // 턴(4번째) 또는 리버(5번째) 공용 카드 오픈 후 새 베팅 라운드 시작
+    G.board.push(G.deck.pop());
+    startBettingRound(players, nextDealerStart);
+  } else {
+    finishPoker(players);
+    return true;
+  }
+
+  // 전원 올인 등으로 베팅할 수 있는
