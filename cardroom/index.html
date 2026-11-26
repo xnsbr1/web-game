@@ -17,6 +17,13 @@ fieldset legend{padding:0 6px}
 .table-opponents{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:5px}.table-seat{min-width:0;padding:6px;border:1px solid transparent;border-radius:10px}.table-seat-active{border-color:#eace84;background:#122f27aa}.seat-name{font-weight:800;overflow-wrap:anywhere}
 .card-table .cards{justify-content:center;gap:4px;margin:5px 0}.table-opponents .card{width:clamp(27px,7.5vw,49px);height:clamp(39px,10vw,66px);font-size:clamp(14px,4vw,20px);padding:3px 4px}.table-opponents .card i{font-size:clamp(14px,4vw,22px)}.card-table .sleeve{align-items:center;justify-content:center;color:#f3d88f;border-width:2px;background:repeating-linear-gradient(45deg,#203a58 0 4px,#344e71 4px 6px)}
 .table-center{padding:9px 2px;border-block:1px solid #eace8466}.table-center .card{width:clamp(39px,11vw,57px);height:clamp(56px,15vw,82px)}.hand-rank{color:#ffe39b;font-size:14px}.card-table .panel{margin:5px auto;padding:5px;max-width:185px}
+ .seat-balance{display:inline-flex;gap:5px;align-items:center;justify-content:center;flex-wrap:wrap}
+.chip-color-0{--chip:#9d3b48}.chip-color-1{--chip:#325ea1}.chip-color-2{--chip:#613988}.chip-color-3{--chip:#99712b}
+.seat-chip,.chip-stack,.chip-flight{background:var(--chip,#9d3b48);border:2px dashed #fff2c7;border-radius:50%;box-shadow:0 2px 0 #111b18;color:#fff;display:inline-grid;place-items:center;font-weight:800}
+.seat-chip{height:16px;width:16px;flex:none}.seat-wager{margin:4px 0;font-size:13px;color:#eace84}
+.table-wagers{display:grid;place-items:center;gap:4px;margin:7px auto 0;padding:7px 12px;background:#102e24b0;border:1px solid #eace8470;border-radius:18px;width:fit-content;min-width:114px;color:#fff2c7;font-size:13px} .wager-stacks{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px}
+.chip-stack{min-width:33px;height:29px;padding:0 3px;font-size:11px;box-shadow:0 3px 0 #152820,0 5px 0 var(--chip,#9d3b48)}
+.chip-flight{position:fixed;z-index:9;transform:translate(-50%,-50%);pointer-events:none;min-width:38px;height:34px;padding:0 5px;font-size:11px}
 </style><main><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="turn-bar" class="turn-bar" role="status" aria-atomic="true" hidden></div><p id="update-note" role="status"></p><div id="view"></div><p id="status" role="status"></p></main>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
 'use strict';
@@ -46,17 +53,18 @@ let blackjackBank = null, selectedBet = betStep;
 let peer,link,connections=new Map(),seats=[],me='host',host=false,solo=false,room='',mode=initialMode,G,V,timer,epoch=0;
 const $=id=>document.getElementById(id),say=t=>$('status').textContent=t,esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function start(){if(!host||G&&!G.end||seats.length<2||seats.some(seat=>seat.offline))return;
+const roundId = ++turnToken;
 if (mode === 2) {
   blackjackBank ??= seats.map(() => startingChips);
   G = {
-    phase:'betting', token:++turnToken, bets:seats.map((seat, i) =>
+    phase:'betting', roundId, token:roundId, bets:seats.map((seat, i) =>
       blackjackBank[i] < betStep ? 0 : seat.bot ? betStep : null),
     hands:seats.map(() => []), board:[], dealer:[], pile:[], turn:-1, end:'', log:''
   };
   sync();
   return;
 }
-G={deck:shuffle(Array.from({length:mode===1?54:52},(_,i)=>i)),hands:seats.map(()=>[]),turn:0,board:[],dealer:[],pile:[],end:'',log:'',stalls:0};if (mode === 0) initPoker();
+G={roundId,deck:shuffle(Array.from({length:mode===1?54:52},(_,i)=>i)),hands:seats.map(()=>[]),turn:0,board:[],dealer:[],pile:[],end:'',log:'',stalls:0};if (mode === 0) initPoker();
 else {
   for (const hand of G.hands) for (let i = 0; i < 7; i++) hand.push(G.deck.pop());
   beginOneCard();
@@ -418,7 +426,9 @@ function act(id, move) {
   }
   sync();
 }
-function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats:seats.map(({id,name,bot,offline})=>({id,name,bot,offline})),solo,match,bank:blackjackBank,game:G&&{phase:G.phase,token:G.token,bets:G.bets,blackjack:G.blackjack?.[i],handIndex:G.handIndex,blackjackResults:G.end&&G.blackjack?.map(player=>player.hands),one:G.one,poker:G.poker,hand:G.hands[i],counts:G.blackjack?G.blackjack.map(player=>player.hands.reduce((count,hand)=>count+hand.cards.length,0)):G.hands.map(h=>h.length),revealed:G.end&&mode===0?G.hands:null,turn:G.turn,board:G.board,top:G.pile.at(-1),dealer:G.end?G.dealer:G.dealer.slice(0,1),end:G.end,log:G.log}}}
+function project(id){let i=seats.findIndex(s=>s.id===id);return {id,room,mode,seats:seats.map(({id,name,bot,offline})=>({id,name,bot,offline})),solo,match,bank:blackjackBank,game:G&&{roundId:G.roundId,wagers:mode===0?G.poker.paid:mode===2?
+  G.blackjack?.map(player=>player.hands.reduce((sum,hand)=>sum+hand.bet,player.insurance||0))??
+  G.bets.map(bet=>bet||0):null,phase:G.phase,token:G.token,bets:G.bets,blackjack:G.blackjack?.[i],handIndex:G.handIndex,blackjackResults:G.end&&G.blackjack?.map(player=>player.hands),one:G.one,poker:G.poker,hand:G.hands[i],counts:G.blackjack?G.blackjack.map(player=>player.hands.reduce((count,hand)=>count+hand.cards.length,0)):G.hands.map(h=>h.length),revealed:G.end&&mode===0?G.hands:null,turn:G.turn,board:G.board,top:G.pile.at(-1),dealer:G.end?G.dealer:G.dealer.slice(0,1),end:G.end,log:G.log}}}
 function sync() {
   clearTimeout(timer);
   saveHostRoom();
@@ -476,6 +486,8 @@ function resetRoom() {
   me = 'host';
   G = V = match = blackjackBank = null;
   alerted = false;
+  lastWagers = null;
+  document.querySelectorAll('.chip-flight').forEach(chip=>chip.remove());
   client?.destroy();
 }
 const savedRoomKey = 'clubroom-host-snapshot-v1';
@@ -855,9 +867,62 @@ function pokerRankText(hand, board) {
 function cardBacks(count) {
   return Array.from({length:count}, () => '<span class="card sleeve" aria-label="뒷면 카드">♠</span>').join('');
 }
+let lastWagers = null;
+function visibleWagers(game) {
+  return game.wagers ?? game.poker?.paid ?? game.bets?.map(bet => bet || 0) ?? [];
+}
+function animateWagers(view) {
+  const {game, mode, room, seats} = view;
+  const previous = lastWagers;
+  if (!game || mode === 1 || seats.some(seat => seat.offline)) {
+    lastWagers = null;
+    return;
+  }
+  const amounts = [...visibleWagers(game)];
+  const round = game.roundId ?? (mode === 0 ? view.match.round : 'restored');
+  lastWagers = {room,mode,round,amounts,ended:Boolean(game.end)};
+  if (!previous || previous.room !== room || previous.mode !== mode || previous.round !== round ||
+      previous.ended || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+  const target = document.getElementById('table-wagers');
+  if (!target?.getBoundingClientRect) return;
+  amounts.forEach((amount,i) => {
+    const increase = amount - (previous.amounts[i] ?? 0);
+    const source = document.getElementById('seat-chips-' + i);
+    if (increase > 0 && source?.getBoundingClientRect) slideChips(source,target,increase,i);
+  });
+}
+function slideChips(source, target, amount, seat) {
+  const from = source.getBoundingClientRect(), to = target.getBoundingClientRect();
+  const dx = to.left + to.width / 2 - from.left - from.width / 2;
+  const dy = to.top + to.height / 2 - from.top - from.height / 2;
+  const chip = document.createElement('span');
+  if (!chip.animate || !from.width || !to.width) return;
+  chip.className = 'chip-flight chip-color-' + seat;
+  chip.textContent = '+' + amount;
+  chip.setAttribute('aria-hidden','true');
+  chip.style.left = from.left + from.width / 2 + 'px';
+  chip.style.top = from.top + from.height / 2 + 'px';
+  document.body.append(chip);
+  const animation = chip.animate([
+    {transform:'translate(-50%,-50%) scale(.85)',opacity:1},
+    {transform:'translate(-50%,-50%) translate(' + dx + 'px,' + dy + 'px) scale(.72)',opacity:1,offset:.83},
+    {transform:'translate(-50%,-50%) translate(' + dx + 'px,' + dy + 'px) scale(.65)',opacity:0}
+  ],{duration:570,easing:'cubic-bezier(.2,.7,.25,1)'});
+  animation.onfinish = animation.oncancel = () => chip.remove();
+}
+function wagerDisplay(game, mode) {
+  const amounts = visibleWagers(game);
+  const total = amounts.reduce((sum,amount) => sum + amount,0);
+  const label = mode === 0 && !game.end ? '팟' : '베팅 합계';
+  const stacks = amounts.map((amount,i) => amount > 0 ?
+    '<span class="chip-stack chip-color-' + i + '" aria-label="' + amount + '칩">' + amount + '</span>' : '').join('');
+  return '<div class="table-wagers" id="table-wagers"><div class="wager-stacks">' + stacks +
+    '</div><strong>' + label + ' · ' + total + '칩</strong></div>';
+}
 function renderTable(view, my) {
   const {mode, seats, game} = view;
-  const holdem = mode === 0;
+  const holdem = mode === 0, takingBets = game.phase === 'betting';
   const order = seats.map((_,i) => i).filter(i => i !== my);
   function seatMarkup(i, own = false) {
     const active = !game.end && game.turn === i;
@@ -865,7 +930,10 @@ function renderTable(view, my) {
     const folded = holdem && game.poker.folded[i];
     const hand = own ? game.hand : game.revealed?.[i];
     let content;
-    if (holdem && hand?.length) {
+    if (takingBets) {
+      content = '<p class="seat-wager">' + (game.bets[i] === null ? '베팅 대기' :
+        game.bets[i] > 0 ? game.bets[i] + '칩 확정' : '관전') + '</p>';
+    } else if (holdem && hand?.length) {
       content = cards(hand) + '<strong class="hand-rank">족보 · ' + pokerRankText(hand, game.board) + '</strong>';
     } else if (!holdem && (own || game.end)) {
       const hands = own ? game.blackjack.hands : game.blackjackResults[i];
@@ -875,15 +943,16 @@ function renderTable(view, my) {
     } else content = '<small>관전</small>';
     return '<div class="table-seat' + (active ? ' table-seat-active' : '') + '">' +
       '<div class="seat-name">' + esc(seats[i].name) + (own ? ' (나)' : '') + '</div>' +
-      '<small>' + balance + '칩' + (folded ? ' · 폴드' : '') +
+      '<small class="seat-balance"><span id="seat-chips-' + i +
+      '" class="seat-chip chip-color-' + i + '" aria-hidden="true"></span>' + balance + '칩' + (folded ? ' · 폴드' : '') +
       (seats[i].offline ? ' · 재접속 대기' : '') + '</small>' + content + '</div>';
   }
   const centerCards = holdem ? game.board : game.dealer;
   const center = '<div class="table-center"><strong>' + (holdem ? '공용 카드' : '딜러') + '</strong>' +
     '<div class="cards">' + centerCards.map(cardId => card(cardId)).join('') +
-    (!holdem && !game.end ? cardBacks(1) : '') + '</div>' +
-    (!holdem ? '<small>' + (game.end ? '' : '공개 카드 ') + scoreText(centerCards) + '</small>' : '') +
-    '</div>';
+    (!holdem && !game.end && !takingBets ? cardBacks(1) : '') + '</div>' +
+    (!holdem && !takingBets ? '<small>' + (game.end ? '' : '공개 카드 ') + scoreText(centerCards) + '</small>' : '') +
+    wagerDisplay(game,mode) + '</div>';
   return '<div class="table card-table"><div class="table-opponents">' +
     order.map(i => seatMarkup(i)).join('') + '</div>' + center + seatMarkup(my,true) + '</div>';
 }
@@ -912,7 +981,7 @@ function render() {
   let html = '<div class="hero"><h2>' + titles[m] + '</h2><button onclick="leave()">' +
     (host && !V.solo ? '방 저장하고 나가기' : '나가기') + '</button></div>' +
     '<p>' + (V.solo ? '연습 테이블' : '방 코드 <b>' + esc(V.room) + '</b>') + '</p>' + roomTools();
-  if (!g || m === 1 || g.phase === 'betting') html += '<div class="row">' + ss.map((seat, i) => {
+  if (!g || m === 1) html += '<div class="row">' + ss.map((seat, i) => {
     const balance = m === 2 ? V.bank?.[i] : m === 0 ? V.match?.chips[i] : undefined;
     return '<span class="seat ' + (g && !g.end && g.turn === i ? 'active' : '') + '">' +
       esc(seat.name) + (i === my ? ' (나)' : '') + (seat.offline ? ' · 재접속 대기' : '') +
@@ -927,10 +996,10 @@ function render() {
       (host ? '<button class="primary" onclick="start()" ' + (ss.length < 2 || offline ? 'disabled' : '') +
       '>게임 시작</button>' : '방장이 시작하면 카드가 배분돼요.') + '</div>' + switchControls();
   } else if (m === 2 && g.phase === 'betting') {
+    html += renderTable(V,my);
     if (!offline) html += renderBlackjackBets(V, my);
   } else {
-    if (m === 0) html += '<p><b>' + V.match.round + ' / ' + matchLength + '판</b> · 팟 ' +
-      (g.end ? 0 : g.poker.paid.reduce((sum, value) => sum + value, 0)) + '칩</p>';
+    if (m === 0) html += '<p><b>' + V.match.round + ' / ' + matchLength + '판</b></p>';
     if (m === 1) {
       html += '<div class="table"><small>더미 맨 위</small>' + cards([g.top]) +
         '<p>' + (g.one.suit == null ? '자유 무늬' : suits[g.one.suit] + ' 무늬') +
@@ -971,6 +1040,7 @@ function render() {
     }
   }
   $('view').innerHTML = html + '<details><summary>게임 규칙</summary><p>' + rules[m] + '</p></details>';
+  animateWagers(V);
 }
 function pageSignature(page) {
   return [...page.querySelectorAll('title, meta, link, style, script, main header')]
