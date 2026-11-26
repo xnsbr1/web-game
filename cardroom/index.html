@@ -25,12 +25,15 @@ fieldset legend{padding:0 6px}
 .chip-stack{min-width:33px;height:29px;padding:0 3px;font-size:11px;box-shadow:0 3px 0 #152820,0 5px 0 var(--chip,#9d3b48)}
 .chip-flight{position:fixed;z-index:9;transform:translate(-50%,-50%);pointer-events:none;min-width:38px;height:34px;padding:0 5px;font-size:11px}
 .balance-chips{display:inline-flex;align-items:end;gap:2px;min-width:12px;min-height:10px}.balance-pile{display:flex;flex-direction:column}.balance-pile span{height:5px;width:12px;border:1px dashed #fff2c7;border-radius:50%;background:var(--chip,#9d3b48);box-shadow:0 1px #152820}.balance-pile span+span{margin-top:-2px}
+.table-opponents{grid-auto-flow:row;grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(min-width:620px){.table-opponents{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.chip-color-4{--chip:#30766d}.chip-color-5{--chip:#7b4a30}.chip-color-6{--chip:#5d646d}.chip-color-7{--chip:#812d61}
 </style><main><header><b>♣ CLUBROOM</b><small>카드 테이블</small></header><div id="turn-bar" class="turn-bar" role="status" aria-atomic="true" hidden></div><p id="update-note" role="status"></p><div id="view"></div><p id="status" role="status"></p></main>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script><script>
 'use strict';
 const titles=['홀덤 포커','원카드','블랙잭'];
 const matchLength = 10;
-const rules=['개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 1,000칩으로 시작해 버튼이 매 판 이동하며 스몰 블라인드 25칩과 빅 블라인드 50칩을 냅니다. 프리플롭·플롭·턴·리버에서 체크, 베팅, 콜, 레이즈, 폴드, 올인을 할 수 있어요. 최대 ' + matchLength + '판을 진행하고 보유 칩으로 순위를 정합니다.','각자 7장으로 시작해 먼저 손패를 비우면 승리합니다. 공격은 2(+2장), A(+3장), ♠A(+5장), 흑백 조커(+7장), 컬러 조커(+10장) 순서입니다. 공격 중에는 무늬와 관계없이 같은 서열 이상으로 받아치거나 누적된 장수를 뽑습니다. 흑백 조커로 컬러 조커도 받아칠 수 있습니다. 3은 마지막 공격 카드가 2일 때만 누적 공격을 취소합니다. 7은 무늬 선택, J는 다음 차례 건너뛰기, Q는 방향 전환, K는 내 차례 한 번 더입니다.','21을 넘기지 않고 딜러보다 높은 합계를 만드세요. A는 1 또는 11, 그림 카드는 10입니다. 딜러는 17부터 멈추며 처음 두 장의 21이 일반 21보다 우선합니다. 연습 칩으로 카드 배분 전에 50~500칩을 겁니다. 일반 승리는 1:1, 블랙잭은 3:2, 무승부는 원금 반환입니다. 처음 두 장에서 더블다운으로 같은 금액을 더 걸고 한 장만 받거나, 같은 랭크 두 장을 한 번 나눌 수 있습니다. 에이스를 나누면 각각 한 장만 받습니다. 딜러의 공개 카드가 A면 원래 베팅의 절반을 보험으로 걸 수 있고, 딜러가 블랙잭이면 보험 수익은 2:1입니다. 딜러는 소프트 17에서도 멈춥니다.'];
+const rules=['개인 카드 2장과 공용 카드 5장 중 가장 강한 5장 족보가 승리합니다. 1,000칩으로 시작해 버튼이 매 판 이동하며 스몰 블라인드 25칩과 빅 블라인드 50칩을 냅니다. 프리플롭·플롭·턴·리버에서 체크, 베팅, 콜, 레이즈, 폴드, 올인을 할 수 있어요. 최대 ' + matchLength + '판을 진행하고 보유 칩으로 순위를 정합니다.','각자 7장으로 시작해 먼저 손패를 비우면 승리합니다. 공격은 2(+2장), A(+3장), ♠A(+5장), 흑백 조커(+7장), 컬러 조커(+10장) 순서입니다. 공격 중에는 무늬와 관계없이 같은 서열 이상으로 받아치거나 누적된 장수를 뽑습니다. 흑백 조커로 컬러 조커도 받아칠 수 있습니다. 3은 마지막 공격 카드가 2일 때만 누적 공격을 취소합니다. 7은 무늬 선택, J는 다음 차례 건너뛰기, Q는 방향 전환, K는 내 차례 한 번 더입니다.','21을 넘기지 않고 딜러보다 높은 합계를 만드세요. A는 1 또는 11, 그림 카드는 10입니다. 딜러는 17부터 멈추며 처음 두 장의 21이 일반 21보다 우선합니다. 연습 칩으로 카드 배분 전에 50~500칩을 10칩 단위로 겁니다. 일반 승리는 1:1, 블랙잭은 3:2, 무승부는 원금 반환입니다. 처음 두 장에서 더블다운으로 같은 금액을 더 걸고 한 장만 받거나, 같은 랭크 두 장을 한 번 나눌 수 있습니다. 에이스를 나누면 각각 한 장만 받습니다. 딜러의 공개 카드가 A면 원래 베팅의 절반을 보험으로 걸 수 있고, 딜러가 블랙잭이면 보험 수익은 2:1입니다. 딜러는 소프트 17에서도 멈춥니다.'];
 const suits='♠♥♦♣', rank=c=>c%13+2,suit=c=>Math.floor(c/13),face=c=>String(rank(c)).replace('14','A').replace('13','K').replace('12','Q').replace('11','J');
 function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function score5(cards){let r=cards.map(rank).sort((a,b)=>b-a),counts=new Map();for(let x of r)counts.set(x,(counts.get(x)||0)+1);let g=[...counts].sort((a,b)=>b[1]-a[1]||b[0]-a[0]);let straight=g.length===5?(r[0]-r[4]===4?r[0]:r.join()==='14,5,4,3,2'?5:0):0,flush=cards.every(c=>suit(c)===suit(cards[0]));let cat=flush&&straight?8:g[0][1]===4?7:g[0][1]===3&&g[1][1]===2?6:flush?5:straight?4:g[0][1]===3?3:g[1][1]===2?2:g[0][1]===2?1:0;let vals=straight?[straight]:g.map(v=>v[0]);while(vals.length<5)vals.push(0);return vals.reduce((n,v)=>n*15+v,cat)}
@@ -48,7 +51,8 @@ function total(h){let s=h.reduce((n,c)=>n+(rank(c)===14?1:Math.min(10,rank(c))),
 let match = null, turnToken = 0;
 const requestedGame = new URLSearchParams(window.location.search).get('game');
 const initialMode = requestedGame === 'one-card' ? 1 : requestedGame === 'blackjack' ? 2 : 0;
-const betStep = 50, startingChips = 1000;
+const betStep = 50, wagerIncrement = 10, startingChips = 1000;
+const playerLimits = [8,6,6];
 let selectedPokerBet, pokerBetToken;
 let blackjackBank = null, selectedBet = betStep;
 let peer,link,connections=new Map(),seats=[],me='host',host=false,solo=false,room='',mode=initialMode,G,V,timer,epoch=0;
@@ -145,7 +149,7 @@ function pokerCanRaise(table, player, chips) {
     chips.some((balance,i) => i !== player && !table.folded[i] && balance > 0);
 }
 function pokerRaiseMinimum(table) {
-  return table.current + (table.raiseSize ?? betStep);
+  return Math.ceil((table.current + (table.raiseSize ?? betStep)) / wagerIncrement) * wagerIncrement;
 }
 function settlePots(paid, scores, folded, order = paid.map((_, i) => i)) {
   const winnings = paid.map(() => 0);
@@ -199,7 +203,7 @@ function playPoker(i, move) {
     payment = balance;
     label = '올인 ' + payment + '칩';
   } else if (Number.isSafeInteger(action) && action <= bet + balance &&
-      action >= pokerRaiseMinimum(table) && pokerCanRaise(table,i,match.chips)) {
+      action % wagerIncrement === 0 && action >= pokerRaiseMinimum(table) && pokerCanRaise(table,i,match.chips)) {
     payment = action - bet;
     label = (table.current ? '레이즈 ' : '베팅 ') + action + '칩';
   } else return false;
@@ -237,13 +241,13 @@ const blackjackMaxBet = 500;
 function blackjackBet(player, amount) {
   if (G.bets[player] !== null || !Number.isSafeInteger(amount) ||
       amount < betStep || amount > blackjackMaxBet || amount > blackjackBank[player] ||
-      amount % betStep !== 0) return false;
+      amount % wagerIncrement !== 0) return false;
   G.bets[player] = amount;
   if (G.bets.every(bet => bet !== null)) dealBlackjack();
   return true;
 }
 function dealBlackjack() {
-  G.deck = shuffle(Array.from({length:52}, (_, i) => i));
+  G.deck = shuffle(Array.from({length:52 * 6}, (_, i) => i));
   G.blackjack = G.bets.map((bet, player) => {
     blackjackBank[player] -= bet;
     return {insurance:bet && !seats[player].bot && blackjackBank[player] >= bet / 2 ? null : 0,
@@ -643,7 +647,11 @@ const invitesUrl = () => new URL('?room=' + room, location.href).href;
 
 function changeGame(nextMode) {
   if (!host || seats.some(seat => seat.offline) || G && !G.end || nextMode === mode || ![0,1,2].includes(nextMode)) return;
+  if (seats.length > playerLimits[nextMode]) {
+    return say(titles[nextMode] + '은 최대 ' + playerLimits[nextMode] + '명이 함께할 수 있어요.');
+  }
   mode = nextMode;
+  say('');
   G = match = blackjackBank = null;
   sync();
 }
@@ -691,7 +699,7 @@ function acceptGuest(connection, generation) {
         !/^[a-f0-9-]{36}$/i.test(message.ticket)) return;
     seat = seats.find(entry => entry.ticket === message.ticket);
     if (!seat) {
-      if (G || seats.length >= 4) {
+      if (G || seats.length >= playerLimits[mode]) {
         connection.send({error:'게임 중이거나 자리가 가득 찼어요.'});
         return;
       }
@@ -781,11 +789,12 @@ function join() {
 }
 function card(c,action,disabled){let tag=action===undefined?'span':'button';return '<'+tag+' class="card '+(c===colorJoker||[1,2].includes(suit(c))?'red':'')+'" '+(tag==='button'?'onclick="cmd('+action+')" '+(disabled?'disabled':''):'')+'>'+(c>=blackJoker?'<span class="card-rank card-joker">'+(c===blackJoker?'흑조':'컬조')+'</span>':'<span class="card-rank">'+face(c)+'</span>')+'<i>'+(c>=blackJoker?'★':suits[suit(c)])+'</i></'+tag+'>'}
 const cards=h=>'<div class="cards">'+h.map(c=>card(c)).join('')+'</div>';
+const blackjackFaces = hand => hand.map(cardId => cardId % 52);
 function pokerControls(table, player) {
   const balance = V.match.chips[player], already = table.bets[player];
   const call = Math.max(0, table.current - already);
   const min = pokerRaiseMinimum(table);
-  const max = balance + already;
+  const max = Math.floor((balance + already) / wagerIncrement) * wagerIncrement;
   const canRaise = pokerCanRaise(table,player,V.match.chips);
   const action = table.current ? '레이즈' : '베팅';
   if (pokerBetToken !== table.token) {
@@ -798,11 +807,11 @@ function pokerControls(table, player) {
     '</button></div><div class="row poker-actions">';
   if (canRaise && max >= min) html += '<div class="row bet-adjust"><button aria-label="10칩 줄이기" onclick="updatePokerBet(selectedPokerBet-10)">−</button>' +
     '<input id="poker-bet" type="range" aria-label="베팅 금액" min="' + min + '" max="' + max +
-    '" step="1" value="' + selectedPokerBet + '" oninput="updatePokerBet(Number(this.value))">' +
+    '" step="' + wagerIncrement + '" value="' + selectedPokerBet + '" oninput="updatePokerBet(Number(this.value))">' +
     '<button aria-label="10칩 늘리기" onclick="updatePokerBet(selectedPokerBet+10)">+</button>' +
     '<output id="poker-bet-amount" for="poker-bet">' + selectedPokerBet + '칩</output>' +
     '<button class="primary" id="poker-submit" onclick="cmd(selectedPokerBet)">' + action + '</button></div>';
-  return html + (balance > 0 && (canRaise || max <= table.current) ? '<button class="all-in-button" onclick="cmd(\'all-in\')">올인</button>' : '') + '</div>';
+  return html + (balance > 0 && (canRaise || balance + already <= table.current) ? '<button class="all-in-button" onclick="cmd(\'all-in\')">올인</button>' : '') + '</div>';
 }
 function updatePokerBet(amount) {
   const slider = $('poker-bet');
@@ -830,12 +839,12 @@ function renderBlackjackBets(view, player) {
   const pending = game.bets[player] === null;
   let html = '<div class="panel"><h3>카드 배분 전 베팅</h3><p>내 연습 칩 ' + balance + '개</p>';
   if (pending) {
-    const max = Math.min(blackjackMaxBet, Math.floor(balance / betStep) * betStep);
+    const max = Math.min(blackjackMaxBet, Math.floor(balance / wagerIncrement) * wagerIncrement);
     selectedBet = Math.min(Math.max(max, betStep), selectedBet);
-    if (max) html += '<div class="row"><button onclick="updateBlackjackBet(selectedBet-50)">−50</button>' +
+    if (max) html += '<div class="row"><button onclick="updateBlackjackBet(selectedBet-10)">−10</button>' +
       '<input id="blackjack-bet" type="range" aria-label="베팅 금액" min="50" max="' + max +
-      '" step="50" value="' + selectedBet + '" oninput="updateBlackjackBet(Number(this.value))">' +
-      '<button onclick="updateBlackjackBet(selectedBet+50)">+50</button>' +
+      '" step="' + wagerIncrement + '" value="' + selectedBet + '" oninput="updateBlackjackBet(Number(this.value))">' +
+      '<button onclick="updateBlackjackBet(selectedBet+10)">+10</button>' +
       '<button class="primary" id="blackjack-submit" onclick="cmd(selectedBet)">베팅 (' +
       selectedBet + '칩)</button></div>';
 
@@ -879,7 +888,8 @@ function roomTools() {
 function switchControls() {
   if (!host) return '<p>방장이 다음 게임을 정할 수 있어요.</p>';
   return '<div class="row"><b>같은 방에서 게임 바꾸기</b>' + titles.map((title, i) =>
-    '<button onclick="changeGame(' + i + ')" ' + (V.mode === i ? 'disabled' : '') + '>' + title + '</button>').join('') + '</div>';
+    '<button onclick="changeGame(' + i + ')" ' + (V.mode === i ? 'disabled' : '') + '>' +
+    title + ' · 최대 ' + playerLimits[i] + '명</button>').join('') + '</div>';
 }
 function attackHistory(g) {
   const canBlock = g.one.penalty && attackValue(g.top) === 2;
@@ -893,7 +903,7 @@ function renderBlackjackHands(hands, activeIndex = -1) {
     '<div class="panel"><b>' + (hands.length > 1 ? '패 ' + (index + 1) + ' · ' : '') +
     scoreText(hand.cards) + ' · ' + hand.bet + '칩' +
     (activeIndex === index ? ' · 진행 중' : '') +
-    '</b>' + cards(hand.cards) + '</div>').join('');
+    '</b>' + cards(blackjackFaces(hand.cards)) + '</div>').join('');
 }
 function blackjackControls(g, balance) {
   const hand = g.blackjack.hands[g.handIndex];
@@ -1002,7 +1012,7 @@ function renderTable(view, my) {
       (holdem && game.poker.big === i ? ' · BB' : '') + (folded ? ' · 폴드' : '') +
       (seats[i].offline ? ' · 재접속 대기' : '') + '</small>' + content + '</div>';
   }
-  const centerCards = holdem ? game.board : game.dealer;
+  const centerCards = holdem ? game.board : blackjackFaces(game.dealer);
   const center = '<div class="table-center"><strong>' + (holdem ? (holdemStreets[game.poker.street] || '공용 카드') : '딜러') + '</strong>' +
     '<div class="cards">' + centerCards.map(cardId => card(cardId)).join('') +
     (!holdem && !game.end && !takingBets ? cardBacks(1) : '') + '</div>' +
@@ -1035,7 +1045,7 @@ function render() {
   renderTurnBanner(g, ss, my, offline, turn);
   let html = '<div class="hero"><h2>' + titles[m] + '</h2><button onclick="leave()">' +
     (host && !V.solo ? '방 저장하고 나가기' : '나가기') + '</button></div>' +
-    '<p>' + (V.solo ? '연습 테이블' : '방 코드 <b>' + esc(V.room) + '</b>') + '</p>' + roomTools();
+    '<p>' + (V.solo ? '연습 테이블' : '방 코드 <b>' + esc(V.room) + '</b> · ' + ss.length + '/' + playerLimits[m] + '명') + '</p>' + roomTools();
   if (!g || m === 1) html += '<div class="row">' + ss.map((seat, i) => {
     const balance = m === 2 ? V.bank?.[i] : m === 0 ? V.match?.chips[i] : undefined;
     return '<span class="seat ' + (g && !g.end && g.turn === i ? 'active' : '') + '">' +
@@ -1047,7 +1057,7 @@ function render() {
   if (offline) html += '<p role="status">친구의 재접속을 기다리는 중이에요. 자리는 60초간 유지돼요.</p>';
 
   if (!g) {
-    html += '<div class="panel"><h3>대기실</h3><p>친구는 방 코드나 참가 링크로 들어올 수 있어요. 2~4명이 모이면 시작하세요.</p>' +
+    html += '<div class="panel"><h3>대기실</h3><p>친구는 방 코드나 참가 링크로 들어올 수 있어요. 2~' + playerLimits[m] + '명이 모이면 시작하세요.</p>' +
       (host ? '<button class="primary" onclick="start()" ' + (ss.length < 2 || offline ? 'disabled' : '') +
       '>게임 시작</button>' : '방장이 시작하면 카드가 배분돼요.') + '</div>' + switchControls();
   } else if (m === 2 && g.phase === 'betting') {
